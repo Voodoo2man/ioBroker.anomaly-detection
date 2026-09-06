@@ -1,0 +1,92 @@
+{
+	"common": {
+		"name": "anomaly-detection",
+		"version": "0.0.1",
+		"news": {
+			"0.0.1": {
+				"en": "initial release",
+				"de": "Erstveröffentlichung",
+				"ru": "Начальная версия",
+				"pt": "lançamento inicial",
+				"nl": "Eerste uitgave",
+				"fr": "Première version",
+				"it": "Versione iniziale",
+				"es": "Versión inicial",
+				"pl": "Pierwsze wydanie",
+				"uk": "Початкова версія",
+				"zh-cn": "首次出版"
+			}
+		},
+		"titleLang": {
+			"en": "Anomaly Detection",
+			"de": "Anomalieerkennung",
+			"ru": "Обнаружение аномалий",
+			"pt": "Detecção de anomalias",
+			"nl": "Anomaliedetectie",
+			"fr": "Détection des anomalies",
+			"it": "Rilevamento anomalie",
+			"es": "Detección de anomalías",
+			"pl": "Wykrywanie anomalii",
+			"uk": "Виявлення аномалії",
+			"zh-cn": "异常检测"
+		},
+		"desc": {
+			"en": "Learns normal behavior of numerical ioBroker states and detects statistical anomalies.",
+			"de": "Erlernt das normale Verhalten numerischer ioBroker-Zustände und erkennt statistische Anomalien.",
+			"ru": "Изучает нормальное поведение числовых состояний ioBroker и обнаруживает статистические аномалии.",
+			"pt": "Aprende o comportamento normal dos estados numéricos do ioBroker e detecta anomalias estatísticas.",
+			"nl": "Leert normaal gedrag van numerieke ioBroker-statussen en detecteert statistische afwijkingen.",
+			"fr": "Apprend le comportement normal des états numériques d’ioBroker et détecte les anomalies statistiques.",
+			"it": "Apprende il comportamento normale degli stati numerici di ioBroker e rileva anomalie statistiche.",
+			"es": "Aprende el comportamiento normal de los estados numéricos de ioBroker y detecta anomalías estadísticas.",
+			"pl": "Uczy się normalnego zachowania numerycznych stanów ioBrokera i wykrywa anomalie statystyczne.",
+			"uk": "Вивчає нормальну поведінку числових станів ioBroker і виявляє статистичні аномалії.",
+			"zh-cn": "了解数字 ioBroker 状态的正常行为并检测统计异常。"
+		},
+		"authors": ["Voodoo2man <Voodoo2man@outlook.de>"],
+		"keywords": [
+			"anomaly detection",
+			"anomaly",
+			"monitoring",
+			"statistics",
+			"time series",
+			"sensor",
+			"predictive maintenance"
+		],
+		"licenseInformation": {
+			"type": "free",
+			"license": "MIT"
+		},
+		"platform": "Javascript/Node.js",
+		"icon": "anomaly-detection.png",
+		"enabled": true,
+		"extIcon": "https://raw.githubusercontent.com/Voodoo2man/ioBroker.anomaly-detection/main/admin/anomaly-detection.png",
+		"readme": "https://github.com/Voodoo2man/ioBroker.anomaly-detection/blob/main/README.md",
+		"loglevel": "info",
+		"tier": 3,
+		"mode": "daemon",
+		"type": "logic",
+		"compact": true,
+		"connectionType": "local",
+		"dataSource": "push",
+		"adminUI": {
+			"config": "json"
+		},
+		"dependencies": [
+			{
+				"js-controller": ">=6.0.11"
+			}
+		],
+		"globalDependencies": [
+			{
+				"admin": ">=7.0.23"
+			}
+		]
+	},
+	"native": {
+		"option1": true,
+		"option2": "42"
+	},
+	"objects": [],
+	"instanceObjects": []
+}
