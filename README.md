@@ -310,7 +310,7 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 
 ## Changelog
 
-### **WORK IN PROGRESS**
+### 0.1.0 (2026-09-06)
 
 - (Voodoo2man) add local statistical anomaly detection MVP
 - (Voodoo2man) add optional bounded historical initial training

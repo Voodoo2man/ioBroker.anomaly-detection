@@ -1,7 +1,7 @@
 {
 	"common": {
 		"name": "anomaly-detection",
-		"version": "0.0.1",
+		"version": "0.1.0",
 		"news": {
 			"0.0.1": {
 				"en": "initial release",
@@ -43,9 +43,7 @@
 			"uk": "Вивчає нормальну поведінку числових станів ioBroker і виявляє статистичні аномалії.",
 			"zh-cn": "了解数字 ioBroker 状态的正常行为并检测统计异常。"
 		},
-		"authors": [
-			"Voodoo2man <Voodoo2man@outlook.de>"
-		],
+		"authors": ["Voodoo2man <Voodoo2man@outlook.de>"],
 		"keywords": [
 			"anomaly detection",
 			"anomaly",
@@ -85,7 +83,7 @@
 		],
 		"globalDependencies": [
 			{
-				"admin": ">=7.0.23"
+				"admin": ">=7.6.20"
 			}
 		]
 	},

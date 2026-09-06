@@ -22,5 +22,11 @@
 	"Enable stuck-state detector": "Enable stuck-state detector",
 	"Stuck duration (minutes)": "Stuck duration (minutes)",
 	"Use time-of-day context": "Use time-of-day context",
-	"Use weekday context": "Use weekday context"
+	"Use weekday context": "Use weekday context",
+	"Enable context-aware detection": "Enable context-aware detection",
+	"Context states (maximum 3)": "Context states (maximum 3)",
+	"Context state ID": "Context state ID",
+	"Numeric bucket width": "Numeric bucket width",
+	"Enable persistent level-shift detection": "Enable persistent level-shift detection",
+	"Enable trend detection": "Enable trend detection"
 }
