@@ -43,7 +43,9 @@
 			"uk": "Вивчає нормальну поведінку числових станів ioBroker і виявляє статистичні аномалії.",
 			"zh-cn": "了解数字 ioBroker 状态的正常行为并检测统计异常。"
 		},
-		"authors": ["Voodoo2man <Voodoo2man@outlook.de>"],
+		"authors": [
+			"Voodoo2man <Voodoo2man@outlook.de>"
+		],
 		"keywords": [
 			"anomaly detection",
 			"anomaly",
@@ -58,9 +60,9 @@
 			"license": "MIT"
 		},
 		"platform": "Javascript/Node.js",
-		"icon": "anomaly-detection.png",
+		"icon": "anomaly-detection-icon.png",
 		"enabled": true,
-		"extIcon": "https://raw.githubusercontent.com/Voodoo2man/ioBroker.anomaly-detection/main/admin/anomaly-detection.png",
+		"extIcon": "https://raw.githubusercontent.com/Voodoo2man/ioBroker.anomaly-detection/main/admin/anomaly-detection-icon.png",
 		"readme": "https://github.com/Voodoo2man/ioBroker.anomaly-detection/blob/main/README.md",
 		"loglevel": "info",
 		"tier": 3,
@@ -71,6 +73,10 @@
 		"dataSource": "push",
 		"adminUI": {
 			"config": "json"
+		},
+		"messagebox": true,
+		"supportedMessages": {
+			"custom": true
 		},
 		"dependencies": [
 			{
@@ -84,8 +90,7 @@
 		]
 	},
 	"native": {
-		"option1": true,
-		"option2": "42"
+		"sources": []
 	},
 	"objects": [],
 	"instanceObjects": []

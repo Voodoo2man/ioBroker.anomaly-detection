@@ -2,25 +2,219 @@
 	"i18n": true,
 	"type": "panel",
 	"items": {
-		"option1": {
-			"type": "checkbox",
-			"label": "option1",
+		"sources": {
+			"type": "table",
+			"label": "Monitored numerical states",
 			"newLine": true,
 			"xs": 12,
 			"sm": 12,
-			"md": 6,
-			"lg": 4,
-			"xl": 4
-		},
-		"option2": {
-			"type": "text",
-			"label": "option2",
-			"newLine": true,
-			"xs": 12,
-			"sm": 12,
-			"md": 6,
-			"lg": 4,
-			"xl": 4
+			"md": 12,
+			"lg": 12,
+			"xl": 12,
+			"uniqueColumns": ["id"],
+			"useCardFor": ["xs", "sm", "md", "lg", "xl"],
+			"titleAttribute": "id",
+			"items": [
+				{ "attr": "enabled", "type": "checkbox", "label": "Enabled", "default": true, "xs": 12 },
+				{
+					"attr": "id",
+					"type": "objectId",
+					"label": "Source state ID",
+					"types": "state",
+					"xs": 12
+				},
+				{ "attr": "name", "type": "text", "label": "Name", "default": "", "xs": 12 },
+				{
+					"attr": "initialTraining",
+					"type": "select",
+					"label": "Initial training",
+					"default": "live",
+					"xs": 6,
+					"options": [
+						{ "label": "Learn from live values only", "value": "live" },
+						{ "label": "Import existing history", "value": "history" }
+					]
+				},
+				{
+					"attr": "historyInstance",
+					"type": "selectSendTo",
+					"label": "History source (enabled compatible providers only)",
+					"default": "",
+					"xs": 6,
+					"command": "getHistoryProviders",
+					"jsonData": "{\"sourceId\": \"${data.id}\"}",
+					"alsoDependsOn": ["id"],
+					"manual": false,
+					"noTranslation": true,
+					"hidden": "data.initialTraining !== 'history'"
+				},
+				{
+					"attr": "trainingDays",
+					"type": "number",
+					"label": "History training period (days)",
+					"min": 7,
+					"max": 365,
+					"step": 1,
+					"default": 30,
+					"xs": 6,
+					"hidden": "data.initialTraining !== 'history'"
+				},
+				{
+					"attr": "maxHistorySamples",
+					"type": "number",
+					"label": "Maximum imported samples",
+					"min": 30,
+					"max": 10000,
+					"step": 10,
+					"default": 1000,
+					"xs": 6,
+					"hidden": "data.initialTraining !== 'history'"
+				},
+				{
+					"attr": "autoStartMonitoringAfterImport",
+					"type": "checkbox",
+					"label": "Start monitoring after history import",
+					"default": true,
+					"xs": 12,
+					"hidden": "data.initialTraining !== 'history'"
+				},
+				{
+					"attr": "minimumSamples",
+					"type": "number",
+					"label": "Minimum learned samples",
+					"min": 5,
+					"max": 240,
+					"step": 1,
+					"default": 30,
+					"xs": 6
+				},
+				{
+					"attr": "bucketMinutes",
+					"type": "number",
+					"label": "Time bucket size (minutes)",
+					"min": 5,
+					"max": 720,
+					"step": 5,
+					"default": 60,
+					"xs": 6
+				},
+				{
+					"attr": "sensitivity",
+					"type": "number",
+					"label": "Sensitivity (robust z-score)",
+					"min": 0.1,
+					"max": 20,
+					"step": 0.1,
+					"default": 3.5,
+					"xs": 6
+				},
+				{
+					"attr": "anomalyThreshold",
+					"type": "number",
+					"label": "Anomaly threshold",
+					"min": 1,
+					"max": 100,
+					"step": 1,
+					"default": 70,
+					"xs": 6
+				},
+				{
+					"attr": "minimumAnomalyDurationMinutes",
+					"type": "number",
+					"label": "Minimum anomaly duration (minutes)",
+					"min": 0,
+					"max": 10080,
+					"step": 1,
+					"default": 5,
+					"xs": 6
+				},
+				{
+					"attr": "enableMad",
+					"type": "checkbox",
+					"label": "Enable value deviation detector",
+					"default": true,
+					"xs": 6
+				},
+				{
+					"attr": "enableRate",
+					"type": "checkbox",
+					"label": "Enable rate-of-change detector",
+					"default": true,
+					"xs": 6
+				},
+				{
+					"attr": "enableStuck",
+					"type": "checkbox",
+					"label": "Enable stuck-state detector",
+					"default": false,
+					"xs": 6
+				},
+				{
+					"attr": "stuckDurationMinutes",
+					"type": "number",
+					"label": "Stuck duration (minutes)",
+					"min": 1,
+					"max": 10080,
+					"step": 1,
+					"default": 120,
+					"xs": 6
+				},
+				{
+					"attr": "timeContext",
+					"type": "checkbox",
+					"label": "Use time-of-day context",
+					"default": true,
+					"xs": 6
+				},
+				{
+					"attr": "weekdayContext",
+					"type": "checkbox",
+					"label": "Use weekday context",
+					"default": false,
+					"xs": 6
+				},
+				{
+					"attr": "enableContext",
+					"type": "checkbox",
+					"label": "Enable context-aware detection",
+					"default": false,
+					"xs": 6
+				},
+				{
+					"attr": "contextStates",
+					"type": "table",
+					"label": "Context states (maximum 3)",
+					"hidden": "data.enableContext !== true",
+					"xs": 12,
+					"items": [
+						{ "attr": "id", "type": "objectId", "label": "Context state ID", "types": "state", "xs": 8 },
+						{
+							"attr": "bucketWidth",
+							"type": "number",
+							"label": "Numeric bucket width",
+							"hidden": "await getObject(data.id)?.common?.type !== 'number'",
+							"min": 0.0001,
+							"max": 1000000,
+							"default": 5,
+							"xs": 4
+						}
+					]
+				},
+				{
+					"attr": "enableChangePoint",
+					"type": "checkbox",
+					"label": "Enable persistent level-shift detection",
+					"default": false,
+					"xs": 6
+				},
+				{
+					"attr": "enableTrend",
+					"type": "checkbox",
+					"label": "Enable trend detection",
+					"default": false,
+					"xs": 6
+				}
+			]
 		}
 	}
 }

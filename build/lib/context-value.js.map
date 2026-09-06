@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../src/lib/context-value.ts"],
+  "sourcesContent": ["/**\n * Creates a stable context-key fragment while preserving valid falsy boolean and numeric values.\n *\n * @param id Configured context state ID.\n * @param value Current context state value.\n * @param bucketWidth Optional width for numerical context buckets.\n */\nexport function createContextPart(\n\tid: string,\n\tvalue: ioBroker.StateValue | undefined,\n\tbucketWidth?: number,\n): string | undefined {\n\tif (typeof value === \"boolean\") {\n\t\treturn `${id}=boolean:${value}`;\n\t}\n\tif (typeof value === \"number\" && Number.isFinite(value)) {\n\t\tconst width = bucketWidth && bucketWidth > 0 ? bucketWidth : 5;\n\t\tconst start = Math.floor(value / width) * width;\n\t\treturn `${id}=number:${start}:${start + width}`;\n\t}\n\tif (typeof value === \"string\" && value.trim() && value.length <= 96) {\n\t\treturn `${id}=string:${value}`;\n\t}\n\treturn undefined;\n}\n"],
+  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAOO,SAAS,kBACf,IACA,OACA,aACqB;AACrB,MAAI,OAAO,UAAU,WAAW;AAC/B,WAAO,GAAG,EAAE,YAAY,KAAK;AAAA,EAC9B;AACA,MAAI,OAAO,UAAU,YAAY,OAAO,SAAS,KAAK,GAAG;AACxD,UAAM,QAAQ,eAAe,cAAc,IAAI,cAAc;AAC7D,UAAM,QAAQ,KAAK,MAAM,QAAQ,KAAK,IAAI;AAC1C,WAAO,GAAG,EAAE,WAAW,KAAK,IAAI,QAAQ,KAAK;AAAA,EAC9C;AACA,MAAI,OAAO,UAAU,YAAY,MAAM,KAAK,KAAK,MAAM,UAAU,IAAI;AACpE,WAAO,GAAG,EAAE,WAAW,KAAK;AAAA,EAC7B;AACA,SAAO;AACR;",
+  "names": []
+}
