@@ -33,12 +33,15 @@ class AnomalyDetection extends utils.Adapter {
 	private readonly monitors = new Map<string, SourceMonitor>();
 	private readonly sourceIds = new Map<string, string>();
 	private readonly sources = new Map<string, ConfiguredSource>();
+	private readonly sourceUnits = new Map<string, string>();
+	private readonly contextNames = new Map<string, string>();
 	private readonly invalidValueWarnings = new Set<string>();
 	private readonly invalidHistoryConfigurationWarnings = new Set<string>();
 	private readonly contextValues = new Map<string, Map<string, ioBroker.StateValue>>();
 	private readonly contextSources = new Map<string, Set<string>>();
 	private readonly contextCategories = new Map<string, Set<string>>();
 	private readonly contextWarnings = new Set<string>();
+	private readonly evaluations = new Map<string, ObservationResult>();
 	private readonly historySourceResolver = new HistorySourceResolver(this);
 	private persistTimer: ioBroker.Timeout | undefined;
 
@@ -90,6 +93,26 @@ class AnomalyDetection extends utils.Adapter {
 			const monitor = new SourceMonitor(source, stored[safeId]);
 			this.monitors.set(id, monitor);
 			this.sources.set(safeId, source);
+			if (object?.common.unit) {
+				this.sourceUnits.set(id, object.common.unit);
+			}
+			for (const context of source.contextStates ?? []) {
+				const contextId = context.id?.trim();
+				if (!contextId) {
+					continue;
+				}
+				const contextObject = await this.getForeignObjectAsync(contextId);
+				const name = contextObject?.common?.name;
+				if (typeof name === "string") {
+					this.contextNames.set(contextId, name);
+				} else if (name && typeof name === "object") {
+					const localized = name as Record<string, unknown>;
+					const value = localized.de ?? localized.en ?? Object.values(localized)[0];
+					if (typeof value === "string") {
+						this.contextNames.set(contextId, value);
+					}
+				}
+			}
 			await this.registerContexts(id, source);
 			await this.ensureSourceObjects(safeId, source, object?.common.unit);
 			this.subscribeForeignStates(id);
@@ -133,7 +156,83 @@ class AnomalyDetection extends utils.Adapter {
 		}
 		if (message.command === "getHistoryProviders") {
 			void this.replyWithHistoryProviders(message);
+		} else if (message.command === "tab") {
+			void this.replyWithAnomalyTab(message);
+		} else if (message.command === "chartData") {
+			void this.replyWithChartData(message);
 		}
+	}
+
+	private async replyWithChartData(message: ioBroker.Message): Promise<void> {
+		const sourceId = typeof message.message?.sourceId === "string" ? message.message.sourceId.trim() : "";
+		const start = Number(message.message?.start) || Date.now() - 24 * 60 * 60 * 1000;
+		const end = Number(message.message?.end) || Date.now();
+		const limit = Math.min(1000, Math.max(50, Number(message.message?.limit) || 500));
+		const safeId = this.sourceIds.get(sourceId);
+		const source = safeId ? this.sources.get(safeId) : undefined;
+		const monitor = this.monitors.get(sourceId);
+		if (!source || !monitor || !source.historyInstance?.trim()) {
+			this.sendTo(
+				message.from,
+				message.command,
+				{ data: { samples: [], diagnostics: [], available: false } },
+				message.callback,
+			);
+			return;
+		}
+		try {
+			const historySource = await this.resolveConfiguredHistorySource(sourceId, source.historyInstance.trim());
+			const provider = new IoBrokerHistoryProvider(this, source.historyInstance.trim());
+			const raw = await provider.getHistory(historySource.sourceId, start, end, limit);
+			const diagnostics = monitor.diagnosticSnapshots.filter(
+				diagnostic => diagnostic.timestamp >= start && diagnostic.timestamp <= end,
+			);
+			this.sendTo(
+				message.from,
+				message.command,
+				{
+					data: {
+						samples: sanitizeHistory(
+							raw,
+							limit,
+							diagnostics.map(diagnostic => diagnostic.timestamp),
+						),
+						diagnostics,
+						available: true,
+					},
+				},
+				message.callback,
+			);
+		} catch {
+			this.sendTo(
+				message.from,
+				message.command,
+				{ data: { samples: [], diagnostics: [], available: false } },
+				message.callback,
+			);
+		}
+	}
+
+	private replyWithAnomalyTab(message: ioBroker.Message): void {
+		const sources = [...this.sourceIds.entries()].map(([sourceId, safeId]) => ({
+			id: sourceId,
+			safeId,
+			name: this.sources.get(safeId)?.name || sourceId,
+			unit: this.sourceUnits.get(sourceId),
+			contextLabels: Object.fromEntries(
+				(this.sources.get(safeId)?.contextStates ?? []).map(context => [
+					context.id.trim(),
+					this.contextNames.get(context.id.trim()) || context.id.trim(),
+				]),
+			),
+			evaluation: this.evaluations.get(sourceId) ?? {
+				statusCode: this.monitors.get(sourceId)?.hasSufficientData ? "normal" : "learning",
+				severity: "normal",
+				sampleCount: this.monitors.get(sourceId)?.sampleCount ?? 0,
+				requiredSamples: this.sources.get(safeId)?.minimumSamples ?? 30,
+			},
+		}));
+		this.sendTo(message.from, message.command, { data: { sources } }, message.callback);
 	}
 
 	private async replyWithHistoryProviders(message: ioBroker.Message): Promise<void> {
@@ -179,6 +278,7 @@ class AnomalyDetection extends utils.Adapter {
 				return;
 			}
 			this.invalidValueWarnings.delete(id);
+			this.evaluations.set(id, result);
 			await this.writeResult(safeId, result);
 			this.schedulePersistence();
 		} catch (error) {
@@ -395,6 +495,94 @@ class AnomalyDetection extends utils.Adapter {
 			},
 			native: {},
 		});
+		await this.ensureExplainabilityObjects(base, numberState);
+	}
+
+	private async ensureExplainabilityObjects(
+		base: string,
+		numberState: (name: string, role: string, extra?: Partial<ioBroker.StateCommon>) => ioBroker.SettableObject,
+	): Promise<void> {
+		await this.setObjectNotExistsAsync(`${base}.anomaly`, {
+			type: "channel",
+			common: { name: "Current anomaly assessment" },
+			native: {},
+		});
+		await this.setObjectNotExistsAsync(`${base}.evaluation`, {
+			type: "channel",
+			common: { name: "Evaluation details" },
+			native: {},
+		});
+		await this.setObjectNotExistsAsync(`${base}.detectors`, {
+			type: "channel",
+			common: { name: "Detector scores" },
+			native: {},
+		});
+		const textState = (name: string, role = "text"): ioBroker.SettableObject => ({
+			type: "state",
+			common: { name, type: "string", role, read: true, write: false },
+			native: {},
+		});
+		const booleanState: ioBroker.SettableObject = {
+			type: "state",
+			common: {
+				name: "Anomaly active",
+				type: "boolean",
+				role: "indicator",
+				read: true,
+				write: false,
+				def: false,
+			},
+			native: {},
+		};
+		await this.setObjectNotExistsAsync(`${base}.anomaly.active`, booleanState);
+		await this.setObjectNotExistsAsync(
+			`${base}.anomaly.score`,
+			numberState("Overall anomaly score", "value", { min: 0, max: 100, unit: "%" }),
+		);
+		await this.setObjectNotExistsAsync(`${base}.anomaly.severity`, textState("Severity", "info.status"));
+		await this.setObjectNotExistsAsync(`${base}.anomaly.reasonCode`, textState("Reason code"));
+		await this.setObjectNotExistsAsync(`${base}.anomaly.reason`, textState("Human-readable reason"));
+		await this.setObjectNotExistsAsync(`${base}.anomaly.since`, textState("Anomaly since", "date"));
+		await this.setObjectNotExistsAsync(`${base}.anomaly.lastNormal`, textState("Last normal evaluation", "date"));
+		await this.setObjectNotExistsAsync(`${base}.evaluation.status`, textState("Evaluation status", "info.status"));
+		await this.setObjectNotExistsAsync(`${base}.evaluation.currentValue`, numberState("Current value", "value"));
+		await this.setObjectNotExistsAsync(
+			`${base}.evaluation.expectedLow`,
+			numberState("Expected range lower bound", "value"),
+		);
+		await this.setObjectNotExistsAsync(
+			`${base}.evaluation.expectedHigh`,
+			numberState("Expected range upper bound", "value"),
+		);
+		await this.setObjectNotExistsAsync(
+			`${base}.evaluation.decisionLow`,
+			numberState("Decision range lower bound", "value"),
+		);
+		await this.setObjectNotExistsAsync(
+			`${base}.evaluation.decisionHigh`,
+			numberState("Decision range upper bound", "value"),
+		);
+		await this.setObjectNotExistsAsync(`${base}.evaluation.baselineType`, textState("Baseline type"));
+		await this.setObjectNotExistsAsync(
+			`${base}.evaluation.baselineSamples`,
+			numberState("Baseline samples", "value"),
+		);
+		await this.setObjectNotExistsAsync(`${base}.evaluation.context`, textState("Used context"));
+		await this.setObjectNotExistsAsync(`${base}.evaluation.timeBucket`, textState("Time bucket"));
+		await this.setObjectNotExistsAsync(`${base}.evaluation.lastEvaluated`, textState("Last evaluation", "date"));
+		await this.setObjectNotExistsAsync(`${base}.detectors.active`, textState("Active detectors"));
+		for (const [id, label] of [
+			["valueDeviation", "Value deviation score"],
+			["rateOfChange", "Rate-of-change score"],
+			["stuck", "Stuck-state score"],
+			["levelShift", "Level-shift score"],
+			["trend", "Trend score"],
+		] as const) {
+			await this.setObjectNotExistsAsync(
+				`${base}.detectors.${id}`,
+				numberState(label, "value", { min: 0, max: 100 }),
+			);
+		}
 	}
 
 	private shouldBootstrap(source: ConfiguredSource, monitor: SourceMonitor): boolean {
@@ -563,9 +751,49 @@ class AnomalyDetection extends utils.Adapter {
 		if (result.lastAnomaly !== undefined) {
 			values.lastAnomaly = new Date(result.lastAnomaly).toISOString();
 		}
+		const explainability: Record<string, ioBroker.StateValue> = {
+			"anomaly.active": result.statusCode === "anomaly",
+			"anomaly.score": result.score,
+			"anomaly.severity": result.severity,
+			"anomaly.reasonCode": result.reasonCode,
+			"anomaly.reason": result.reason,
+			"anomaly.since": result.anomalySince ? new Date(result.anomalySince).toISOString() : null,
+			"anomaly.lastNormal": result.lastNormal ? new Date(result.lastNormal).toISOString() : null,
+			"evaluation.status": result.statusCode,
+			"evaluation.currentValue": result.actual,
+			"evaluation.expectedLow": result.expectedLow ?? null,
+			"evaluation.expectedHigh": result.expectedHigh ?? null,
+			"evaluation.decisionLow": result.decisionLow ?? null,
+			"evaluation.decisionHigh": result.decisionHigh ?? null,
+			"evaluation.baselineType": result.baselineScope,
+			"evaluation.baselineSamples": result.baselineSampleCount,
+			"evaluation.context": result.activeContext || null,
+			"evaluation.timeBucket": result.timeBucket ?? null,
+			"evaluation.lastEvaluated": new Date(result.lastEvaluated).toISOString(),
+			"detectors.active": result.detectors.map(detector => detector.name).join(", ") || null,
+			"detectors.valueDeviation": null,
+			"detectors.rateOfChange": null,
+			"detectors.stuck": null,
+			"detectors.levelShift": null,
+			"detectors.trend": null,
+		};
+		const detectorIds: Record<string, string> = {
+			value: "valueDeviation",
+			context: "valueDeviation",
+			rate: "rateOfChange",
+			stuck: "stuck",
+			changePoint: "levelShift",
+			trend: "trend",
+		};
+		for (const detector of result.detectors) {
+			explainability[`detectors.${detectorIds[detector.name]}`] = detector.score;
+		}
 		await Promise.all(
-			Object.entries(values).map(([key, value]) =>
-				this.setStateAsync(`${base}.${key}`, { val: value, ack: true }),
+			[...Object.entries(values), ...Object.entries(explainability)].map(([key, value]) =>
+				this.setStateAsync(`${key.includes(".") ? `sources.${safeId}` : base}.${key}`, {
+					val: value,
+					ack: true,
+				}),
 			),
 		);
 	}

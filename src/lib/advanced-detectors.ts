@@ -104,6 +104,7 @@ export class AdvancedDetectors {
 			name: "changePoint",
 			score: clamp((normalized / sensitivity) * 80, 70, 100),
 			reason: `Persistent ${direction} level shift detected`,
+			reasonCode: "persistent_level_shift",
 		};
 	}
 
@@ -141,6 +142,7 @@ export class AdvancedDetectors {
 			name: "trend",
 			score: clamp((normalized / sensitivity) * 60, 55, 95),
 			reason: `Sustained ${direction} trend outside normal behavior`,
+			reasonCode: "unusual_trend",
 		};
 	}
 

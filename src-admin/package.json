@@ -1,0 +1,24 @@
+{
+	"name": "iobroker-anomaly-detection-admin",
+	"private": true,
+	"type": "module",
+	"dependencies": {
+		"@iobroker/gui-components": "8.0.2",
+		"@iobroker/json-config": "8.0.2",
+		"@mui/icons-material": "^6.5.0",
+		"@mui/material": "^6.5.0",
+		"react": "18.3.1",
+		"react-dom": "18.3.1"
+	},
+	"devDependencies": {
+		"@module-federation/vite": "^1.2.5",
+		"@types/react": "^18.3.12",
+		"@types/react-dom": "^18.3.1",
+		"@vitejs/plugin-react": "^4.3.4",
+		"typescript": "~5.9.3",
+		"vite": "^6.1.0"
+	},
+	"scripts": {
+		"build": "vite build"
+	}
+}

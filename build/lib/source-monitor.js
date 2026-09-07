@@ -20,6 +20,7 @@ var source_monitor_exports = {};
 __export(source_monitor_exports, {
   DEFAULTS: () => DEFAULTS,
   SourceMonitor: () => SourceMonitor,
+  decisionRangeFor: () => decisionRangeFor,
   parseStoredModel: () => parseStoredModel
 });
 module.exports = __toCommonJS(source_monitor_exports);
@@ -41,9 +42,12 @@ const DEFAULTS = {
   maxContextModels: 32
 };
 class SourceMonitor {
+  /**
+   *
+   */
   constructor(settings, data) {
     this.settings = settings;
-    var _a, _b;
+    var _a, _b, _c;
     const bucketMinutes = (_a = settings.bucketMinutes) != null ? _a : DEFAULTS.bucketMinutes;
     this.valueModel = new import_temporal_model.TemporalModel(bucketMinutes, void 0, data == null ? void 0 : data.value);
     this.rateModel = new import_temporal_model.TemporalModel(bucketMinutes, void 0, data == null ? void 0 : data.rate);
@@ -54,8 +58,10 @@ class SourceMonitor {
     this.lastContextKey = data == null ? void 0 : data.lastContextKey;
     this.repeatedSince = data == null ? void 0 : data.repeatedSince;
     this.anomalySince = data == null ? void 0 : data.anomalySince;
+    this.lastNormal = data == null ? void 0 : data.lastNormal;
     this.detected = (_b = data == null ? void 0 : data.detected) != null ? _b : false;
     this.bootstrap = data == null ? void 0 : data.bootstrap;
+    this.diagnostics = ((_c = data == null ? void 0 : data.diagnostics) != null ? _c : []).slice(-500);
   }
   valueModel;
   rateModel;
@@ -66,10 +72,15 @@ class SourceMonitor {
   lastContextKey;
   repeatedSince;
   anomalySince;
+  lastNormal;
   detected;
   bootstrap;
+  diagnostics;
+  /**
+   *
+   */
   observe(value, timestamp, contextKey) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
     if (typeof value !== "number" || !Number.isFinite(value) || !Number.isFinite(timestamp)) {
       return void 0;
     }
@@ -87,6 +98,8 @@ class SourceMonitor {
     const baselineScope = contextBaseline ? "context" : contextIsLearning ? "insufficient" : baseline.scope === "global" ? "global" : "time";
     const baselineSampleCount = contextIsLearning ? 0 : baseline.series.count;
     const expected = contextIsLearning ? void 0 : baseline.series.median();
+    const expectedRange = expected === void 0 ? void 0 : expectedRangeFor(expected, baseline.series.mad(), sensitivity);
+    const decisionRange = expected === void 0 ? void 0 : decisionRangeFor(expected, baseline.series.mad(), sensitivity, threshold);
     const contextChanged = this.settings.enableContext === true && contextKey !== this.lastContextKey;
     const rate = contextChanged ? void 0 : this.calculateRate(value, timestamp);
     const results = [];
@@ -97,7 +110,8 @@ class SourceMonitor {
           contextBaseline ? {
             ...result,
             name: "context",
-            reason: "Value is significantly outside the normal range for the current context"
+            reason: "Value is significantly outside the normal range for the current context",
+            reasonCode: "context_deviation"
           } : { ...result, reason: valueDeviationReason(baselineScope) }
         );
       }
@@ -150,10 +164,14 @@ class SourceMonitor {
     }
     this.lastValue = value;
     this.lastTimestamp = timestamp;
+    if (!isStrongAnomaly) {
+      this.lastNormal = timestamp;
+    }
     this.lastContextKey = this.settings.enableContext === true ? contextKey : void 0;
     const sufficient = this.valueModel.sampleCount >= minSamples;
     const contextSampleCount = hasActiveContext ? this.contextualModel.sampleCount(contextKey) : 0;
-    return {
+    const statusCode = contextIsLearning ? "learning" : !sufficient ? "insufficient_data" : isStrongAnomaly ? "anomaly" : "normal";
+    const observation = {
       actual: value,
       expected,
       deviation: expected === void 0 ? void 0 : value - expected,
@@ -166,9 +184,46 @@ class SourceMonitor {
       baselineScope,
       activeContext: formatContextKey(contextKey),
       baselineSampleCount,
-      contextSampleCount
+      contextSampleCount,
+      requiredSamples: minSamples,
+      statusCode,
+      severity: statusCode === "anomaly" ? scoring.score >= 85 ? "high" : "noticeable" : "normal",
+      reasonCode: contextIsLearning ? "insufficient_training_data" : scoring.reasonCode,
+      detectors: scoring.detectors,
+      lastEvaluated: timestamp,
+      anomalySince: this.anomalySince,
+      lastNormal: this.lastNormal,
+      expectedLow: expectedRange == null ? void 0 : expectedRange.low,
+      expectedHigh: expectedRange == null ? void 0 : expectedRange.high,
+      decisionLow: decisionRange == null ? void 0 : decisionRange.low,
+      decisionHigh: decisionRange == null ? void 0 : decisionRange.high,
+      timeBucket: baseline.scope === "global" ? void 0 : String(
+        Math.floor(
+          (new Date(timestamp).getHours() * 60 + new Date(timestamp).getMinutes()) / ((_j = this.settings.bucketMinutes) != null ? _j : DEFAULTS.bucketMinutes)
+        )
+      )
     };
+    this.diagnostics.push({
+      timestamp,
+      actual: observation.actual,
+      expected: observation.expected,
+      decisionLow: observation.decisionLow,
+      decisionHigh: observation.decisionHigh,
+      score: observation.score,
+      detected: observation.statusCode === "anomaly",
+      reasonCode: observation.reasonCode,
+      baselineScope: observation.baselineScope,
+      baselineSampleCount: observation.baselineSampleCount,
+      activeContext: observation.activeContext
+    });
+    if (this.diagnostics.length > 500) {
+      this.diagnostics.splice(0, this.diagnostics.length - 500);
+    }
+    return observation;
   }
+  /**
+   *
+   */
   toJSON() {
     return {
       schemaVersion: import_statistics.MODEL_SCHEMA_VERSION,
@@ -179,12 +234,17 @@ class SourceMonitor {
       lastContextKey: this.lastContextKey,
       repeatedSince: this.repeatedSince,
       anomalySince: this.anomalySince,
+      lastNormal: this.lastNormal,
       detected: this.detected,
       bootstrap: this.bootstrap,
       context: this.contextualModel.toJSON(),
-      ...this.advanced.toJSON()
+      ...this.advanced.toJSON(),
+      diagnostics: [...this.diagnostics]
     };
   }
+  /**
+   *
+   */
   get hasSufficientData() {
     var _a;
     return this.valueModel.sampleCount >= ((_a = this.settings.minimumSamples) != null ? _a : DEFAULTS.minimumSamples);
@@ -192,6 +252,12 @@ class SourceMonitor {
   /** Number of retained global value-model samples, capped at the model capacity. */
   get sampleCount() {
     return this.valueModel.sampleCount;
+  }
+  /**
+   *
+   */
+  get diagnosticSnapshots() {
+    return this.diagnostics;
   }
   /**
    * Imports sanitized historical observations into the same temporal and rate models used by live updates.
@@ -240,6 +306,9 @@ class SourceMonitor {
     };
     return retained.length;
   }
+  /**
+   *
+   */
   reset() {
     var _a, _b, _c;
     this.valueModel = new import_temporal_model.TemporalModel((_a = this.settings.bucketMinutes) != null ? _a : DEFAULTS.bucketMinutes);
@@ -254,6 +323,7 @@ class SourceMonitor {
     this.lastContextKey = void 0;
     this.repeatedSince = void 0;
     this.anomalySince = void 0;
+    this.lastNormal = void 0;
     this.detected = false;
     this.bootstrap = void 0;
   }
@@ -321,6 +391,20 @@ function formatContextKey(key) {
   }
   return key.replace(/=boolean:/g, "=").replace(/=string:/g, "=").replace(/=number:([^:|]+):([^|]+)/g, "=$1\u2013$2");
 }
+function expectedRangeFor(medianValue, mad, sensitivity) {
+  if (!Number.isFinite(medianValue) || !Number.isFinite(mad) || mad === void 0 || mad < 0) {
+    return void 0;
+  }
+  const halfWidth = sensitivity * mad / 0.6745;
+  return { low: medianValue - halfWidth, high: medianValue + halfWidth };
+}
+function decisionRangeFor(medianValue, mad, sensitivity, threshold) {
+  if (!Number.isFinite(medianValue) || !Number.isFinite(mad) || mad === void 0 || mad < 0 || sensitivity <= 0) {
+    return void 0;
+  }
+  const halfWidth = sensitivity * (threshold / 100) * mad / 0.6745;
+  return { low: medianValue - halfWidth, high: medianValue + halfWidth };
+}
 function parseStoredModel(value) {
   if (typeof value !== "string") {
     return {};
@@ -343,6 +427,7 @@ function parseStoredModel(value) {
 0 && (module.exports = {
   DEFAULTS,
   SourceMonitor,
+  decisionRangeFor,
   parseStoredModel
 });
 //# sourceMappingURL=source-monitor.js.map

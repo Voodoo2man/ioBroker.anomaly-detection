@@ -133,6 +133,21 @@ Configured changes take effect after the adapter restarts. Duplicate source IDs 
 
 When a source row is removed from the configuration and the adapter restarts, its generated subtree under `anomaly-detection.0.sources` and its persisted model are removed. The cleanup uses the generated device's stored original source ID and deletes only the exact generated subtree; temporarily unavailable sources that remain configured are retained.
 
+### Analysis view: history and anomalies
+
+The **Current anomaly assessments** tab provides a compact, responsive **History & anomalies** chart for every monitored source. The chart is collapsed initially and loads history only when opened. The period can be changed between **1 h**, **6 h**, **24 h** (default), and **7 days**; changing the period reloads the data for that source.
+
+The chart uses the state unit from ioBroker (for example `W`, `%`, or `°C`) and scales its plot area to the actual card width. It shows:
+
+- **Value** – the historical measurements from the configured History provider.
+- **Expected range** – a translucent band made only from the historical `decisionLow`/`decisionHigh` values that were valid at each timestamp. Missing historical bounds remain empty; the current range is never projected backwards.
+- **Assessment context** – a subtle background highlight only for time sections whose stored context matches the context used by the current assessment. Context names use the ioBroker `common.name` where available.
+- **Anomaly** – a red triangle only when the adapter stored `detected: true` for that historical assessment. Historical markers do not change the current status badge.
+
+Hovering or touching a point shows the information available for that exact historical timestamp: value and unit, historical expected range (or an explicit unavailable notice), status, translated reason, score, and context. For value/context deviations the tooltip also shows the concrete distance above or below the historical range. Rate, stuck, trend, and level-shift findings keep their detector-specific explanation and are not presented as fabricated range deviations.
+
+The chart legend distinguishes **Value**, **Expected range**, **Assessment context**, and **Anomaly**. A small note reports the number of conspicuous historical measurements in the selected period. This is separate from the current **Normal** or **Anomaly** status; the adapter stores individual diagnostic snapshots, so the note counts displayed snapshots rather than inventing grouped anomaly events.
+
 ## Learning and persistence
 
 Normal observations update the global and configured temporal baselines gradually. Observations at or above the configured anomaly threshold are excluded from learning so an ongoing fault is not accepted as normal. The adapter stores only bounded samples (240 per baseline) and compact model metadata, not an unbounded raw time series.
@@ -284,7 +299,7 @@ For each source, the adapter creates a safe deterministic object ID under:
 | `score`               | number / `value`       | normalized 0–100 anomaly score                                                                               |
 | `detected`            | boolean / `indicator`  | persistent anomaly indicator                                                                                 |
 | `status`              | string / `info.status` | `insufficientData`, `learning`, or `monitoring`                                                              |
-| `reason`              | string / `text`        | deterministic explanation of the current score (`Normal` at score 0)                                         |
+| `reason`              | string / `text`        | deterministic explanation of the current score (`Normal` for scores below 50)                                |
 | `lastAnomaly`         | string / `date`        | time of the most recent high-score observation                                                               |
 | `sampleCount`         | number / `value`       | retained global value-model samples (bounded to 240)                                                         |
 | `baselineScope`       | string / `info.status` | baseline used: `context`, `time`, `global`, or `insufficient`                                                |
@@ -309,6 +324,11 @@ An anomaly means that a value or behaviour is unusual relative to the observatio
 Processing and model storage are completely local to ioBroker. No monitored value is sent to an external AI service, analytics service, or cloud API.
 
 ## Changelog
+
+### 0.2.0 (unreleased)
+
+- Report `Normal` as the current reason for scores below 50 instead of showing a technical detector message for a minor deviation.
+- Improve analysis charts, historical explanations, and responsive layout.
 
 ### 0.1.1 (2026-09-07)
 

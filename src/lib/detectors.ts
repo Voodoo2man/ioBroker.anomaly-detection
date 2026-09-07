@@ -4,6 +4,13 @@ export interface DetectorResult {
 	name: "value" | "context" | "rate" | "stuck" | "changePoint" | "trend";
 	score: number;
 	reason: string;
+	reasonCode?:
+		| "unexpected_value"
+		| "context_deviation"
+		| "unexpected_rate_change"
+		| "stuck_value"
+		| "persistent_level_shift"
+		| "unusual_trend";
 }
 
 export function detectMadDeviation(
@@ -23,7 +30,12 @@ export function detectMadDeviation(
 	const deviation = Math.abs(value - median);
 	const robustZ = mad === 0 ? (deviation === 0 ? 0 : Number.POSITIVE_INFINITY) : (0.6745 * deviation) / mad;
 	const score = robustZ === Number.POSITIVE_INFINITY ? 100 : clamp((robustZ / sensitivity) * 100, 0, 100);
-	return { name: "value", score, reason: "Value is significantly outside the normal range for this time period" };
+	return {
+		name: "value",
+		score,
+		reason: "Value is significantly outside the normal range for this time period",
+		reasonCode: "unexpected_value",
+	};
 }
 
 export function detectRateDeviation(
@@ -43,7 +55,7 @@ export function detectRateDeviation(
 	const deviation = Math.abs(rate - median);
 	const robustZ = mad === 0 ? (deviation === 0 ? 0 : Number.POSITIVE_INFINITY) : (0.6745 * deviation) / mad;
 	const score = robustZ === Number.POSITIVE_INFINITY ? 100 : clamp((robustZ / sensitivity) * 100, 0, 100);
-	return { name: "rate", score, reason: "Rate of change is unusually high" };
+	return { name: "rate", score, reason: "Rate of change is unusually high", reasonCode: "unexpected_rate_change" };
 }
 
 export function detectStuck(
@@ -63,5 +75,6 @@ export function detectStuck(
 		name: "stuck",
 		score: clamp((duration / limit) * 50, 50, 100),
 		reason: "Value has remained unchanged significantly longer than configured",
+		reasonCode: "stuck_value",
 	};
 }

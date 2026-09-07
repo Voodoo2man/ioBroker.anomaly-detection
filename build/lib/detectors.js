@@ -36,7 +36,12 @@ function detectMadDeviation(value, series, minimumSamples, sensitivity) {
   const deviation = Math.abs(value - median);
   const robustZ = mad === 0 ? deviation === 0 ? 0 : Number.POSITIVE_INFINITY : 0.6745 * deviation / mad;
   const score = robustZ === Number.POSITIVE_INFINITY ? 100 : (0, import_statistics.clamp)(robustZ / sensitivity * 100, 0, 100);
-  return { name: "value", score, reason: "Value is significantly outside the normal range for this time period" };
+  return {
+    name: "value",
+    score,
+    reason: "Value is significantly outside the normal range for this time period",
+    reasonCode: "unexpected_value"
+  };
 }
 function detectRateDeviation(rate, series, minimumSamples, sensitivity) {
   if (rate === void 0 || !Number.isFinite(rate) || series.count < minimumSamples) {
@@ -50,7 +55,7 @@ function detectRateDeviation(rate, series, minimumSamples, sensitivity) {
   const deviation = Math.abs(rate - median);
   const robustZ = mad === 0 ? deviation === 0 ? 0 : Number.POSITIVE_INFINITY : 0.6745 * deviation / mad;
   const score = robustZ === Number.POSITIVE_INFINITY ? 100 : (0, import_statistics.clamp)(robustZ / sensitivity * 100, 0, 100);
-  return { name: "rate", score, reason: "Rate of change is unusually high" };
+  return { name: "rate", score, reason: "Rate of change is unusually high", reasonCode: "unexpected_rate_change" };
 }
 function detectStuck(repeatedSince, timestamp, stuckDurationMinutes) {
   if (repeatedSince === void 0 || timestamp < repeatedSince) {
@@ -64,7 +69,8 @@ function detectStuck(repeatedSince, timestamp, stuckDurationMinutes) {
   return {
     name: "stuck",
     score: (0, import_statistics.clamp)(duration / limit * 50, 50, 100),
-    reason: "Value has remained unchanged significantly longer than configured"
+    reason: "Value has remained unchanged significantly longer than configured",
+    reasonCode: "stuck_value"
   };
 }
 // Annotate the CommonJS export names for ESM import in node:

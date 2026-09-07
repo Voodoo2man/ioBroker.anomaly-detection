@@ -1,8 +1,21 @@
 {
 	"common": {
 		"name": "anomaly-detection",
-		"version": "0.1.1",
+		"version": "0.2.0",
 		"news": {
+			"0.2.0": {
+				"en": "Improve analysis charts, historical explanations, and responsive layout",
+				"de": "Analyse-Diagramme, historische Erklärungen und responsives Layout verbessert",
+				"ru": "Улучшены диаграммы анализа, исторические объяснения и адаптивная разметка",
+				"pt": "Melhorados os gráficos de análise, as explicações históricas e o layout responsivo",
+				"nl": "Analyse-grafieken, historische uitleg en responsieve indeling verbeterd",
+				"fr": "Amélioration des graphiques d’analyse, des explications historiques et de la mise en page responsive",
+				"it": "Migliorati grafici di analisi, spiegazioni storiche e layout responsive",
+				"es": "Mejoras en los gráficos de análisis, las explicaciones históricas y el diseño adaptable",
+				"pl": "Ulepszono wykresy analizy, wyjaśnienia historyczne i responsywny układ",
+				"uk": "Покращено аналітичні діаграми, історичні пояснення та адаптивне компонування",
+				"zh-cn": "改进分析图表、历史说明和响应式布局"
+			},
 			"0.1.1": {
 				"en": "Improve configuration UI layout, translations, and detector guidance",
 				"de": "Konfigurationsoberfläche, Übersetzungen und Hinweise zu Detektoren verbessert",
@@ -83,7 +96,25 @@
 		"connectionType": "local",
 		"dataSource": "push",
 		"adminUI": {
-			"config": "json"
+			"config": "json",
+			"tab": "html"
+		},
+		"adminTab": {
+			"link": "jsonTab.json",
+			"name": {
+				"en": "Anomalies",
+				"de": "Anomalien",
+				"ru": "Аномалии",
+				"pt": "Anomalias",
+				"nl": "Anomalieën",
+				"fr": "Anomalies",
+				"it": "Anomalie",
+				"es": "Anomalías",
+				"pl": "Anomalie",
+				"uk": "Аномалії",
+				"zh-cn": "异常"
+			},
+			"order": 10
 		},
 		"messagebox": true,
 		"supportedMessages": {
