@@ -310,6 +310,11 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 
 ## Changelog
 
+### 0.1.1 (2026-09-07)
+
+- (Voodoo2man) improve configuration UI layout and translations
+- (Voodoo2man) add detector guidance and contextual option visibility
+
 ### 0.1.0 (2026-09-06)
 
 - (Voodoo2man) add local statistical anomaly detection MVP

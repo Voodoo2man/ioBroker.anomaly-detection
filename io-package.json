@@ -1,8 +1,21 @@
 {
 	"common": {
 		"name": "anomaly-detection",
-		"version": "0.1.0",
+		"version": "0.1.1",
 		"news": {
+			"0.1.1": {
+				"en": "Improve configuration UI layout, translations, and detector guidance",
+				"de": "Konfigurationsoberfläche, Übersetzungen und Hinweise zu Detektoren verbessert",
+				"ru": "Улучшены интерфейс конфигурации, переводы и рекомендации по детекторам",
+				"pt": "Melhorias no layout, traduções e orientações dos detetores na configuração",
+				"nl": "Verbeterde configuratie-indeling, vertalingen en detectorbegeleiding",
+				"fr": "Amélioration de l’interface de configuration, des traductions et des conseils de détection",
+				"it": "Migliorati layout di configurazione, traduzioni e indicazioni sui rilevatori",
+				"es": "Mejoras en el diseño de configuración, traducciones y orientación de detectores",
+				"pl": "Ulepszono układ konfiguracji, tłumaczenia i wskazówki dotyczące detektorów",
+				"uk": "Покращено макет конфігурації, переклади та рекомендації щодо детекторів",
+				"zh-cn": "改进配置界面布局、翻译和检测器说明"
+			},
 			"0.1.0": {
 				"en": "initial release",
 				"de": "Erstveröffentlichung",

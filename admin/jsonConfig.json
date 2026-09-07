@@ -3,7 +3,7 @@
 	"type": "panel",
 	"items": {
 		"sources": {
-			"type": "table",
+			"type": "accordion",
 			"label": "Monitored numerical states",
 			"newLine": true,
 			"xs": 12,
@@ -11,25 +11,59 @@
 			"md": 12,
 			"lg": 12,
 			"xl": 12,
-			"uniqueColumns": ["id"],
-			"useCardFor": ["xs", "sm", "md", "lg", "xl"],
-			"titleAttribute": "id",
+			"titleAttr": "id",
 			"items": [
-				{ "attr": "enabled", "type": "checkbox", "label": "Enabled", "default": true, "xs": 12 },
+				{
+					"attr": "enabled",
+					"type": "checkbox",
+					"label": "Enabled",
+					"default": true,
+					"xs": 12,
+					"sm": 2,
+					"md": 2,
+					"lg": 2,
+					"xl": 2,
+					"newLine": true
+				},
 				{
 					"attr": "id",
 					"type": "objectId",
 					"label": "Source state ID",
 					"types": "state",
-					"xs": 12
+					"xs": 12,
+                                    "sm": 4,
+                                    "md": 4,
+                                    "lg": 4,
+                                    "xl": 4,
+					"newLine": false
 				},
-				{ "attr": "name", "type": "text", "label": "Name", "default": "", "xs": 12 },
+				{
+					"attr": "name",
+					"type": "text",
+					"label": "Name",
+					"default": "",
+					"xs": 12,
+                                    "sm": 4,
+                                    "md": 4,
+                                    "lg": 4,
+                                    "xl": 4,
+					"newLine": false
+				},
 				{
 					"attr": "initialTraining",
 					"type": "select",
 					"label": "Initial training",
+					"help": {
+						"en": "Choose whether the model learns from new live values or imports existing history first.",
+						"de": "Legt fest, ob das Modell nur neue Live-Werte nutzt oder zuerst vorhandene Historie importiert."
+					},
 					"default": "live",
-					"xs": 6,
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": true,
 					"options": [
 						{ "label": "Learn from live values only", "value": "live" },
 						{ "label": "Import existing history", "value": "history" }
@@ -39,8 +73,17 @@
 					"attr": "historyInstance",
 					"type": "selectSendTo",
 					"label": "History source (enabled compatible providers only)",
+					"help": {
+						"en": "Select the enabled history adapter used for the initial training import.",
+						"de": "Wählt den aktivierten History-Adapter für den initialen Trainingsimport."
+					},
 					"default": "",
-					"xs": 6,
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": false,
 					"command": "getHistoryProviders",
 					"jsonData": "{\"sourceId\": \"${data.id}\"}",
 					"alsoDependsOn": ["id"],
@@ -52,22 +95,40 @@
 					"attr": "trainingDays",
 					"type": "number",
 					"label": "History training period (days)",
+					"help": {
+						"en": "Number of past days to request from the history provider.",
+						"de": "Anzahl der vergangenen Tage, die aus der History geladen werden."
+					},
 					"min": 7,
 					"max": 365,
 					"step": 1,
 					"default": 30,
-					"xs": 6,
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": false,
 					"hidden": "data.initialTraining !== 'history'"
 				},
 				{
 					"attr": "maxHistorySamples",
 					"type": "number",
 					"label": "Maximum imported samples",
+					"help": {
+						"en": "Limits how many historical samples are retained for bootstrap training.",
+						"de": "Begrenzt, wie viele historische Messwerte für das initiale Training übernommen werden."
+					},
 					"min": 30,
 					"max": 10000,
 					"step": 10,
 					"default": 1000,
-					"xs": 6,
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": false,
 					"hidden": "data.initialTraining !== 'history'"
 				},
 				{
@@ -76,109 +137,223 @@
 					"label": "Start monitoring after history import",
 					"default": true,
 					"xs": 12,
+					"sm": 12,
+					"md": 12,
+					"lg": 12,
+					"xl": 12,
+					"newLine": false,
 					"hidden": "data.initialTraining !== 'history'"
 				},
 				{
 					"attr": "minimumSamples",
 					"type": "number",
 					"label": "Minimum learned samples",
+					"help": {
+						"en": "Minimum number of learned values before a baseline is used for scoring.",
+						"de": "Mindestanzahl gelernter Werte, bevor eine Basislinie zur Bewertung verwendet wird."
+					},
 					"min": 5,
 					"max": 240,
 					"step": 1,
 					"default": 30,
-					"xs": 6
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": true
 				},
 				{
 					"attr": "bucketMinutes",
 					"type": "number",
 					"label": "Time bucket size (minutes)",
+					"help": {
+						"en": "Groups observations into time buckets for temporal baselines.",
+						"de": "Fasst Messwerte für zeitabhängige Basislinien in Zeit-Buckets zusammen."
+					},
 					"min": 5,
 					"max": 720,
 					"step": 5,
 					"default": 60,
-					"xs": 6
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": false
 				},
 				{
 					"attr": "sensitivity",
 					"type": "number",
 					"label": "Sensitivity (robust z-score)",
+					"help": {
+						"en": "Controls how far a value must deviate from the learned baseline to be unusual.",
+						"de": "Bestimmt, wie stark ein Wert von der gelernten Basislinie abweichen muss."
+					},
 					"min": 0.1,
 					"max": 20,
 					"step": 0.1,
 					"default": 3.5,
-					"xs": 6
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": false
 				},
 				{
 					"attr": "anomalyThreshold",
 					"type": "number",
 					"label": "Anomaly threshold",
+					"help": {
+						"en": "Score at which an observation is classified as an anomaly.",
+						"de": "Ab diesem Score wird eine Beobachtung als Anomalie eingestuft."
+					},
 					"min": 1,
 					"max": 100,
 					"step": 1,
 					"default": 70,
-					"xs": 6
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": false
 				},
 				{
 					"attr": "minimumAnomalyDurationMinutes",
 					"type": "number",
 					"label": "Minimum anomaly duration (minutes)",
+					"help": {
+						"en": "Requires an anomaly to persist for this long before it is reported.",
+						"de": "Eine Anomalie muss mindestens so lange bestehen, bevor sie gemeldet wird."
+					},
 					"min": 0,
 					"max": 10080,
 					"step": 1,
 					"default": 5,
-					"xs": 6
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": true
 				},
 				{
 					"attr": "enableMad",
 					"type": "checkbox",
 					"label": "Enable value deviation detector",
+					"help": {
+						"en": "Detects individual values that differ significantly from learned normal behavior.",
+						"de": "Erkennt einzelne Werte, die deutlich vom gelernten Normalverhalten abweichen."
+					},
 					"default": true,
-					"xs": 6
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": false
 				},
 				{
 					"attr": "enableRate",
 					"type": "checkbox",
 					"label": "Enable rate-of-change detector",
+					"help": {
+						"en": "Detects unusually fast changes between consecutive values.",
+						"de": "Erkennt ungewöhnlich schnelle Änderungen zwischen aufeinanderfolgenden Werten."
+					},
 					"default": true,
-					"xs": 6
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": false
 				},
 				{
 					"attr": "enableStuck",
 					"type": "checkbox",
 					"label": "Enable stuck-state detector",
+					"help": {
+						"en": "Detects values that remain unchanged longer than the configured duration.",
+						"de": "Erkennt Werte, die länger als die konfigurierte Dauer unverändert bleiben."
+					},
 					"default": false,
-					"xs": 6
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": false
 				},
 				{
 					"attr": "stuckDurationMinutes",
 					"type": "number",
 					"label": "Stuck duration (minutes)",
+					"hidden": "data.enableStuck !== true",
+					"help": {
+						"en": "Time an unchanged value must persist before it is considered stuck.",
+						"de": "Dauer, die ein unveränderter Wert bestehen muss, um als festhängend zu gelten."
+					},
 					"min": 1,
 					"max": 10080,
 					"step": 1,
 					"default": 120,
-					"xs": 6
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": false
 				},
 				{
 					"attr": "timeContext",
 					"type": "checkbox",
 					"label": "Use time-of-day context",
+					"help": {
+						"en": "Learns separate baselines for different times of day.",
+						"de": "Lernt getrennte Basislinien für verschiedene Tageszeiten."
+					},
 					"default": true,
-					"xs": 6
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": true
 				},
 				{
 					"attr": "weekdayContext",
 					"type": "checkbox",
 					"label": "Use weekday context",
+					"help": {
+						"en": "Learns separate baselines for different weekdays.",
+						"de": "Lernt getrennte Basislinien für verschiedene Wochentage."
+					},
 					"default": false,
-					"xs": 6
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": false
 				},
 				{
 					"attr": "enableContext",
 					"type": "checkbox",
 					"label": "Enable context-aware detection",
+					"help": {
+						"en": "Uses configured context states to compare values only with matching operating conditions.",
+						"de": "Vergleicht Werte anhand konfigurierter Kontextzustände nur mit passenden Betriebsbedingungen."
+					},
 					"default": false,
-					"xs": 6
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3,
+					"newLine": false
 				},
 				{
 					"attr": "contextStates",
@@ -186,13 +361,19 @@
 					"label": "Context states (maximum 3)",
 					"hidden": "data.enableContext !== true",
 					"xs": 12,
+					"sm": 12,
+					"md": 12,
+					"lg": 12,
+					"xl": 12,
+					"newLine": true,
 					"items": [
 						{ "attr": "id", "type": "objectId", "label": "Context state ID", "types": "state", "xs": 8 },
 						{
 							"attr": "bucketWidth",
 							"type": "number",
 							"label": "Numeric bucket width",
-							"hidden": "await getObject(data.id)?.common?.type !== 'number'",
+							"hidden": "(await getObject(data.id))?.common?.type !== 'number'",
+							"alsoDependsOn": ["id"],
 							"min": 0.0001,
 							"max": 1000000,
 							"default": 5,
@@ -204,15 +385,33 @@
 					"attr": "enableChangePoint",
 					"type": "checkbox",
 					"label": "Enable persistent level-shift detection",
+					"help": {
+						"en": "Detects a lasting change to the normal operating level.",
+						"de": "Erkennt eine anhaltende Verschiebung des normalen Betriebsniveaus."
+					},
 					"default": false,
-					"xs": 6
+					"xs": 12,
+					"sm": 6,
+					"md": 6,
+					"lg": 6,
+					"xl": 6,
+					"newLine": true
 				},
 				{
 					"attr": "enableTrend",
 					"type": "checkbox",
 					"label": "Enable trend detection",
+					"help": {
+						"en": "Detects gradual upward or downward drift over time.",
+						"de": "Erkennt eine allmähliche Aufwärts- oder Abwärtsentwicklung über die Zeit."
+					},
 					"default": false,
-					"xs": 6
+					"xs": 12,
+					"sm": 6,
+					"md": 6,
+					"lg": 6,
+					"xl": 6,
+					"newLine": false
 				}
 			]
 		}
