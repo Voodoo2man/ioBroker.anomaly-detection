@@ -2,6 +2,8 @@
 
 # ioBroker.anomaly-detection
 
+[English](README.md) · **Deutsch** ([README.de.md](README.de.md))
+
 [![NPM version](https://img.shields.io/npm/v/iobroker.anomaly-detection.svg)](https://www.npmjs.com/package/iobroker.anomaly-detection)
 
 Learns the normal behaviour of selected numerical ioBroker states and reports statistically unusual values locally.
@@ -325,7 +327,7 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 
 ## Changelog
 
-### 0.2.0 (unreleased)
+### 0.2.0 (2026-09-08)
 
 - Report `Normal` as the current reason for scores below 50 instead of showing a technical detector message for a minor deviation.
 - Improve analysis charts, historical explanations, and responsive layout.
