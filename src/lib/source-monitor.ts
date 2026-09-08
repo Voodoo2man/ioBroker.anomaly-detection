@@ -3,7 +3,7 @@ import { AdvancedDetectors, type ChangePointData, type TrendData } from "./advan
 import { ContextualModel, type ContextualModelData } from "./model/contextual-model";
 import { TemporalModel, type TemporalModelData } from "./model/temporal-model";
 import { median, MODEL_SCHEMA_VERSION } from "./model/statistics";
-import { scoreDetectors } from "./scoring";
+import { scoreDetectors, type DetectorDiagnostic } from "./scoring";
 import type { HistorySample } from "./history-provider";
 
 export const DEFAULTS = {
@@ -18,79 +18,366 @@ export const DEFAULTS = {
 	maxContextModels: 32,
 } as const;
 export interface ContextStateSettings {
+	/**
+	 *
+	 */
 	id: string;
+	/**
+	 *
+	 */
 	bucketWidth?: number;
 }
 
 export interface SourceSettings {
+	/**
+	 *
+	 */
 	enabled: boolean;
+	/**
+	 *
+	 */
 	id: string;
+	/**
+	 *
+	 */
 	name?: string;
+	/**
+	 *
+	 */
 	minimumSamples?: number;
+	/**
+	 *
+	 */
 	bucketMinutes?: number;
+	/**
+	 *
+	 */
 	sensitivity?: number;
+	/**
+	 *
+	 */
 	anomalyThreshold?: number;
+	/**
+	 *
+	 */
 	minimumAnomalyDurationMinutes?: number;
+	/**
+	 *
+	 */
 	enableMad?: boolean;
+	/**
+	 *
+	 */
 	enableRate?: boolean;
+	/**
+	 *
+	 */
 	enableStuck?: boolean;
+	/**
+	 *
+	 */
 	stuckDurationMinutes?: number;
+	/**
+	 *
+	 */
 	timeContext?: boolean;
+	/**
+	 *
+	 */
 	weekdayContext?: boolean;
+	/**
+	 *
+	 */
 	initialTraining?: "live" | "history";
+	/**
+	 *
+	 */
 	historyInstance?: string;
+	/**
+	 *
+	 */
 	trainingDays?: number;
+	/**
+	 *
+	 */
 	maxHistorySamples?: number;
+	/**
+	 *
+	 */
 	autoStartMonitoringAfterImport?: boolean;
+	/**
+	 *
+	 */
 	enableContext?: boolean;
+	/**
+	 *
+	 */
 	contextStates?: ContextStateSettings[];
+	/**
+	 *
+	 */
 	enableChangePoint?: boolean;
+	/**
+	 *
+	 */
 	enableTrend?: boolean;
 }
 
 export interface BootstrapMetadata {
+	/**
+	 *
+	 */
 	completed: boolean;
+	/**
+	 *
+	 */
 	provider?: string;
+	/**
+	 *
+	 */
 	historySourceId?: string;
+	/**
+	 *
+	 */
 	configKey?: string;
+	/**
+	 *
+	 */
 	start?: number;
+	/**
+	 *
+	 */
 	end?: number;
+	/**
+	 *
+	 */
 	importedSamples: number;
 }
 
 export interface SourceModelData {
+	/**
+	 *
+	 */
 	schemaVersion: number;
+	/**
+	 *
+	 */
 	configuredSourceId?: string;
+	/**
+	 *
+	 */
 	value: TemporalModelData;
+	/**
+	 *
+	 */
 	rate: TemporalModelData;
+	/**
+	 *
+	 */
 	lastValue?: number;
+	/**
+	 *
+	 */
 	lastTimestamp?: number;
+	/**
+	 *
+	 */
 	lastContextKey?: string;
+	/**
+	 *
+	 */
 	repeatedSince?: number;
+	/**
+	 *
+	 */
 	anomalySince?: number;
+	/**
+	 *
+	 */
+	lastNormal?: number;
+	/**
+	 *
+	 */
 	detected?: boolean;
+	/**
+	 *
+	 */
 	bootstrap?: BootstrapMetadata;
+	/**
+	 *
+	 */
 	context?: ContextualModelData;
+	/**
+	 *
+	 */
 	changePoint?: ChangePointData;
+	/**
+	 *
+	 */
 	trend?: TrendData;
+	/**
+	 *
+	 */
+	diagnostics?: DiagnosticSnapshot[];
+}
+
+export interface DiagnosticSnapshot {
+	/**
+	 *
+	 */
+	timestamp: number;
+	/**
+	 *
+	 */
+	actual: number;
+	/**
+	 *
+	 */
+	expected?: number;
+	/**
+	 *
+	 */
+	decisionLow?: number;
+	/**
+	 *
+	 */
+	decisionHigh?: number;
+	/**
+	 *
+	 */
+	score: number;
+	/**
+	 *
+	 */
+	detected: boolean;
+	/**
+	 *
+	 */
+	reasonCode: string;
+	/**
+	 *
+	 */
+	baselineScope: BaselineScope;
+	/**
+	 *
+	 */
+	baselineSampleCount: number;
+	/**
+	 *
+	 */
+	activeContext: string;
 }
 
 export type BaselineScope = "context" | "time" | "global" | "insufficient";
 
+export type ExplainabilityStatus = "learning" | "normal" | "anomaly" | "insufficient_data";
+export type Severity = "normal" | "noticeable" | "high";
+
 export interface ObservationResult {
+	/**
+	 *
+	 */
 	actual: number;
+	/**
+	 *
+	 */
 	expected?: number;
+	/**
+	 *
+	 */
 	deviation?: number;
+	/**
+	 *
+	 */
 	score: number;
+	/**
+	 *
+	 */
 	detected: boolean;
+	/**
+	 *
+	 */
 	status: "learning" | "monitoring" | "insufficientData";
+	/**
+	 *
+	 */
 	reason: string;
+	/**
+	 *
+	 */
 	sampleCount: number;
+	/**
+	 *
+	 */
 	lastAnomaly?: number;
+	/**
+	 *
+	 */
 	baselineScope: BaselineScope;
+	/**
+	 *
+	 */
 	activeContext: string;
+	/**
+	 *
+	 */
 	baselineSampleCount: number;
+	/**
+	 *
+	 */
 	contextSampleCount: number;
+	/**
+	 *
+	 */
+	requiredSamples: number;
+	/**
+	 *
+	 */
+	statusCode: ExplainabilityStatus;
+	/**
+	 *
+	 */
+	severity: Severity;
+	/**
+	 *
+	 */
+	reasonCode: string;
+	/**
+	 *
+	 */
+	detectors: DetectorDiagnostic[];
+	/**
+	 *
+	 */
+	lastEvaluated: number;
+	/**
+	 *
+	 */
+	anomalySince?: number;
+	/**
+	 *
+	 */
+	lastNormal?: number;
+	/**
+	 *
+	 */
+	expectedLow?: number;
+	/**
+	 *
+	 */
+	expectedHigh?: number;
+	/**
+	 *
+	 */
+	decisionLow?: number;
+	/**
+	 *
+	 */
+	decisionHigh?: number;
+	/**
+	 *
+	 */
+	timeBucket?: string;
 }
 
 /** Framework-independent lifecycle and learning policy for one source state. */
@@ -104,9 +391,14 @@ export class SourceMonitor {
 	private lastContextKey: string | undefined;
 	private repeatedSince: number | undefined;
 	private anomalySince: number | undefined;
+	private lastNormal: number | undefined;
 	private detected: boolean;
 	private bootstrap?: BootstrapMetadata;
+	private diagnostics: DiagnosticSnapshot[];
 
+	/**
+	 *
+	 */
 	public constructor(
 		private readonly settings: SourceSettings,
 		data?: SourceModelData,
@@ -121,10 +413,15 @@ export class SourceMonitor {
 		this.lastContextKey = data?.lastContextKey;
 		this.repeatedSince = data?.repeatedSince;
 		this.anomalySince = data?.anomalySince;
+		this.lastNormal = data?.lastNormal;
 		this.detected = data?.detected ?? false;
 		this.bootstrap = data?.bootstrap;
+		this.diagnostics = (data?.diagnostics ?? []).slice(-500);
 	}
 
+	/**
+	 *
+	 */
 	public observe(value: unknown, timestamp: number, contextKey?: string): ObservationResult | undefined {
 		if (typeof value !== "number" || !Number.isFinite(value) || !Number.isFinite(timestamp)) {
 			return undefined;
@@ -153,6 +450,12 @@ export class SourceMonitor {
 					: "time";
 		const baselineSampleCount = contextIsLearning ? 0 : baseline.series.count;
 		const expected = contextIsLearning ? undefined : baseline.series.median();
+		const expectedRange =
+			expected === undefined ? undefined : expectedRangeFor(expected, baseline.series.mad(), sensitivity);
+		const decisionRange =
+			expected === undefined
+				? undefined
+				: decisionRangeFor(expected, baseline.series.mad(), sensitivity, threshold);
 		const contextChanged = this.settings.enableContext === true && contextKey !== this.lastContextKey;
 		const rate = contextChanged ? undefined : this.calculateRate(value, timestamp);
 		const results: DetectorResult[] = [];
@@ -165,6 +468,7 @@ export class SourceMonitor {
 								...result,
 								name: "context",
 								reason: "Value is significantly outside the normal range for the current context",
+								reasonCode: "context_deviation",
 							}
 						: { ...result, reason: valueDeviationReason(baselineScope) },
 				);
@@ -218,10 +522,20 @@ export class SourceMonitor {
 		}
 		this.lastValue = value;
 		this.lastTimestamp = timestamp;
+		if (!isStrongAnomaly) {
+			this.lastNormal = timestamp;
+		}
 		this.lastContextKey = this.settings.enableContext === true ? contextKey : undefined;
 		const sufficient = this.valueModel.sampleCount >= minSamples;
 		const contextSampleCount = hasActiveContext ? this.contextualModel.sampleCount(contextKey) : 0;
-		return {
+		const statusCode: ExplainabilityStatus = contextIsLearning
+			? "learning"
+			: !sufficient
+				? "insufficient_data"
+				: isStrongAnomaly
+					? "anomaly"
+					: "normal";
+		const observation: ObservationResult = {
 			actual: value,
 			expected,
 			deviation: expected === undefined ? undefined : value - expected,
@@ -244,9 +558,50 @@ export class SourceMonitor {
 			activeContext: formatContextKey(contextKey),
 			baselineSampleCount,
 			contextSampleCount,
+			requiredSamples: minSamples,
+			statusCode,
+			severity: statusCode === "anomaly" ? (scoring.score >= 85 ? "high" : "noticeable") : "normal",
+			reasonCode: contextIsLearning ? "insufficient_training_data" : scoring.reasonCode,
+			detectors: scoring.detectors,
+			lastEvaluated: timestamp,
+			anomalySince: this.anomalySince,
+			lastNormal: this.lastNormal,
+			expectedLow: expectedRange?.low,
+			expectedHigh: expectedRange?.high,
+			decisionLow: decisionRange?.low,
+			decisionHigh: decisionRange?.high,
+			timeBucket:
+				baseline.scope === "global"
+					? undefined
+					: String(
+							Math.floor(
+								(new Date(timestamp).getHours() * 60 + new Date(timestamp).getMinutes()) /
+									(this.settings.bucketMinutes ?? DEFAULTS.bucketMinutes),
+							),
+						),
 		};
+		this.diagnostics.push({
+			timestamp,
+			actual: observation.actual,
+			expected: observation.expected,
+			decisionLow: observation.decisionLow,
+			decisionHigh: observation.decisionHigh,
+			score: observation.score,
+			detected: observation.statusCode === "anomaly",
+			reasonCode: observation.reasonCode,
+			baselineScope: observation.baselineScope,
+			baselineSampleCount: observation.baselineSampleCount,
+			activeContext: observation.activeContext,
+		});
+		if (this.diagnostics.length > 500) {
+			this.diagnostics.splice(0, this.diagnostics.length - 500);
+		}
+		return observation;
 	}
 
+	/**
+	 *
+	 */
 	public toJSON(): SourceModelData {
 		return {
 			schemaVersion: MODEL_SCHEMA_VERSION,
@@ -257,13 +612,18 @@ export class SourceMonitor {
 			lastContextKey: this.lastContextKey,
 			repeatedSince: this.repeatedSince,
 			anomalySince: this.anomalySince,
+			lastNormal: this.lastNormal,
 			detected: this.detected,
 			bootstrap: this.bootstrap,
 			context: this.contextualModel.toJSON(),
 			...this.advanced.toJSON(),
+			diagnostics: [...this.diagnostics],
 		};
 	}
 
+	/**
+	 *
+	 */
 	public get hasSufficientData(): boolean {
 		return this.valueModel.sampleCount >= (this.settings.minimumSamples ?? DEFAULTS.minimumSamples);
 	}
@@ -271,6 +631,13 @@ export class SourceMonitor {
 	/** Number of retained global value-model samples, capped at the model capacity. */
 	public get sampleCount(): number {
 		return this.valueModel.sampleCount;
+	}
+
+	/**
+	 *
+	 */
+	public get diagnosticSnapshots(): readonly DiagnosticSnapshot[] {
+		return this.diagnostics;
 	}
 
 	/**
@@ -328,6 +695,9 @@ export class SourceMonitor {
 		return retained.length;
 	}
 
+	/**
+	 *
+	 */
 	public reset(): void {
 		this.valueModel = new TemporalModel(this.settings.bucketMinutes ?? DEFAULTS.bucketMinutes);
 		this.rateModel = new TemporalModel(this.settings.bucketMinutes ?? DEFAULTS.bucketMinutes);
@@ -341,6 +711,7 @@ export class SourceMonitor {
 		this.lastContextKey = undefined;
 		this.repeatedSince = undefined;
 		this.anomalySince = undefined;
+		this.lastNormal = undefined;
 		this.detected = false;
 		this.bootstrap = undefined;
 	}
@@ -425,6 +796,39 @@ function formatContextKey(key: string | undefined): string {
 		.replace(/=boolean:/g, "=")
 		.replace(/=string:/g, "=")
 		.replace(/=number:([^:|]+):([^|]+)/g, "=$1–$2");
+}
+
+function expectedRangeFor(
+	medianValue: number,
+	mad: number | undefined,
+	sensitivity: number,
+): { low: number; high: number } | undefined {
+	if (!Number.isFinite(medianValue) || !Number.isFinite(mad) || mad === undefined || mad < 0) {
+		return undefined;
+	}
+	const halfWidth = (sensitivity * mad) / 0.6745;
+	return { low: medianValue - halfWidth, high: medianValue + halfWidth };
+}
+
+/**
+ * Inverse of detectMadDeviation at the configured anomaly threshold.
+ *
+ * @param medianValue
+ * @param mad
+ * @param sensitivity
+ * @param threshold
+ */
+export function decisionRangeFor(
+	medianValue: number,
+	mad: number | undefined,
+	sensitivity: number,
+	threshold: number,
+): { low: number; high: number } | undefined {
+	if (!Number.isFinite(medianValue) || !Number.isFinite(mad) || mad === undefined || mad < 0 || sensitivity <= 0) {
+		return undefined;
+	}
+	const halfWidth = (sensitivity * (threshold / 100) * mad) / 0.6745;
+	return { low: medianValue - halfWidth, high: medianValue + halfWidth };
 }
 
 export function parseStoredModel(value: unknown): Record<string, SourceModelData> {

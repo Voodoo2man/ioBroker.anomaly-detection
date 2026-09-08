@@ -5,7 +5,17 @@ import { TemporalModel } from "./lib/model/temporal-model";
 import { ContextualModel } from "./lib/model/contextual-model";
 import { createContextPart } from "./lib/context-value";
 import { AdvancedDetectors } from "./lib/advanced-detectors";
-import { parseStoredModel, SourceMonitor } from "./lib/source-monitor";
+import { decisionRangeFor, parseStoredModel, SourceMonitor } from "./lib/source-monitor";
+const chartYDomain = (values: readonly number[], bounds: readonly number[] = []): { min: number; max: number } => {
+	const numeric = [...values, ...bounds].filter(value => Number.isFinite(value));
+	if (numeric.length === 0) {
+		return { min: 0, max: 1 };
+	}
+	const rawMin = Math.min(...numeric);
+	const rawMax = Math.max(...numeric);
+	const rawSpan = rawMax - rawMin || Math.max(1, Math.abs(rawMax) * 0.01);
+	return { min: rawMin >= 0 ? 0 : rawMin - rawSpan * 0.05, max: rawMax + rawSpan * 0.05 };
+};
 import { scoreDetectors } from "./lib/scoring";
 import { sanitizeHistory } from "./lib/history-provider";
 import {
@@ -19,6 +29,26 @@ import { cleanupStaleSources, type GeneratedSourceDevice, type SourceCleanupStor
 const makeSeries = (values: number[]): SampleSeries => new SampleSeries(240, values);
 
 describe("robust statistical detectors", () => {
+	it("keeps the chart axis at or above zero for non-negative values", () => {
+		expect(chartYDomain([0, 140, 342], [318, 323]).min).to.equal(0);
+	});
+	it("allows a negative chart axis when real negative values exist", () => {
+		expect(chartYDomain([-2, 0, 10]).min).to.be.lessThan(0);
+	});
+	it("preserves diagnostic timestamps when history is downsampled", () => {
+		const samples = sanitizeHistory(
+			Array.from({ length: 10 }, (_, index) => ({ val: index, ts: 1_000 + index })),
+			4,
+			[1_005],
+		);
+		expect(samples.map(sample => sample.timestamp)).to.include(1_005);
+		expect(samples).to.have.length(4);
+	});
+	it("derives the displayed decision range from the detector threshold", () => {
+		const range = decisionRangeFor(320, 2, 3.5, 70);
+		expect(range?.low).to.be.closeTo(312.735, 0.001);
+		expect(range?.high).to.be.closeTo(327.265, 0.001);
+	});
 	it("keeps normal values low and identifies an obvious MAD outlier", () => {
 		const series = makeSeries([9.8, 10, 10.1, 10.2, 9.9, 10.05]);
 		expect(detectMadDeviation(10.1, series, 5, 3.5)?.score).to.be.lessThan(50);
@@ -200,8 +230,33 @@ describe("scoring and learning lifecycle", () => {
 			{ name: "rate", score: 100, reason: "rate" },
 		]);
 		expect(one.score).to.equal(40);
+		expect(one.reason).to.equal("Normal");
+		expect(one.reasonCode).to.equal("normal");
 		expect(several.score).to.equal(100);
 		expect(several.reason).to.equal("Multiple anomaly detectors agree");
+	});
+
+	it("returns explainability details without treating detector scores as contributions", () => {
+		const monitor = new SourceMonitor({
+			enabled: true,
+			id: "test.0.value",
+			minimumSamples: 5,
+			enableRate: false,
+			anomalyThreshold: 70,
+			minimumAnomalyDurationMinutes: 0,
+			timeContext: false,
+		});
+		const start = new Date(2026, 0, 1, 12, 0).getTime();
+		for (let index = 0; index < 5; index++) {
+			const normal = monitor.observe(10, start + index * 60_000)!;
+			expect(normal.statusCode).to.equal(index < 4 ? "insufficient_data" : "normal");
+		}
+		const anomaly = monitor.observe(100, start + 5 * 60_000)!;
+		expect(anomaly.statusCode).to.equal("anomaly");
+		expect(anomaly.reasonCode).to.equal("unexpected_value");
+		expect(anomaly.expectedLow).to.equal(10);
+		expect(anomaly.expectedHigh).to.equal(10);
+		expect(anomaly.detectors).to.deep.include({ name: "value", score: 100, reasonCode: "unexpected_value" });
 	});
 
 	it("does not learn strong anomalies and restores a persisted model safely", () => {

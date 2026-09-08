@@ -32,8 +32,14 @@ const WEIGHTS = {
 };
 const BEHAVIOR_DETECTORS = /* @__PURE__ */ new Set(["value", "context", "changePoint", "trend"]);
 function scoreDetectors(results) {
+  var _a;
   if (results.length === 0) {
-    return { score: 0, reason: "Insufficient data for anomaly detection" };
+    return {
+      score: 0,
+      reason: "Insufficient data for anomaly detection",
+      reasonCode: "insufficient_training_data",
+      detectors: []
+    };
   }
   const behavior = results.filter((result) => BEHAVIOR_DETECTORS.has(result.name));
   const selected = [
@@ -44,11 +50,32 @@ function scoreDetectors(results) {
   const weightedScore = selected.reduce((total, result) => total + result.score * WEIGHTS[result.name], 0) / weight;
   const strong = selected.filter((result) => result.score >= 50);
   const score = (0, import_statistics.clamp)(weightedScore + (strong.length >= 2 ? 10 : 0), 0, 100);
-  if (score === 0) {
-    return { score, reason: "Normal" };
+  if (score < 50) {
+    return { score, reason: "Normal", reasonCode: "normal", detectors: selected.map(toDiagnostic) };
   }
   const reason = strong.length >= 2 ? "Multiple anomaly detectors agree" : selected.reduce((best, result) => result.score > best.score ? result : best).reason;
-  return { score, reason };
+  const primary = selected.reduce((best, result) => result.score > best.score ? result : best);
+  return {
+    score,
+    reason,
+    reasonCode: strong.length >= 2 ? "multiple_detectors" : (_a = primary.reasonCode) != null ? _a : "unexpected_value",
+    detectors: selected.map(toDiagnostic)
+  };
+}
+function toDiagnostic(result) {
+  var _a;
+  return { name: result.name, score: result.score, reasonCode: (_a = result.reasonCode) != null ? _a : fallbackReasonCode(result.name) };
+}
+function fallbackReasonCode(name) {
+  const codes = {
+    value: "unexpected_value",
+    context: "context_deviation",
+    rate: "unexpected_rate_change",
+    stuck: "stuck_value",
+    changePoint: "persistent_level_shift",
+    trend: "unusual_trend"
+  };
+  return codes[name];
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {

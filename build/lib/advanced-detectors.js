@@ -85,7 +85,8 @@ class AdvancedDetectors {
     return {
       name: "changePoint",
       score: (0, import_statistics.clamp)(normalized / sensitivity * 80, 70, 100),
-      reason: `Persistent ${direction} level shift detected`
+      reason: `Persistent ${direction} level shift detected`,
+      reasonCode: "persistent_level_shift"
     };
   }
   detectTrend(sensitivity) {
@@ -122,7 +123,8 @@ class AdvancedDetectors {
     return {
       name: "trend",
       score: (0, import_statistics.clamp)(normalized / sensitivity * 60, 55, 95),
-      reason: `Sustained ${direction} trend outside normal behavior`
+      reason: `Sustained ${direction} trend outside normal behavior`,
+      reasonCode: "unusual_trend"
     };
   }
   resetCandidate() {

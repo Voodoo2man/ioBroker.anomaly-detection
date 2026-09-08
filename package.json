@@ -1,6 +1,6 @@
 {
   "name": "iobroker.anomaly-detection",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Learns normal behavior of numerical ioBroker states and detects statistical anomalies.",
   "author": {
     "name": "Voodoo2man",

@@ -21,7 +21,7 @@ __export(history_provider_exports, {
   sanitizeHistory: () => sanitizeHistory
 });
 module.exports = __toCommonJS(history_provider_exports);
-function sanitizeHistory(raw, limit) {
+function sanitizeHistory(raw, limit, preserveTimestamps = []) {
   if (!Number.isInteger(limit) || limit < 1) {
     return [];
   }
@@ -45,11 +45,18 @@ function sanitizeHistory(raw, limit) {
   if (limit === 1) {
     return [sorted[0]];
   }
-  const result = [];
-  for (let index = 0; index < limit; index++) {
-    result.push(sorted[Math.round(index * (sorted.length - 1) / (limit - 1))]);
+  const protectedSamples = sorted.filter((sample) => preserveTimestamps.includes(sample.timestamp));
+  if (protectedSamples.length >= limit) {
+    return protectedSamples.slice(0, limit);
   }
-  return result;
+  const result = [...protectedSamples];
+  const protectedSet = new Set(protectedSamples.map((sample) => sample.timestamp));
+  const candidates = sorted.filter((sample) => !protectedSet.has(sample.timestamp));
+  const remaining = limit - result.length;
+  for (let index = 0; index < remaining; index++) {
+    result.push(candidates[Math.round(index * (candidates.length - 1) / Math.max(1, remaining - 1))]);
+  }
+  return result.sort((left, right) => left.timestamp - right.timestamp);
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
