@@ -532,7 +532,7 @@ function HistoryChart({
 						key={String(value)}
 						size="small"
 						variant={hours === value ? "contained" : "text"}
-						onClick={() => setHours(value as number)}
+						onClick={() => setHours(value)}
 					>
 						{t(key as string)}
 					</Button>
