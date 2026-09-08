@@ -97,7 +97,7 @@ class AnomalyDetection extends utils.Adapter {
 				this.sourceUnits.set(id, object.common.unit);
 			}
 			for (const context of source.contextStates ?? []) {
-				const contextId = context.id?.trim();
+				const contextId = context && typeof context.id === "string" ? context.id.trim() : "";
 				if (!contextId) {
 					continue;
 				}
@@ -220,10 +220,12 @@ class AnomalyDetection extends utils.Adapter {
 			name: this.sources.get(safeId)?.name || sourceId,
 			unit: this.sourceUnits.get(sourceId),
 			contextLabels: Object.fromEntries(
-				(this.sources.get(safeId)?.contextStates ?? []).map(context => [
-					context.id.trim(),
-					this.contextNames.get(context.id.trim()) || context.id.trim(),
-				]),
+				(this.sources.get(safeId)?.contextStates ?? [])
+					.filter(context => context && typeof context.id === "string" && context.id.trim())
+					.map(context => {
+						const contextId = context.id.trim();
+						return [contextId, this.contextNames.get(contextId) || contextId];
+					}),
 			),
 			evaluation: this.evaluations.get(sourceId) ?? {
 				statusCode: this.monitors.get(sourceId)?.hasSufficientData ? "normal" : "learning",
@@ -293,7 +295,9 @@ class AnomalyDetection extends utils.Adapter {
 		if ((source.contextStates?.length ?? 0) > 3) {
 			this.warnContext(`Only the first 3 context states are used for ${sourceId}`);
 		}
-		for (const context of (source.contextStates ?? []).filter(item => item.id?.trim()).slice(0, 3)) {
+		for (const context of (source.contextStates ?? [])
+			.filter(item => item && typeof item.id === "string" && item.id.trim())
+			.slice(0, 3)) {
 			const id = context.id.trim();
 			let sources = this.contextSources.get(id);
 			if (!sources) {
@@ -322,7 +326,7 @@ class AnomalyDetection extends utils.Adapter {
 		}
 		const values = this.contextValues.get(sourceId);
 		const parts = (source.contextStates ?? [])
-			.filter(item => item.id?.trim())
+			.filter(item => item && typeof item.id === "string" && item.id.trim())
 			.slice(0, 3)
 			.map(context => {
 				const value = values?.get(context.id.trim());
