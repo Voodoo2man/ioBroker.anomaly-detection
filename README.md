@@ -325,7 +325,7 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 
 ## Changelog
 
-### 0.2.0 (unreleased)
+### 0.2.0 (2026-09-08)
 
 - Report `Normal` as the current reason for scores below 50 instead of showing a technical detector message for a minor deviation.
 - Improve analysis charts, historical explanations, and responsive layout.
