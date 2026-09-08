@@ -14,6 +14,14 @@
 			"titleAttr": "id",
 			"items": [
 				{
+					"type": "header",
+					"attr": "_generalHeader",
+					"size": 3,
+					"text": { "en": "GENERAL & DATA SOURCE", "de": "ALLGEMEIN & DATENQUELLE" },
+					"xs": 12,
+					"newLine": true
+				},
+				{
 					"attr": "enabled",
 					"type": "checkbox",
 					"label": "Enabled",
@@ -31,10 +39,10 @@
 					"label": "Source state ID",
 					"types": "state",
 					"xs": 12,
-                                    "sm": 4,
-                                    "md": 4,
-                                    "lg": 4,
-                                    "xl": 4,
+					"sm": 4,
+					"md": 4,
+					"lg": 4,
+					"xl": 4,
 					"newLine": false
 				},
 				{
@@ -43,10 +51,10 @@
 					"label": "Name",
 					"default": "",
 					"xs": 12,
-                                    "sm": 4,
-                                    "md": 4,
-                                    "lg": 4,
-                                    "xl": 4,
+					"sm": 4,
+					"md": 4,
+					"lg": 4,
+					"xl": 4,
 					"newLine": false
 				},
 				{
@@ -145,6 +153,14 @@
 					"hidden": "data.initialTraining !== 'history'"
 				},
 				{
+					"type": "header",
+					"attr": "_anomalyHeader",
+					"size": 3,
+					"text": { "en": "ANOMALY DETECTION", "de": "ANOMALIEERKENNUNG" },
+					"xs": 12,
+					"newLine": true
+				},
+				{
 					"attr": "minimumSamples",
 					"type": "number",
 					"label": "Minimum learned samples",
@@ -240,9 +256,17 @@
 					"newLine": true
 				},
 				{
+					"type": "header",
+					"attr": "_detectorsHeader",
+					"size": 3,
+					"text": { "en": "DETECTORS", "de": "DETEKTOREN" },
+					"xs": 12,
+					"newLine": true
+				},
+				{
 					"attr": "enableMad",
 					"type": "checkbox",
-					"label": "Enable value deviation detector",
+					"label": { "en": "Detect value deviations", "de": "Wertabweichungen erkennen" },
 					"help": {
 						"en": "Detects individual values that differ significantly from learned normal behavior.",
 						"de": "Erkennt einzelne Werte, die deutlich vom gelernten Normalverhalten abweichen."
@@ -258,7 +282,7 @@
 				{
 					"attr": "enableRate",
 					"type": "checkbox",
-					"label": "Enable rate-of-change detector",
+					"label": { "en": "Monitor rate of change", "de": "Änderungsrate überwachen" },
 					"help": {
 						"en": "Detects unusually fast changes between consecutive values.",
 						"de": "Erkennt ungewöhnlich schnelle Änderungen zwischen aufeinanderfolgenden Werten."
@@ -274,7 +298,7 @@
 				{
 					"attr": "enableStuck",
 					"type": "checkbox",
-					"label": "Enable stuck-state detector",
+					"label": { "en": "Detect stuck values", "de": "Festhängende Werte erkennen" },
 					"help": {
 						"en": "Detects values that remain unchanged longer than the configured duration.",
 						"de": "Erkennt Werte, die länger als die konfigurierte Dauer unverändert bleiben."
@@ -290,7 +314,10 @@
 				{
 					"attr": "stuckDurationMinutes",
 					"type": "number",
-					"label": "Stuck duration (minutes)",
+					"label": {
+						"en": "Stuck value duration (minutes)",
+						"de": "Dauer eines festhängenden Werts (Minuten)"
+					},
 					"hidden": "data.enableStuck !== true",
 					"help": {
 						"en": "Time an unchanged value must persist before it is considered stuck.",
@@ -308,9 +335,17 @@
 					"newLine": false
 				},
 				{
+					"type": "header",
+					"attr": "_contextHeader",
+					"size": 3,
+					"text": { "en": "CONTEXT", "de": "KONTEXT" },
+					"xs": 12,
+					"newLine": true
+				},
+				{
 					"attr": "timeContext",
 					"type": "checkbox",
-					"label": "Use time-of-day context",
+					"label": { "en": "Consider time of day", "de": "Tageszeit berücksichtigen" },
 					"help": {
 						"en": "Learns separate baselines for different times of day.",
 						"de": "Lernt getrennte Basislinien für verschiedene Tageszeiten."
@@ -326,7 +361,7 @@
 				{
 					"attr": "weekdayContext",
 					"type": "checkbox",
-					"label": "Use weekday context",
+					"label": { "en": "Consider weekday", "de": "Wochentag berücksichtigen" },
 					"help": {
 						"en": "Learns separate baselines for different weekdays.",
 						"de": "Lernt getrennte Basislinien für verschiedene Wochentage."
@@ -342,7 +377,7 @@
 				{
 					"attr": "enableContext",
 					"type": "checkbox",
-					"label": "Enable context-aware detection",
+					"label": { "en": "Context-aware detection", "de": "Kontextbezogene Erkennung" },
 					"help": {
 						"en": "Uses configured context states to compare values only with matching operating conditions.",
 						"de": "Vergleicht Werte anhand konfigurierter Kontextzustände nur mit passenden Betriebsbedingungen."
@@ -384,7 +419,7 @@
 				{
 					"attr": "enableChangePoint",
 					"type": "checkbox",
-					"label": "Enable persistent level-shift detection",
+					"label": { "en": "Detect level shifts", "de": "Pegelverschiebungen erkennen" },
 					"help": {
 						"en": "Detects a lasting change to the normal operating level.",
 						"de": "Erkennt eine anhaltende Verschiebung des normalen Betriebsniveaus."
@@ -400,7 +435,7 @@
 				{
 					"attr": "enableTrend",
 					"type": "checkbox",
-					"label": "Enable trend detection",
+					"label": { "en": "Detect trends", "de": "Trends erkennen" },
 					"help": {
 						"en": "Detects gradual upward or downward drift over time.",
 						"de": "Erkennt eine allmähliche Aufwärts- oder Abwärtsentwicklung über die Zeit."
@@ -412,6 +447,141 @@
 					"lg": 6,
 					"xl": 6,
 					"newLine": false
+				},
+				{
+					"type": "header",
+					"attr": "_forecastHeader",
+					"size": 3,
+					"text": { "en": "FORECAST", "de": "PROGNOSE" },
+					"xs": 12,
+					"newLine": true
+				},
+				{
+					"attr": "predictiveEnabled",
+					"type": "checkbox",
+					"label": { "en": "Enable forecast", "de": "Prognose aktivieren" },
+					"help": {
+						"en": "Optionally creates a resource-efficient local forecast of future values.",
+						"de": "Erstellt optional eine ressourcenschonende lokale Vorhersage zukünftiger Werte."
+					},
+					"default": false,
+					"xs": 12,
+					"sm": 6,
+					"md": 6,
+					"lg": 6,
+					"xl": 6,
+					"newLine": true
+				},
+				{
+					"attr": "predictiveHorizonMinutes",
+					"type": "number",
+					"label": { "en": "Forecast horizon (minutes)", "de": "Prognosehorizont (Minuten)" },
+					"help": {
+						"en": "Defines how far ahead values are forecast. Shorter horizons are usually more reliable.",
+						"de": "Legt fest, wie weit in die Zukunft Werte vorhergesagt werden. Kürzere Zeiträume sind in der Regel zuverlässiger."
+					},
+					"hidden": "data.predictiveEnabled !== true",
+					"min": 1,
+					"max": 360,
+					"default": 60,
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3
+				},
+				{
+					"attr": "predictiveUpdateIntervalMinutes",
+					"type": "number",
+					"label": { "en": "Update interval (minutes)", "de": "Aktualisierungsintervall (Minuten)" },
+					"help": {
+						"en": "Defines how often the forecast is recalculated. Larger intervals reduce CPU load.",
+						"de": "Legt fest, wie oft die Prognose neu berechnet wird. Größere Intervalle reduzieren die CPU-Last."
+					},
+					"hidden": "data.predictiveEnabled !== true",
+					"min": 5,
+					"max": 1440,
+					"default": 30,
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3
+				},
+				{
+					"attr": "predictiveMinimumTrainingSamples",
+					"type": "number",
+					"label": { "en": "Minimum training samples", "de": "Mindestanzahl Trainingswerte" },
+					"help": {
+						"en": "Minimum number of usable measurements required before a forecast can be created.",
+						"de": "So viele verwertbare Messwerte werden mindestens benötigt, bevor eine Prognose erstellt werden kann."
+					},
+					"hidden": "data.predictiveEnabled !== true",
+					"min": 10,
+					"max": 10000,
+					"default": 120,
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3
+				},
+				{
+					"attr": "predictiveMaximumTrainingPoints",
+					"type": "number",
+					"label": { "en": "Maximum training samples", "de": "Maximale Trainingswerte" },
+					"help": {
+						"en": "Limits measurements used by the forecast model, reducing memory and computation.",
+						"de": "Begrenzt die für das Prognosemodell verwendeten Messwerte und damit Speicherbedarf und Rechenaufwand."
+					},
+					"hidden": "data.predictiveEnabled !== true",
+					"min": 20,
+					"max": 10000,
+					"default": 2000,
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3
+				},
+				{
+					"attr": "predictiveSeasonalityMode",
+					"type": "select",
+					"label": { "en": "Seasonality", "de": "Saisonalität verwenden" },
+					"help": {
+						"en": "Detects recurring patterns such as heating, charging or daily cycles when the pattern is stable enough.",
+						"de": "Erkennt wiederkehrende Muster wie Heiz-, Lade- oder Tageszyklen, wenn das Muster ausreichend stabil ist."
+					},
+					"options": [
+						{ "value": "off", "label": { "en": "Off", "de": "Aus" } },
+						{ "value": "auto", "label": { "en": "Detect automatically", "de": "Automatisch erkennen" } },
+						{ "value": "manual", "label": { "en": "Set manually", "de": "Manuell festlegen" } }
+					],
+					"default": "off",
+					"hidden": "data.predictiveEnabled !== true",
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3
+				},
+				{
+					"attr": "predictiveSeasonalPeriodMinutes",
+					"type": "number",
+					"label": { "en": "Seasonal period (minutes)", "de": "Saisonale Periode (Minuten)" },
+					"help": {
+						"en": "Set a repeating period, for example 1440 for a daily cycle; 0 disables seasonality.",
+						"de": "Wiederholungsdauer, z. B. 1440 für einen Tageszyklus; 0 deaktiviert die Saisonalität."
+					},
+					"hidden": "data.predictiveEnabled !== true || data.predictiveSeasonalityMode !== 'manual'",
+					"min": 0,
+					"max": 10080,
+					"default": 1440,
+					"xs": 12,
+					"sm": 3,
+					"md": 3,
+					"lg": 3,
+					"xl": 3
 				}
 			]
 		}

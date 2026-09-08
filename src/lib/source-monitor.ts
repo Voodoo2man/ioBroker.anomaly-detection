@@ -5,6 +5,7 @@ import { TemporalModel, type TemporalModelData } from "./model/temporal-model";
 import { median, MODEL_SCHEMA_VERSION } from "./model/statistics";
 import { scoreDetectors, type DetectorDiagnostic } from "./scoring";
 import type { HistorySample } from "./history-provider";
+import type { PredictiveSettings } from "./predictive";
 
 export const DEFAULTS = {
 	minimumSamples: 30,
@@ -17,6 +18,9 @@ export const DEFAULTS = {
 	maxHistoryGapMinutes: 360,
 	maxContextModels: 32,
 } as const;
+/**
+ *
+ */
 export interface ContextStateSettings {
 	/**
 	 *
@@ -28,7 +32,42 @@ export interface ContextStateSettings {
 	bucketWidth?: number;
 }
 
+/**
+ *
+ */
 export interface SourceSettings {
+	/**
+	 *
+	 */
+	predictive?: PredictiveSettings;
+	/**
+	 *
+	 */
+	predictiveEnabled?: boolean;
+	/**
+	 *
+	 */
+	predictiveHorizonMinutes?: number;
+	/**
+	 *
+	 */
+	predictiveUpdateIntervalMinutes?: number;
+	/**
+	 *
+	 */
+	predictiveMinimumTrainingSamples?: number;
+	/**
+	 *
+	 */
+	predictiveMaximumTrainingPoints?: number;
+	/**
+	 *
+	 */
+	predictiveSeasonalPeriodMinutes?: number;
+	/**
+	 *
+	 */
+	predictiveSeasonalityMode?: "off" | "auto" | "manual";
 	/**
 	 *
 	 */
@@ -123,6 +162,9 @@ export interface SourceSettings {
 	enableTrend?: boolean;
 }
 
+/**
+ *
+ */
 export interface BootstrapMetadata {
 	/**
 	 *
@@ -154,6 +196,9 @@ export interface BootstrapMetadata {
 	importedSamples: number;
 }
 
+/**
+ *
+ */
 export interface SourceModelData {
 	/**
 	 *
@@ -221,6 +266,16 @@ export interface SourceModelData {
 	diagnostics?: DiagnosticSnapshot[];
 }
 
+interface ScopedDetectorState {
+	advanced: AdvancedDetectors;
+	lastUsed: number;
+	anomalySince?: number;
+	detected: boolean;
+}
+
+/**
+ *
+ */
 export interface DiagnosticSnapshot {
 	/**
 	 *
@@ -250,6 +305,8 @@ export interface DiagnosticSnapshot {
 	 *
 	 */
 	detected: boolean;
+	/** Current evaluation classification; older persisted snapshots may omit this. */
+	statusCode?: ExplainabilityStatus;
 	/**
 	 *
 	 */
@@ -270,9 +327,13 @@ export interface DiagnosticSnapshot {
 
 export type BaselineScope = "context" | "time" | "global" | "insufficient";
 
-export type ExplainabilityStatus = "learning" | "normal" | "anomaly" | "insufficient_data";
+export type ExplainabilityStatus =
+	"learning" | "normal" | "deviating" | "anomaly" | "insufficient_data" | "unavailable";
 export type Severity = "normal" | "noticeable" | "high";
 
+/**
+ *
+ */
 export interface ObservationResult {
 	/**
 	 *
@@ -326,6 +387,12 @@ export interface ObservationResult {
 	 *
 	 */
 	contextSampleCount: number;
+	/** Number of samples in the baseline that is relevant for this evaluation. */
+	relevantSampleCount: number;
+	/** Scope of the baseline whose sample count is relevant for this evaluation. */
+	relevantSampleScope: BaselineScope;
+	/** Whether the relevant baseline is mature enough for a rating. */
+	evaluationAvailable: boolean;
 	/**
 	 *
 	 */
@@ -385,19 +452,20 @@ export class SourceMonitor {
 	private valueModel: TemporalModel;
 	private rateModel: TemporalModel;
 	private contextualModel: ContextualModel;
-	private advanced: AdvancedDetectors;
+	private readonly scopedStates = new Map<string, ScopedDetectorState>();
+	private activeStateScope = "global";
 	private lastValue: number | undefined;
 	private lastTimestamp: number | undefined;
 	private lastContextKey: string | undefined;
 	private repeatedSince: number | undefined;
-	private anomalySince: number | undefined;
 	private lastNormal: number | undefined;
-	private detected: boolean;
 	private bootstrap?: BootstrapMetadata;
 	private diagnostics: DiagnosticSnapshot[];
 
 	/**
 	 *
+	 * @param settings
+	 * @param data
 	 */
 	public constructor(
 		private readonly settings: SourceSettings,
@@ -407,20 +475,26 @@ export class SourceMonitor {
 		this.valueModel = new TemporalModel(bucketMinutes, undefined, data?.value);
 		this.rateModel = new TemporalModel(bucketMinutes, undefined, data?.rate);
 		this.contextualModel = new ContextualModel(bucketMinutes, DEFAULTS.maxContextModels, undefined, data?.context);
-		this.advanced = new AdvancedDetectors(data?.changePoint, data?.trend);
+		this.scopedStates.set("global", {
+			advanced: new AdvancedDetectors(data?.changePoint, data?.trend),
+			lastUsed: 0,
+			anomalySince: data?.anomalySince,
+			detected: data?.detected ?? false,
+		});
 		this.lastValue = data?.lastValue;
 		this.lastTimestamp = data?.lastTimestamp;
 		this.lastContextKey = data?.lastContextKey;
 		this.repeatedSince = data?.repeatedSince;
-		this.anomalySince = data?.anomalySince;
 		this.lastNormal = data?.lastNormal;
-		this.detected = data?.detected ?? false;
 		this.bootstrap = data?.bootstrap;
 		this.diagnostics = (data?.diagnostics ?? []).slice(-500);
 	}
 
 	/**
 	 *
+	 * @param value
+	 * @param timestamp
+	 * @param contextKey
 	 */
 	public observe(value: unknown, timestamp: number, contextKey?: string): ObservationResult | undefined {
 		if (typeof value !== "number" || !Number.isFinite(value) || !Number.isFinite(timestamp)) {
@@ -441,6 +515,18 @@ export class SourceMonitor {
 				? this.contextualModel.baseline(contextKey, timestamp, minSamples, timeContext, weekdayContext)
 				: undefined;
 		const baseline = contextBaseline ?? standardBaseline;
+		const stateScope =
+			contextBaseline && contextKey
+				? contextKey
+				: this.settings.enableContext
+					? `fallback:${baseline.scope}`
+					: "global";
+		const state = this.getScopedState(stateScope, timestamp);
+		if (stateScope !== this.activeStateScope) {
+			state.anomalySince = undefined;
+			state.detected = false;
+			this.activeStateScope = stateScope;
+		}
 		const baselineScope: BaselineScope = contextBaseline
 			? "context"
 			: contextIsLearning
@@ -492,7 +578,7 @@ export class SourceMonitor {
 				results.push(result);
 			}
 		}
-		const advanced = this.advanced.observe(
+		const advanced = state.advanced.observe(
 			expected === undefined ? undefined : value - expected,
 			timestamp,
 			0,
@@ -508,7 +594,7 @@ export class SourceMonitor {
 			results.push(advanced.trend);
 		}
 		const scoring = scoreDetectors(results);
-		this.updatePersistentDetection(scoring.score, timestamp, threshold);
+		this.updatePersistentDetection(state, scoring.score, timestamp, threshold);
 		const isStrongAnomaly = scoring.score >= threshold;
 		const learningNewContext = contextIsLearning;
 		if (!isStrongAnomaly || advanced.adapt || learningNewContext) {
@@ -528,19 +614,23 @@ export class SourceMonitor {
 		this.lastContextKey = this.settings.enableContext === true ? contextKey : undefined;
 		const sufficient = this.valueModel.sampleCount >= minSamples;
 		const contextSampleCount = hasActiveContext ? this.contextualModel.sampleCount(contextKey) : 0;
+		const relevantSampleScope: BaselineScope = hasActiveContext ? "context" : baselineScope;
+		const relevantSampleCount = hasActiveContext ? contextSampleCount : baseline.series.count;
 		const statusCode: ExplainabilityStatus = contextIsLearning
 			? "learning"
 			: !sufficient
 				? "insufficient_data"
 				: isStrongAnomaly
-					? "anomaly"
+					? state.detected
+						? "anomaly"
+						: "deviating"
 					: "normal";
 		const observation: ObservationResult = {
 			actual: value,
 			expected,
 			deviation: expected === undefined ? undefined : value - expected,
 			score: scoring.score,
-			detected: this.detected,
+			detected: state.detected,
 			status: contextIsLearning
 				? "learning"
 				: sufficient
@@ -558,13 +648,16 @@ export class SourceMonitor {
 			activeContext: formatContextKey(contextKey),
 			baselineSampleCount,
 			contextSampleCount,
+			relevantSampleCount,
+			relevantSampleScope,
+			evaluationAvailable: !contextIsLearning && sufficient,
 			requiredSamples: minSamples,
 			statusCode,
 			severity: statusCode === "anomaly" ? (scoring.score >= 85 ? "high" : "noticeable") : "normal",
 			reasonCode: contextIsLearning ? "insufficient_training_data" : scoring.reasonCode,
 			detectors: scoring.detectors,
 			lastEvaluated: timestamp,
-			anomalySince: this.anomalySince,
+			anomalySince: this.scopedStates.get(this.activeStateScope)?.anomalySince,
 			lastNormal: this.lastNormal,
 			expectedLow: expectedRange?.low,
 			expectedHigh: expectedRange?.high,
@@ -587,7 +680,8 @@ export class SourceMonitor {
 			decisionLow: observation.decisionLow,
 			decisionHigh: observation.decisionHigh,
 			score: observation.score,
-			detected: observation.statusCode === "anomaly",
+			detected: observation.detected,
+			statusCode: observation.statusCode,
 			reasonCode: observation.reasonCode,
 			baselineScope: observation.baselineScope,
 			baselineSampleCount: observation.baselineSampleCount,
@@ -611,12 +705,17 @@ export class SourceMonitor {
 			lastTimestamp: this.lastTimestamp,
 			lastContextKey: this.lastContextKey,
 			repeatedSince: this.repeatedSince,
-			anomalySince: this.anomalySince,
+			// Keep legacy persistence global; scoped pending/latch state is intentionally
+			// not serialized into the global compatibility fields.
+			anomalySince: this.scopedStates.get("global")?.anomalySince,
 			lastNormal: this.lastNormal,
-			detected: this.detected,
+			detected: this.scopedStates.get("global")?.detected ?? false,
 			bootstrap: this.bootstrap,
 			context: this.contextualModel.toJSON(),
-			...this.advanced.toJSON(),
+			...(this.scopedStates.get("global")?.advanced.toJSON() ?? {
+				changePoint: { recent: [], candidateCount: 0 },
+				trend: { recent: [] },
+			}),
 			diagnostics: [...this.diagnostics],
 		};
 	}
@@ -705,14 +804,14 @@ export class SourceMonitor {
 			this.settings.bucketMinutes ?? DEFAULTS.bucketMinutes,
 			DEFAULTS.maxContextModels,
 		);
-		this.advanced = new AdvancedDetectors();
+		this.scopedStates.clear();
+		this.scopedStates.set("global", { advanced: new AdvancedDetectors(), lastUsed: 0, detected: false });
+		this.activeStateScope = "global";
 		this.lastValue = undefined;
 		this.lastTimestamp = undefined;
 		this.lastContextKey = undefined;
 		this.repeatedSince = undefined;
-		this.anomalySince = undefined;
 		this.lastNormal = undefined;
-		this.detected = false;
 		this.bootstrap = undefined;
 	}
 
@@ -750,24 +849,47 @@ export class SourceMonitor {
 		}
 	}
 
-	private updatePersistentDetection(score: number, timestamp: number, threshold: number): void {
-		if (this.detected) {
+	private updatePersistentDetection(
+		state: ScopedDetectorState,
+		score: number,
+		timestamp: number,
+		threshold: number,
+	): void {
+		if (state.detected) {
 			if (score < Math.max(0, threshold - DEFAULTS.hysteresis)) {
-				this.detected = false;
-				this.anomalySince = undefined;
+				state.detected = false;
+				state.anomalySince = undefined;
 			}
 			return;
 		}
 		if (score < threshold) {
-			this.anomalySince = undefined;
+			state.anomalySince = undefined;
 			return;
 		}
-		this.anomalySince ??= timestamp;
+		state.anomalySince ??= timestamp;
 		const requiredDuration =
 			(this.settings.minimumAnomalyDurationMinutes ?? DEFAULTS.minimumAnomalyDurationMinutes) * 60_000;
-		if (timestamp - this.anomalySince >= requiredDuration) {
-			this.detected = true;
+		if (state.anomalySince !== undefined && timestamp - state.anomalySince >= requiredDuration) {
+			state.detected = true;
 		}
+	}
+
+	private getScopedState(scope: string, timestamp: number): ScopedDetectorState {
+		let state = this.scopedStates.get(scope);
+		if (!state) {
+			if (this.scopedStates.size >= DEFAULTS.maxContextModels + 1) {
+				const removable = [...this.scopedStates.entries()]
+					.filter(([key]) => key !== "global" && key !== this.activeStateScope)
+					.sort(([, left], [, right]) => left.lastUsed - right.lastUsed)[0];
+				if (removable) {
+					this.scopedStates.delete(removable[0]);
+				}
+			}
+			state = { advanced: new AdvancedDetectors(), lastUsed: timestamp, detected: false };
+			this.scopedStates.set(scope, state);
+		}
+		state.lastUsed = timestamp;
+		return state;
 	}
 }
 
@@ -831,6 +953,10 @@ export function decisionRangeFor(
 	return { low: medianValue - halfWidth, high: medianValue + halfWidth };
 }
 
+/**
+ *
+ * @param value
+ */
 export function parseStoredModel(value: unknown): Record<string, SourceModelData> {
 	if (typeof value !== "string") {
 		return {};

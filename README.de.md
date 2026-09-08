@@ -168,6 +168,25 @@ Der Adapter erkennt statistische Ungewöhnlichkeit, diagnostiziert aber keinen G
 | **Dauerhafte Erkennung von Pegelverschiebungen** | Erkennt ein anhaltend verändertes Betriebsniveau. | Standby-Leistung dauerhaft von 5 W auf 12 W gestiegen. |
 | **Trenderkennung aktivieren** | Erkennt langsame Aufwärts- oder Abwärtsentwicklung über Residuen. | Heizdauer steigt über mehrere Tage. |
 
+### Konfigurationsgrundsätze
+
+1. Beginne mit den Standarddetektoren und aktiviere nur Verfahren, die zum physikalischen Verhalten der überwachten Quelle passen.
+2. Aktiviere nicht jeden verfügbaren Detektor nur deshalb, weil er vorhanden ist.
+3. Füge Kontextzustände nur hinzu, wenn sie den erwarteten Wert erklären; mehr Kontext bedeutet weniger Trainingsdaten pro Kontext.
+4. Starte mit der Standardsensitivität und dem Standardschwellenwert. Erhöhe die Toleranz erst, nachdem legitime Fehlalarme beobachtet wurden.
+5. Verwende History-Training nur, wenn der ausgewählte Zeitraum den normalen Betrieb repräsentiert und nicht überwiegend bekannte Fehler- oder Installationsphasen enthält.
+6. Eine statistische Anomalie zeigt ein ungewöhnliches Verhalten relativ zu den Lerndaten. Sie beweist weder einen Gerätefehler noch dessen Ursache.
+
+### Einrichtung mit einem KI-Assistenten
+
+Ein KI-Assistent kann anhand dieser README und deines Anwendungsfalls eine erste Konfiguration vorschlagen. Nenne dafür die physikalische Größe, die Bedeutung der Quelle, deren Update-Häufigkeit, relevante ioBroker-Kontextzustände, ob schnelle Änderungen oder lange konstante Phasen normal sind, ob Tages- oder Wochenmuster bestehen, ob dauerhafte Pegelverschiebungen oder langsame Trends relevant sind und ob historische Daten verfügbar sind.
+
+KI-generierte Einstellungen sind nur ein Ausgangspunkt und müssen mit dem tatsächlichen Geräteverhalten abgeglichen werden. Der Adapter selbst bleibt deterministisch und verwendet keine KI.
+
+Beispiel-Prompt:
+
+> Ich möchte den elektrischen Leistungsverbrauch einer Pumpe überwachen. Der Ein-/Aus-Zustand und die Betriebsart der Pumpe sind als zusätzliche ioBroker-Zustände verfügbar. Start- und Stoppvorgänge verursachen schnelle, aber normale Leistungsänderungen. Eine dauerhafte Abweichung von der üblichen Betriebsleistung wäre relevant. Für die letzten 30 Tage liegt History in InfluxDB vor. Empfiehl mir auf Grundlage dieser README passende Einstellungen für anomaly-detection und erkläre jede Auswahl.
+
 ### Auswahlhilfe für Detektoren
 
 - **MAD/Wertabweichungen:** Für unerwartete Einzelwerte relativ zum gelernten Normalverhalten.
@@ -225,15 +244,19 @@ Verarbeitung und Modellspeicherung erfolgen vollständig lokal in ioBroker. Kein
 
 ## Changelog
 
+### 0.3.0 (2026-09-08)
+
+- Optionale lokale Predictive-Prognosen mit persistenten Modellen und Trainingsbasen ergänzt.
+- History-basiertes Initialtraining, Wiederherstellung nach Neustarts, Rolling-Retraining und die Anzeige der Trainingsquelle verbessert.
+- Robustes History-Bootstrap mit segmentierten Provider-Abfragen, Coverage-Probes, Deduplizierung und adaptiver Segmentierung ergänzt.
+- Erklärbarkeit und Diagnosen der Anomalieerkennung verbessert, einschließlich kontextbezogener Sample-Reichweite und Bewertungsverfügbarkeit.
+
 ### 0.2.1 (2026-09-08)
-
-- Absturz in der Analyseansicht behoben, wenn ein Kontextzustand `null` oder ungültig ist.
-
-### 0.2.0 (2026-09-08)
 
 - Aktuelle Anomaliebewertungen, erklärende Details und responsive Verlaufsdiagramme ergänzt.
 - `Normal` wird als Grund für niedrige Scores angezeigt.
 - Kontext-, Entscheidungsbereich- und History-Daten für die Analyseansicht erweitert.
+- Absturz in der Analyseansicht behoben, wenn ein Kontextzustand `null` oder ungültig ist.
 
 ### 0.1.1 (2026-09-07)
 
