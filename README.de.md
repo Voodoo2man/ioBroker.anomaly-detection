@@ -225,6 +225,10 @@ Verarbeitung und Modellspeicherung erfolgen vollständig lokal in ioBroker. Kein
 
 ## Changelog
 
+### 0.2.1 (2026-09-08)
+
+- Absturz in der Analyseansicht behoben, wenn ein Kontextzustand `null` oder ungültig ist.
+
 ### 0.2.0 (2026-09-08)
 
 - Aktuelle Anomaliebewertungen, erklärende Details und responsive Verlaufsdiagramme ergänzt.

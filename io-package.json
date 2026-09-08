@@ -1,8 +1,21 @@
 {
 	"common": {
 		"name": "anomaly-detection",
-		"version": "0.2.0",
+		"version": "0.2.1",
 		"news": {
+			"0.2.1": {
+				"en": "Fix null context entries in the analysis view",
+				"de": "Null-Einträge bei Kontextzuständen in der Analyseansicht behoben",
+				"ru": "Исправлена обработка пустых контекстных состояний в представлении анализа",
+				"pt": "Corrigido o tratamento de estados de contexto nulos na vista de análise",
+				"nl": "Null-contextitems in de analyseweergave opgelost",
+				"fr": "Correction des entrées de contexte nulles dans la vue d’analyse",
+				"it": "Corretta la gestione dei contesti nulli nella vista analisi",
+				"es": "Corregidas las entradas de contexto nulas en la vista de análisis",
+				"pl": "Naprawiono puste wpisy kontekstu w widoku analizy",
+				"uk": "Виправлено нульові контексти у поданні аналізу",
+				"zh-cn": "修复分析视图中的空上下文条目"
+			},
 			"0.2.0": {
 				"en": "Improve analysis charts, historical explanations, and responsive layout",
 				"de": "Analyse-Diagramme, historische Erklärungen und responsives Layout verbessert",

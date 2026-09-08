@@ -67,7 +67,7 @@ class AnomalyDetection extends utils.Adapter {
     this.on("unload", this.onUnload.bind(this));
   }
   async onReady() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     await this.ensureModelState();
     const persistedValue = (_a = await this.getStateAsync(MODEL_STATE_ID)) == null ? void 0 : _a.val;
     let stored = (0, import_source_monitor.parseStoredModel)(persistedValue);
@@ -109,17 +109,17 @@ class AnomalyDetection extends utils.Adapter {
         this.sourceUnits.set(id, object.common.unit);
       }
       for (const context of (_e = source.contextStates) != null ? _e : []) {
-        const contextId = (_f = context.id) == null ? void 0 : _f.trim();
+        const contextId = context && typeof context.id === "string" ? context.id.trim() : "";
         if (!contextId) {
           continue;
         }
         const contextObject = await this.getForeignObjectAsync(contextId);
-        const name = (_g = contextObject == null ? void 0 : contextObject.common) == null ? void 0 : _g.name;
+        const name = (_f = contextObject == null ? void 0 : contextObject.common) == null ? void 0 : _f.name;
         if (typeof name === "string") {
           this.contextNames.set(contextId, name);
         } else if (name && typeof name === "object") {
           const localized = name;
-          const value = (_i = (_h = localized.de) != null ? _h : localized.en) != null ? _i : Object.values(localized)[0];
+          const value = (_h = (_g = localized.de) != null ? _g : localized.en) != null ? _h : Object.values(localized)[0];
           if (typeof value === "string") {
             this.contextNames.set(contextId, value);
           }
@@ -232,10 +232,10 @@ class AnomalyDetection extends utils.Adapter {
         name: ((_a = this.sources.get(safeId)) == null ? void 0 : _a.name) || sourceId,
         unit: this.sourceUnits.get(sourceId),
         contextLabels: Object.fromEntries(
-          ((_c = (_b = this.sources.get(safeId)) == null ? void 0 : _b.contextStates) != null ? _c : []).map((context) => [
-            context.id.trim(),
-            this.contextNames.get(context.id.trim()) || context.id.trim()
-          ])
+          ((_c = (_b = this.sources.get(safeId)) == null ? void 0 : _b.contextStates) != null ? _c : []).filter((context) => context && typeof context.id === "string" && context.id.trim()).map((context) => {
+            const contextId = context.id.trim();
+            return [contextId, this.contextNames.get(contextId) || contextId];
+          })
         ),
         evaluation: (_i = this.evaluations.get(sourceId)) != null ? _i : {
           statusCode: ((_d = this.monitors.get(sourceId)) == null ? void 0 : _d.hasSufficientData) ? "normal" : "learning",
@@ -299,10 +299,7 @@ class AnomalyDetection extends utils.Adapter {
     if (((_b = (_a = source.contextStates) == null ? void 0 : _a.length) != null ? _b : 0) > 3) {
       this.warnContext(`Only the first 3 context states are used for ${sourceId}`);
     }
-    for (const context of ((_c = source.contextStates) != null ? _c : []).filter((item) => {
-      var _a2;
-      return (_a2 = item.id) == null ? void 0 : _a2.trim();
-    }).slice(0, 3)) {
+    for (const context of ((_c = source.contextStates) != null ? _c : []).filter((item) => item && typeof item.id === "string" && item.id.trim()).slice(0, 3)) {
       const id = context.id.trim();
       let sources = this.contextSources.get(id);
       if (!sources) {
@@ -330,10 +327,7 @@ class AnomalyDetection extends utils.Adapter {
       return void 0;
     }
     const values = this.contextValues.get(sourceId);
-    const parts = ((_a = source.contextStates) != null ? _a : []).filter((item) => {
-      var _a2;
-      return (_a2 = item.id) == null ? void 0 : _a2.trim();
-    }).slice(0, 3).map((context) => {
+    const parts = ((_a = source.contextStates) != null ? _a : []).filter((item) => item && typeof item.id === "string" && item.id.trim()).slice(0, 3).map((context) => {
       const value = values == null ? void 0 : values.get(context.id.trim());
       if (typeof value === "string" && value.trim() && value.length <= 96) {
         const categoryKey = `${sourceId}\0${context.id}`;
