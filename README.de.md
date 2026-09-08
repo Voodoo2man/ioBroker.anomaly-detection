@@ -16,10 +16,10 @@ Starre Grenzwerte können zeit- oder betriebsabhängiges Verhalten nicht abbilde
 
 Der Adapter kombiniert folgende deterministische Detektoren:
 
-- **Wertabweichung (MAD):** Erkennt Werte außerhalb des gelernten Normalbereichs, ohne dass ein einzelner Extremwert die Baseline stark verzerrt.
-- **Änderungsgeschwindigkeit:** Bewertet `Delta / vergangene Zeit` und berücksichtigt dadurch unregelmäßige Update-Abstände.
-- **Festhängender Wert:** Erkennt wiederholt empfangene identische Werte, die länger als die konfigurierte Dauer anhalten. Ein fehlendes Update allein gilt niemals als festhängend.
-- **Zeitbasierte Baseline:** Verwendet standardmäßig Stundenbereiche und kann zusätzlich nach Wochentagen getrennt werden. Bei zu wenigen Daten greift die Hierarchie auf den Zeitbereich und anschließend auf die globale Baseline zurück.
+- **Wertabweichungen (MAD):** Erkennt Werte außerhalb des gelernten Normalbereichs, ohne dass ein einzelner Extremwert die Baseline stark verzerrt.
+- **Änderungsrate:** Bewertet `Delta / vergangene Zeit` und berücksichtigt dadurch unregelmäßige Update-Abstände.
+- **Festhängende Werte:** Erkennt wiederholt empfangene identische Werte, die länger als die konfigurierte Dauer anhalten. Ein fehlendes Update allein gilt niemals als festhängend.
+- **Tageszeit-Kontext:** Verwendet standardmäßig Stundenbereiche und kann zusätzlich nach Wochentagen getrennt werden. Bei zu wenigen Daten greift die Hierarchie auf den Zeitbereich und anschließend auf die globale Baseline zurück.
 
 `score` ist ein deterministischer Schweregrad von 0 bis 100. Er ist weder eine statistische Wahrscheinlichkeit noch eine Diagnose der physischen Ursache.
 
@@ -34,7 +34,7 @@ Der Adapter kombiniert folgende deterministische Detektoren:
 
 Der Adapter verwendet begrenzte, robuste Statistik. Er trainiert kein neuronales Netz, ruft keinen KI-Dienst auf und setzt keine konstanten Messintervalle voraus.
 
-### Wertabweichung: Median und MAD
+### Wertabweichungen: Median und MAD
 
 Für eine gelernte Baseline mit Werten `x₁ … xₙ` ist der erwartete Wert der Median `m = median(x₁ … xₙ)`. Die Streuung wird mit der Median Absolute Deviation berechnet:
 
@@ -46,7 +46,7 @@ Für einen neuen Wert `x` ergibt sich der robuste z-Score:
 
 Die Option **Sensitivität** legt fest, bei welchem z-Score dieser Detektor den Wert 100 erreicht. Median und MAD werden von einzelnen Ausreißern deutlich weniger verzerrt als Mittelwert und Standardabweichung. Bei `MAD = 0` ist ein unveränderter Wert normal; ein anderer Wert gilt als starke Abweichung.
 
-### Änderungsgeschwindigkeit
+### Änderungsrate
 
 Für zwei aufeinanderfolgende Werte wird das tatsächliche Zeitintervall verwendet:
 
@@ -62,7 +62,7 @@ Dieser Detektor ist regelbasiert. Werden identische Werte wiederholt empfangen, 
 
 Ein fehlendes Update zählt nicht als wiederholter Wert und kann daher keine Festhängend-Anomalie auslösen.
 
-### Zeit- und Wochentags-Baseline
+### Tageszeit- und Wochentags-Kontext
 
 Zeitbereiche werden aus der lokalen Tageszeit gebildet:
 
@@ -100,7 +100,7 @@ Die finale Steigung ist der Median dieser Steigungen (robuste Theil-Sen-ähnlich
 
 Jeder Detektor liefert einen begrenzten Score von 0 bis 100. Wert-/Kontext-, Pegelverschiebungs- und Trendsignale gelten als zusammengehörige Evidenz; nur das stärkste dieser Signale wird gewichtet, damit nichts doppelt gezählt wird. Rate- und Festhängend-Signale können unabhängig beitragen. Mehrere unabhängige starke Signale erzeugen einen kleinen begrenzten Bonus. Der Endwert wird immer auf 0–100 begrenzt.
 
-Messwerte ab **Anomalieschwelle** werden normalerweise nicht weiter gelernt, damit ein anhaltender Fehler nicht sofort als normal gilt. Bestätigte Pegelverschiebungen sind eine Ausnahme: Ihre Werte werden schrittweise aufgenommen, damit ein legitimes neues Betriebsniveau zur neuen Baseline werden kann.
+Messwerte ab **Anomalie-Schwellenwert** werden normalerweise nicht weiter gelernt, damit ein anhaltender Fehler nicht sofort als normal gilt. Bestätigte Pegelverschiebungen sind eine Ausnahme: Ihre Werte werden schrittweise aufgenommen, damit ein legitimes neues Betriebsniveau zur neuen Baseline werden kann.
 
 ## Konfiguration
 
@@ -121,7 +121,7 @@ Wird eine Quelle aus der Konfiguration entfernt und der Adapter neu gestartet, l
 
 ## Analyseansicht und Verlauf
 
-Die Registerkarte **Aktuelle Anomaliebewertungen** enthält pro überwachte Quelle ein responsives, zunächst eingeklapptes Diagramm **Verlauf und Anomalien**. Der Verlauf wird erst beim Öffnen geladen. Zur Auswahl stehen **1 h**, **6 h**, **24 h** (Standard) und **7 Tage**.
+Die Registerkarte **Aktuelle Anomaliebewertungen** enthält pro überwachte Quelle ein responsives, zunächst eingeklapptes Diagramm **Verlauf & Anomalien**. Der Verlauf wird erst beim Öffnen geladen. Zur Auswahl stehen **1 h**, **6 h**, **24 h** (Standard) und **7 Tage**.
 
 Das Diagramm verwendet die Einheit des ioBroker-Zustands, zum Beispiel `W`, `%` oder `°C`, und passt seine Breite an die tatsächliche Kartenbreite an. Es zeigt:
 
@@ -134,7 +134,7 @@ Beim Überfahren oder Berühren eines Punktes werden Wert und Einheit, historisc
 
 ## Lernen und Persistenz
 
-Normale Beobachtungen aktualisieren globale und zeitbasierte Baselines schrittweise. Messwerte ab der Anomalieschwelle werden nicht gelernt. Pro Baseline werden höchstens 240 Samples und kompakte Modelldaten gespeichert; eine unbegrenzte Rohdaten-Zeitreihe wird nicht angelegt.
+Normale Beobachtungen aktualisieren globale und zeitbasierte Baselines schrittweise. Messwerte ab dem Anomalie-Schwellenwert werden nicht gelernt. Pro Baseline werden höchstens 240 Samples und kompakte Modelldaten gespeichert; eine unbegrenzte Rohdaten-Zeitreihe wird nicht angelegt.
 
 Alle erweiterten Detektoren sind standardmäßig deaktiviert. Kontextabhängige Erkennung kann bis zu drei boolesche, Text-/Enum- oder numerisch gebucketete Zustände getrennt lernen. Eine gültige, aber noch zu kleine Kontext-Baseline bleibt im Lernstatus. Pegelverschiebung benötigt wiederholte Evidenz; Trend benötigt mindestens 12 Residuen über sechs Stunden.
 
@@ -155,23 +155,23 @@ Der Adapter erkennt statistische Ungewöhnlichkeit, diagnostiziert aber keinen G
 | **Mindestens gelernte Proben** | Mindestgröße einer vertrauenswürdigen Baseline. | `30` für häufige Leistungswerte. |
 | **Zeit-Bucket-Größe (Minuten)** | Größe der Tageszeitbereiche. Kleinere Bereiche sind genauer, lernen aber langsamer. | `60` Minuten |
 | **Sensitivität (robuster z-Score)** | Niedriger ist empfindlicher, höher toleranter. | Auf `5` erhöhen, wenn normale Schwankungen zu viele Meldungen erzeugen. |
-| **Anomalieschwelle** | Score, ab dem eine Anomalie gespeichert und nicht mehr gelernt wird. | `70` |
-| **Minimale Anomaliedauer** | Zeit, die die Schwelle überschritten sein muss, bevor `detected` dauerhaft gesetzt wird. | `5` Minuten |
-| **Detektor für Wertabweichung (MAD)** | Erkennt ungewöhnliche absolute Werte gegenüber dem gelernten Bereich. | Für Temperatur, Druck, Verbrauch und Leistung aktivieren. |
-| **Detektor für Änderungsgeschwindigkeit** | Erkennt ungewöhnlich schnelle Änderungen. | Für Durchfluss oder Füllstand aktivieren; bei normalen Lastsprüngen deaktiviert lassen. |
+| **Anomalie-Schwellenwert** | Score, ab dem eine Anomalie gespeichert und nicht mehr gelernt wird. | `70` |
+| **Mindestdauer einer Anomalie (Minuten)** | Zeit, die die Schwelle überschritten sein muss, bevor `detected` dauerhaft gesetzt wird. | `5` Minuten |
+| **Detektor für Wertabweichungen (MAD)** | Erkennt ungewöhnliche absolute Werte gegenüber dem gelernten Bereich. | Für Temperatur, Druck, Verbrauch und Leistung aktivieren. |
+| **Detektor für Änderungsrate** | Erkennt ungewöhnlich schnelle Änderungen. | Für Durchfluss oder Füllstand aktivieren; bei normalen Lastsprüngen deaktiviert lassen. |
 | **Detektor für festhängende Werte** | Erkennt wiederholt empfangene identische Werte über die konfigurierte Dauer. | Für regelmäßig wechselnde Sensoren aktivieren, nicht für lange konstante Setpoints. |
 | **Dauer eines festhängenden Wertes** | Wird nur bei aktiviertem Festhängend-Detektor angezeigt; legt dessen Mindestdauer fest. | `120` Minuten |
-| **Tageszeitkontext** | Trennt Baselines nach Tageszeit. | `60`-Minuten-Buckets für Haushaltsverbrauch. |
-| **Wochentagskontext** | Trennt zusätzlich nach Wochentag; funktioniert zusammen mit Tageszeit. | Büroverbrauch werktags gegenüber Wochenende. |
-| **Kontextbezogene Erkennung** | Lernt abhängig von bis zu drei weiteren Zuständen. | `pumpe.ein`, `modus`, Außentemperatur. |
+| **Tageszeit-Kontext verwenden** | Trennt Baselines nach Tageszeit. | `60`-Minuten-Buckets für Haushaltsverbrauch. |
+| **Wochentags-Kontext verwenden** | Trennt zusätzlich nach Wochentag; funktioniert zusammen mit dem Tageszeit-Kontext. | Büroverbrauch werktags gegenüber Wochenende. |
+| **Kontextbezogene Erkennung aktivieren** | Lernt abhängig von bis zu drei weiteren Zuständen. | `pumpe.ein`, `modus`, Außentemperatur. |
 | **Kontextzustände** | Die Zustände, die den Betriebszustand beschreiben. Boolesche und Enum-Werte benötigen keine Breite; numerische Werte verwenden Buckets. | `pumpe.ein=true`, Temperatur-Breite `5`. |
-| **Dauerhafte Pegelverschiebung** | Erkennt ein anhaltend verändertes Betriebsniveau. | Standby-Leistung dauerhaft von 5 W auf 12 W gestiegen. |
-| **Trenderkennung** | Erkennt langsame Aufwärts- oder Abwärtsentwicklung über Residuen. | Heizdauer steigt über mehrere Tage. |
+| **Dauerhafte Erkennung von Pegelverschiebungen** | Erkennt ein anhaltend verändertes Betriebsniveau. | Standby-Leistung dauerhaft von 5 W auf 12 W gestiegen. |
+| **Trenderkennung aktivieren** | Erkennt langsame Aufwärts- oder Abwärtsentwicklung über Residuen. | Heizdauer steigt über mehrere Tage. |
 
 ### Auswahlhilfe für Detektoren
 
-- **MAD/Wertabweichung:** Für unerwartete Einzelwerte relativ zum gelernten Normalverhalten.
-- **Änderungsgeschwindigkeit:** Wenn ungewöhnlich schnelle Änderungen relevant sind; deaktivieren, wenn schnelle Änderungen normal sind.
+- **MAD/Wertabweichungen:** Für unerwartete Einzelwerte relativ zum gelernten Normalverhalten.
+- **Änderungsrate:** Wenn ungewöhnlich schnelle Änderungen relevant sind; deaktivieren, wenn schnelle Änderungen normal sind.
 - **Festhängend:** Für Sensoren, die sich regelmäßig verändern müssen; nicht für Werte, die lange legitim konstant bleiben.
 - **Kontextbezogen:** Wenn ein anderer Zustand das erwartete Verhalten erklärt. Boolesche/Enum-Kontexte beschreiben Betriebsart oder Anwesenheit, numerische Kontexte zum Beispiel Außentemperatur, Ladezustand oder Last.
 - **Pegelverschiebung:** Für dauerhafte Änderungen des normalen Betriebsniveaus.
@@ -179,7 +179,7 @@ Der Adapter erkennt statistische Ungewöhnlichkeit, diagnostiziert aber keinen G
 
 ### Praxisbeispiel: Pumpenleistung
 
-Für die elektrische Leistung einer Pumpe sind zunächst **Wertabweichung**, **Kontextbezogene Erkennung** und **Dauerhafte Pegelverschiebung** sinnvoll. **Änderungsgeschwindigkeit**, **Festhängend** und **Trend** bleiben zunächst deaktiviert, weil normale Start-/Stoppvorgänge schnelle Änderungen verursachen und eine ausgeschaltete Pumpe legitim bei `0 W` stehen kann.
+Für die elektrische Leistung einer Pumpe sind zunächst **Detektor für Wertabweichungen**, **kontextbezogene Erkennung** und **dauerhafte Erkennung von Pegelverschiebungen** sinnvoll. **Detektor für Änderungsrate**, **Detektor für festhängende Werte** und **Trenderkennung** bleiben zunächst deaktiviert, weil normale Start-/Stoppvorgänge schnelle Änderungen verursachen und eine ausgeschaltete Pumpe legitim bei `0 W` stehen kann.
 
 Als Kontext eignen sich der Ein-/Aus-Zustand und die Betriebsart. So entstehen getrennte Normalmodelle für beispielsweise Pumpe AUS, Pumpe EIN im Normalbetrieb und Pumpe EIN im Boost-Modus. Weitere Zustände nur hinzufügen, wenn sie die erwartete Leistung nachweislich erklären; zu viele Kontextzustände verteilen die Samples auf zu viele Kombinationen.
 
