@@ -9,6 +9,8 @@ export default [
 		ignores: [
 			'.dev-server/',
 			'.vscode/',
+			'admin/custom/',
+			'src-admin/vite.config.ts',
 			'*.test.js',
 			'test/**/*.js',
 			'*.config.mjs',
@@ -25,6 +27,7 @@ export default [
 		// you may disable some 'jsdoc' warnings - but using jsdoc is highly recommended
 		// as this improves maintainability. jsdoc warnings will not block build process.
 		rules: {
+			'jsdoc/no-blank-blocks': 'off',
 			// 'jsdoc/require-jsdoc': 'off',
 			// 'jsdoc/require-param': 'off',
 			// 'jsdoc/require-param-description': 'off',
