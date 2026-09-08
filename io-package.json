@@ -1,9 +1,13 @@
 {
 	"common": {
 		"name": "anomaly-detection",
-		"version": "0.2.0",
+		"version": "0.3.0",
 		"news": {
-			"0.2.0": {
+			"0.3.0": {
+				"en": "Add predictive forecasting, persistent model training bases, history bootstrap, adaptive history segmentation, and explainable diagnostics",
+				"de": "Predictive-Prognosen, persistente Trainingsbasen, History-Bootstrap, adaptive History-Segmentierung und erklärbare Diagnosen hinzugefügt"
+			},
+			"0.2.14": {
 				"en": "Improve analysis charts, historical explanations, and responsive layout",
 				"de": "Analyse-Diagramme, historische Erklärungen und responsives Layout verbessert",
 				"ru": "Улучшены диаграммы анализа, исторические объяснения и адаптивная разметка",

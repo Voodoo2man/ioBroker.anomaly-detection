@@ -1,12 +1,12 @@
 {
-  "i18n": true,
-  "items": {
+	"i18n": true,
+	"items": {
 		"anomalyDashboard": {
-      "type": "custom",
-      "url": "custom/customComponents.js",
-      "name": "AnomalyDetectionAdmin/Components/AnomalyDashboard",
-      "guiApi": 2,
-      "xs": 12,
+			"type": "custom",
+			"url": "custom/customComponents.js",
+			"name": "AnomalyDetectionAdmin/Components/AnomalyDashboard",
+			"guiApi": 2,
+			"xs": 12,
 			"sm": 12,
 			"md": 12,
 			"lg": 12,

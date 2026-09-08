@@ -1,4 +1,9 @@
 {
+	"sectionGeneral": "GENERAL & DATA SOURCE",
+	"sectionDetection": "ANOMALY DETECTION",
+	"sectionDetectors": "DETECTORS",
+	"sectionContext": "CONTEXT",
+	"sectionForecast": "FORECAST",
 	"Monitored numerical states": "Monitored numerical states",
 	"Enabled": "Enabled",
 	"Source state ID": "Source state ID",

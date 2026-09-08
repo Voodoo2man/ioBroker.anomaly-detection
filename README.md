@@ -2,6 +2,8 @@
 
 # ioBroker.anomaly-detection
 
+[English](README.md) · **Deutsch** ([README.de.md](README.de.md))
+
 [![NPM version](https://img.shields.io/npm/v/iobroker.anomaly-detection.svg)](https://www.npmjs.com/package/iobroker.anomaly-detection)
 
 Learns the normal behaviour of selected numerical ioBroker states and reports statistically unusual values locally.
@@ -325,10 +327,18 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 
 ## Changelog
 
-### 0.2.0 (2026-09-08)
+### 0.3.0 (2026-09-08)
+
+- Add optional local predictive forecasting with persistent models and training bases.
+- Improve history-based initial training, restart recovery, rolling retraining, and history/live training-source reporting.
+- Add robust history bootstrapping with segmented provider-limit handling, coverage probes, deduplication, and adaptive segmentation.
+- Improve anomaly explainability and diagnostics, including context-aware sample scope and evaluation availability.
+
+### 0.2.1 (2026-09-08)
 
 - Report `Normal` as the current reason for scores below 50 instead of showing a technical detector message for a minor deviation.
 - Improve analysis charts, historical explanations, and responsive layout.
+- Fix a crash in the analysis view when a context-state entry is `null` or invalid.
 
 ### 0.1.1 (2026-09-07)
 

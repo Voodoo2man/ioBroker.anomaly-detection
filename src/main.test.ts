@@ -164,9 +164,37 @@ describe("context-aware monitoring", () => {
 		expect(normal.activeContext).to.equal("alias.0.tv.relay=false");
 		expect(normal.baselineSampleCount).to.be.at.least(5);
 		expect(normal.contextSampleCount).to.be.at.least(5);
+		expect(normal.relevantSampleCount).to.equal(normal.contextSampleCount);
+		expect(normal.relevantSampleScope).to.equal("context");
+		expect(normal.evaluationAvailable).to.equal(true);
+		expect(normal.statusCode).to.equal("normal");
+		expect(normal.actual).to.equal(0);
 		const anomaly = monitor.observe(150, start + 13 * 60_000, off)!;
 		expect(anomaly.score).to.equal(100);
 		expect(anomaly.reason).to.equal("Value is significantly outside the normal range for the current context");
+	});
+
+	it("keeps zero distinct from missing values across context changes", () => {
+		const monitor = new SourceMonitor({
+			...settings,
+			enableRate: false,
+			minimumAnomalyDurationMinutes: 0,
+		});
+		const start = new Date(2026, 0, 1, 12, 0).getTime();
+		for (let index = 0; index < 6; index++) {
+			monitor.observe(0, start + index * 60_000, off);
+		}
+		for (let index = 0; index < 6; index++) {
+			monitor.observe(320, start + (index + 6) * 60_000, on);
+		}
+		const onResult = monitor.observe(320, start + 12 * 60_000, on)!;
+		expect(onResult.actual).to.equal(320);
+		expect(onResult.statusCode).to.equal("normal");
+		const offResult = monitor.observe(0, start + 13 * 60_000, off)!;
+		expect(offResult.actual).to.equal(0);
+		expect(offResult.statusCode).to.equal("normal");
+		expect(monitor.observe(null, start + 14 * 60_000, off)).to.equal(undefined);
+		expect(monitor.observe(undefined, start + 15 * 60_000, off)).to.equal(undefined);
 	});
 
 	it("keeps a new valid context in learning instead of scoring it against an unrelated global baseline", () => {
@@ -183,6 +211,9 @@ describe("context-aware monitoring", () => {
 		expect(newOffContext.baselineScope).to.equal("insufficient");
 		expect(newOffContext.baselineSampleCount).to.equal(0);
 		expect(newOffContext.contextSampleCount).to.equal(1);
+		expect(newOffContext.relevantSampleCount).to.equal(1);
+		expect(newOffContext.relevantSampleScope).to.equal("context");
+		expect(newOffContext.evaluationAvailable).to.equal(false);
 		expect(newOffContext.sampleCount).to.equal(31);
 	});
 
@@ -218,6 +249,32 @@ describe("context-aware monitoring", () => {
 		expect(restoredOff.baselineScope).to.equal("context");
 		expect(restoredOff.activeContext).to.equal("alias.0.tv.relay=false");
 		expect(restoredOff.baselineSampleCount).to.be.at.least(5);
+	});
+
+	it("does not carry ON level-shift state into a learned OFF context", () => {
+		const monitor = new SourceMonitor({
+			...settings,
+			enableRate: false,
+			enableTrend: true,
+			enableChangePoint: true,
+		});
+		const start = new Date(2026, 0, 1, 12, 0).getTime();
+		for (let index = 0; index < 8; index++) {
+			monitor.observe(0, start + index * 60_000, off);
+		}
+		for (let index = 0; index < 8; index++) {
+			monitor.observe(320, start + (index + 8) * 60_000, on);
+		}
+		monitor.observe(320, start + 16 * 60_000, on);
+		monitor.observe(100, start + 17 * 60_000, on);
+		monitor.observe(320, start + 18 * 60_000, on);
+		const result = monitor.observe(0, start + 19 * 60_000, off)!;
+		expect(result.expected).to.equal(0);
+		expect(result.score).to.equal(0);
+		expect(result.reasonCode).to.equal("normal");
+		expect(result.statusCode).to.equal("normal");
+		expect(result.detectors.some(detector => detector.name === "changePoint")).to.equal(false);
+		expect(result.detectors.some(detector => detector.name === "trend")).to.equal(false);
 	});
 });
 
@@ -257,6 +314,31 @@ describe("scoring and learning lifecycle", () => {
 		expect(anomaly.expectedLow).to.equal(10);
 		expect(anomaly.expectedHigh).to.equal(10);
 		expect(anomaly.detectors).to.deep.include({ name: "value", score: 100, reasonCode: "unexpected_value" });
+	});
+
+	it("distinguishes a currently deviating value from a persisted anomaly", () => {
+		const monitor = new SourceMonitor({
+			enabled: true,
+			id: "test.0.value",
+			minimumSamples: 5,
+			enableRate: false,
+			anomalyThreshold: 70,
+			minimumAnomalyDurationMinutes: 15,
+			timeContext: false,
+		});
+		const start = new Date(2026, 0, 1, 12, 0).getTime();
+		for (let index = 0; index < 5; index++) {
+			monitor.observe(10, start + index * 60_000);
+		}
+		const deviating = monitor.observe(100, start + 5 * 60_000)!;
+		expect(deviating.statusCode).to.equal("deviating");
+		expect(deviating.detected).to.equal(false);
+		expect(monitor.diagnosticSnapshots.at(-1)?.statusCode).to.equal("deviating");
+
+		const confirmed = monitor.observe(100, start + 20 * 60_000)!;
+		expect(confirmed.statusCode).to.equal("anomaly");
+		expect(confirmed.detected).to.equal(true);
+		expect(monitor.diagnosticSnapshots.at(-1)?.statusCode).to.equal("anomaly");
 	});
 
 	it("does not learn strong anomalies and restores a persisted model safely", () => {

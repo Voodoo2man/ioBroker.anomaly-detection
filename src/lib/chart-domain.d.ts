@@ -6,9 +6,11 @@
  * @param options Chart scaling options.
  * @param options.floorAtZero Keep the lower bound at zero for non-negative data.
  */
-export declare function chartYDomain(values: readonly number[], bounds?: readonly number[], options?: {
-    floorAtZero?: boolean;
-}): {
-    min: number;
-    max: number;
+export declare function chartYDomain(
+	values: readonly number[],
+	bounds?: readonly number[],
+	options?: { floorAtZero?: boolean },
+): {
+	min: number;
+	max: number;
 };

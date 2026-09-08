@@ -44,6 +44,8 @@ const DEFAULTS = {
 class SourceMonitor {
   /**
    *
+   * @param settings
+   * @param data
    */
   constructor(settings, data) {
     this.settings = settings;
@@ -52,35 +54,40 @@ class SourceMonitor {
     this.valueModel = new import_temporal_model.TemporalModel(bucketMinutes, void 0, data == null ? void 0 : data.value);
     this.rateModel = new import_temporal_model.TemporalModel(bucketMinutes, void 0, data == null ? void 0 : data.rate);
     this.contextualModel = new import_contextual_model.ContextualModel(bucketMinutes, DEFAULTS.maxContextModels, void 0, data == null ? void 0 : data.context);
-    this.advanced = new import_advanced_detectors.AdvancedDetectors(data == null ? void 0 : data.changePoint, data == null ? void 0 : data.trend);
+    this.scopedStates.set("global", {
+      advanced: new import_advanced_detectors.AdvancedDetectors(data == null ? void 0 : data.changePoint, data == null ? void 0 : data.trend),
+      lastUsed: 0,
+      anomalySince: data == null ? void 0 : data.anomalySince,
+      detected: (_b = data == null ? void 0 : data.detected) != null ? _b : false
+    });
     this.lastValue = data == null ? void 0 : data.lastValue;
     this.lastTimestamp = data == null ? void 0 : data.lastTimestamp;
     this.lastContextKey = data == null ? void 0 : data.lastContextKey;
     this.repeatedSince = data == null ? void 0 : data.repeatedSince;
-    this.anomalySince = data == null ? void 0 : data.anomalySince;
     this.lastNormal = data == null ? void 0 : data.lastNormal;
-    this.detected = (_b = data == null ? void 0 : data.detected) != null ? _b : false;
     this.bootstrap = data == null ? void 0 : data.bootstrap;
     this.diagnostics = ((_c = data == null ? void 0 : data.diagnostics) != null ? _c : []).slice(-500);
   }
   valueModel;
   rateModel;
   contextualModel;
-  advanced;
+  scopedStates = /* @__PURE__ */ new Map();
+  activeStateScope = "global";
   lastValue;
   lastTimestamp;
   lastContextKey;
   repeatedSince;
-  anomalySince;
   lastNormal;
-  detected;
   bootstrap;
   diagnostics;
   /**
    *
+   * @param value
+   * @param timestamp
+   * @param contextKey
    */
   observe(value, timestamp, contextKey) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
     if (typeof value !== "number" || !Number.isFinite(value) || !Number.isFinite(timestamp)) {
       return void 0;
     }
@@ -95,6 +102,13 @@ class SourceMonitor {
     const standardBaseline = this.valueModel.baseline(timestamp, minSamples, timeContext, weekdayContext);
     const contextBaseline = contextIsLearning ? void 0 : this.settings.enableContext ? this.contextualModel.baseline(contextKey, timestamp, minSamples, timeContext, weekdayContext) : void 0;
     const baseline = contextBaseline != null ? contextBaseline : standardBaseline;
+    const stateScope = contextBaseline && contextKey ? contextKey : this.settings.enableContext ? `fallback:${baseline.scope}` : "global";
+    const state = this.getScopedState(stateScope, timestamp);
+    if (stateScope !== this.activeStateScope) {
+      state.anomalySince = void 0;
+      state.detected = false;
+      this.activeStateScope = stateScope;
+    }
     const baselineScope = contextBaseline ? "context" : contextIsLearning ? "insufficient" : baseline.scope === "global" ? "global" : "time";
     const baselineSampleCount = contextIsLearning ? 0 : baseline.series.count;
     const expected = contextIsLearning ? void 0 : baseline.series.median();
@@ -134,7 +148,7 @@ class SourceMonitor {
         results.push(result);
       }
     }
-    const advanced = this.advanced.observe(
+    const advanced = state.advanced.observe(
       expected === void 0 ? void 0 : value - expected,
       timestamp,
       0,
@@ -150,7 +164,7 @@ class SourceMonitor {
       results.push(advanced.trend);
     }
     const scoring = (0, import_scoring.scoreDetectors)(results);
-    this.updatePersistentDetection(scoring.score, timestamp, threshold);
+    this.updatePersistentDetection(state, scoring.score, timestamp, threshold);
     const isStrongAnomaly = scoring.score >= threshold;
     const learningNewContext = contextIsLearning;
     if (!isStrongAnomaly || advanced.adapt || learningNewContext) {
@@ -170,13 +184,15 @@ class SourceMonitor {
     this.lastContextKey = this.settings.enableContext === true ? contextKey : void 0;
     const sufficient = this.valueModel.sampleCount >= minSamples;
     const contextSampleCount = hasActiveContext ? this.contextualModel.sampleCount(contextKey) : 0;
-    const statusCode = contextIsLearning ? "learning" : !sufficient ? "insufficient_data" : isStrongAnomaly ? "anomaly" : "normal";
+    const relevantSampleScope = hasActiveContext ? "context" : baselineScope;
+    const relevantSampleCount = hasActiveContext ? contextSampleCount : baseline.series.count;
+    const statusCode = contextIsLearning ? "learning" : !sufficient ? "insufficient_data" : isStrongAnomaly ? state.detected ? "anomaly" : "deviating" : "normal";
     const observation = {
       actual: value,
       expected,
       deviation: expected === void 0 ? void 0 : value - expected,
       score: scoring.score,
-      detected: this.detected,
+      detected: state.detected,
       status: contextIsLearning ? "learning" : sufficient ? "monitoring" : this.valueModel.sampleCount === 0 ? "insufficientData" : "learning",
       reason: contextIsLearning && results.length === 0 ? "Insufficient data for the current context" : scoring.reason,
       sampleCount: this.valueModel.sampleCount,
@@ -185,13 +201,16 @@ class SourceMonitor {
       activeContext: formatContextKey(contextKey),
       baselineSampleCount,
       contextSampleCount,
+      relevantSampleCount,
+      relevantSampleScope,
+      evaluationAvailable: !contextIsLearning && sufficient,
       requiredSamples: minSamples,
       statusCode,
       severity: statusCode === "anomaly" ? scoring.score >= 85 ? "high" : "noticeable" : "normal",
       reasonCode: contextIsLearning ? "insufficient_training_data" : scoring.reasonCode,
       detectors: scoring.detectors,
       lastEvaluated: timestamp,
-      anomalySince: this.anomalySince,
+      anomalySince: (_j = this.scopedStates.get(this.activeStateScope)) == null ? void 0 : _j.anomalySince,
       lastNormal: this.lastNormal,
       expectedLow: expectedRange == null ? void 0 : expectedRange.low,
       expectedHigh: expectedRange == null ? void 0 : expectedRange.high,
@@ -199,7 +218,7 @@ class SourceMonitor {
       decisionHigh: decisionRange == null ? void 0 : decisionRange.high,
       timeBucket: baseline.scope === "global" ? void 0 : String(
         Math.floor(
-          (new Date(timestamp).getHours() * 60 + new Date(timestamp).getMinutes()) / ((_j = this.settings.bucketMinutes) != null ? _j : DEFAULTS.bucketMinutes)
+          (new Date(timestamp).getHours() * 60 + new Date(timestamp).getMinutes()) / ((_k = this.settings.bucketMinutes) != null ? _k : DEFAULTS.bucketMinutes)
         )
       )
     };
@@ -210,7 +229,8 @@ class SourceMonitor {
       decisionLow: observation.decisionLow,
       decisionHigh: observation.decisionHigh,
       score: observation.score,
-      detected: observation.statusCode === "anomaly",
+      detected: observation.detected,
+      statusCode: observation.statusCode,
       reasonCode: observation.reasonCode,
       baselineScope: observation.baselineScope,
       baselineSampleCount: observation.baselineSampleCount,
@@ -225,6 +245,7 @@ class SourceMonitor {
    *
    */
   toJSON() {
+    var _a, _b, _c, _d, _e;
     return {
       schemaVersion: import_statistics.MODEL_SCHEMA_VERSION,
       value: this.valueModel.toJSON(),
@@ -233,12 +254,17 @@ class SourceMonitor {
       lastTimestamp: this.lastTimestamp,
       lastContextKey: this.lastContextKey,
       repeatedSince: this.repeatedSince,
-      anomalySince: this.anomalySince,
+      // Keep legacy persistence global; scoped pending/latch state is intentionally
+      // not serialized into the global compatibility fields.
+      anomalySince: (_a = this.scopedStates.get("global")) == null ? void 0 : _a.anomalySince,
       lastNormal: this.lastNormal,
-      detected: this.detected,
+      detected: (_c = (_b = this.scopedStates.get("global")) == null ? void 0 : _b.detected) != null ? _c : false,
       bootstrap: this.bootstrap,
       context: this.contextualModel.toJSON(),
-      ...this.advanced.toJSON(),
+      ...(_e = (_d = this.scopedStates.get("global")) == null ? void 0 : _d.advanced.toJSON()) != null ? _e : {
+        changePoint: { recent: [], candidateCount: 0 },
+        trend: { recent: [] }
+      },
       diagnostics: [...this.diagnostics]
     };
   }
@@ -317,14 +343,14 @@ class SourceMonitor {
       (_c = this.settings.bucketMinutes) != null ? _c : DEFAULTS.bucketMinutes,
       DEFAULTS.maxContextModels
     );
-    this.advanced = new import_advanced_detectors.AdvancedDetectors();
+    this.scopedStates.clear();
+    this.scopedStates.set("global", { advanced: new import_advanced_detectors.AdvancedDetectors(), lastUsed: 0, detected: false });
+    this.activeStateScope = "global";
     this.lastValue = void 0;
     this.lastTimestamp = void 0;
     this.lastContextKey = void 0;
     this.repeatedSince = void 0;
-    this.anomalySince = void 0;
     this.lastNormal = void 0;
-    this.detected = false;
     this.bootstrap = void 0;
   }
   /** @param configKey Import-relevant source configuration. */
@@ -359,24 +385,39 @@ class SourceMonitor {
       this.repeatedSince = timestamp;
     }
   }
-  updatePersistentDetection(score, timestamp, threshold) {
+  updatePersistentDetection(state, score, timestamp, threshold) {
     var _a, _b;
-    if (this.detected) {
+    if (state.detected) {
       if (score < Math.max(0, threshold - DEFAULTS.hysteresis)) {
-        this.detected = false;
-        this.anomalySince = void 0;
+        state.detected = false;
+        state.anomalySince = void 0;
       }
       return;
     }
     if (score < threshold) {
-      this.anomalySince = void 0;
+      state.anomalySince = void 0;
       return;
     }
-    (_a = this.anomalySince) != null ? _a : this.anomalySince = timestamp;
+    (_a = state.anomalySince) != null ? _a : state.anomalySince = timestamp;
     const requiredDuration = ((_b = this.settings.minimumAnomalyDurationMinutes) != null ? _b : DEFAULTS.minimumAnomalyDurationMinutes) * 6e4;
-    if (timestamp - this.anomalySince >= requiredDuration) {
-      this.detected = true;
+    if (state.anomalySince !== void 0 && timestamp - state.anomalySince >= requiredDuration) {
+      state.detected = true;
     }
+  }
+  getScopedState(scope, timestamp) {
+    let state = this.scopedStates.get(scope);
+    if (!state) {
+      if (this.scopedStates.size >= DEFAULTS.maxContextModels + 1) {
+        const removable = [...this.scopedStates.entries()].filter(([key]) => key !== "global" && key !== this.activeStateScope).sort(([, left], [, right]) => left.lastUsed - right.lastUsed)[0];
+        if (removable) {
+          this.scopedStates.delete(removable[0]);
+        }
+      }
+      state = { advanced: new import_advanced_detectors.AdvancedDetectors(), lastUsed: timestamp, detected: false };
+      this.scopedStates.set(scope, state);
+    }
+    state.lastUsed = timestamp;
+    return state;
   }
 }
 function valueDeviationReason(scope) {
