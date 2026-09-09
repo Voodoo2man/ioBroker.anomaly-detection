@@ -11,6 +11,7 @@ export default [
 			'.vscode/',
 			'admin/custom/',
 			'src-admin/vite.config.ts',
+			'src-admin/test/',
 			'*.test.js',
 			'test/**/*.js',
 			'*.config.mjs',

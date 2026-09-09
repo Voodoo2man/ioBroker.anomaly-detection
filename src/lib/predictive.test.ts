@@ -406,6 +406,155 @@ describe("predictive forecasting", () => {
 		expect(model.trainingSampleCount).to.equal(12);
 	});
 
+	it("anchors a fresh level/trend forecast and converges to the model", () => {
+		const model = new PredictiveModel(
+			normalizePredictiveSettings({
+				enabled: true,
+				minimumTrainingSamples: 30,
+				seasonalityMode: "off",
+				horizonMinutes: 300,
+			}),
+		);
+		for (let index = 0; index < 40; index++) {
+			model.add(48, index * 60_000);
+		}
+		model.train(40 * 60_000);
+		model.add(69.2, 40 * 60_000);
+		const anchoredResult = model.forecast(40 * 60_000);
+
+		expect(anchoredResult.anchorApplied).to.equal(true);
+		expect(anchoredResult.currentValue).to.equal(69.2);
+		expect(anchoredResult.baseForecastAtNow).to.be.lessThan(69.2);
+		expect(anchoredResult.anchoredFirstForecastValue).to.be.greaterThan(
+			anchoredResult.unanchoredFirstForecastValue!,
+		);
+		expect(anchoredResult.points[0].value).to.equal(anchoredResult.anchoredFirstForecastValue);
+		expect(Math.abs(anchoredResult.points.at(-1)!.value - anchoredResult.baseForecastAtNow!)).to.be.lessThan(
+			Math.abs(anchoredResult.points[0].value - anchoredResult.baseForecastAtNow!),
+		);
+	});
+
+	it("anchors a time-of-day forecast without changing its model selection", () => {
+		const settings = normalizePredictiveSettings({ enabled: true, minimumTrainingSamples: 30, horizonMinutes: 60 });
+		const original = new PredictiveModel(settings);
+		for (let index = 0; index < 40; index++) {
+			original.add(48, index * 60_000);
+		}
+		original.add(69.2, 40 * 60_000);
+		original.train(40 * 60_000);
+		const timeOfDayData: PredictiveModelData = {
+			...original.toJSON()!,
+			selectedModelType: "timeOfDay",
+			timeOfDay: Array.from({ length: 96 }, () => 48),
+			timeOfDayBucketMinutes: 15,
+			timeOfDayDaysCovered: 7,
+			timeOfDayBucketCoverage: 1,
+		};
+		const timeOfDayModel = new PredictiveModel(settings, timeOfDayData);
+		const result = timeOfDayModel.forecast(40 * 60_000);
+
+		expect(result.selectedModelType).to.equal("timeOfDay");
+		expect(result.anchorApplied).to.equal(true);
+		expect(result.unanchoredFirstForecastValue).to.equal(48);
+		expect(result.points[0].value).to.be.greaterThan(48);
+		expect(result.points.at(-1)!.value).to.be.lessThan(69.2);
+	});
+
+	it("applies current-state anchoring symmetrically for zero and negative offsets", () => {
+		for (const currentValue of [0, -10, 69.2]) {
+			const settings = normalizePredictiveSettings({
+				enabled: true,
+				minimumTrainingSamples: 10,
+				seasonalityMode: "off",
+				horizonMinutes: 60,
+			});
+			const model = new PredictiveModel(settings);
+			for (let index = 0; index < 20; index++) {
+				model.add(0, index * 60_000);
+			}
+			model.train(20 * 60_000);
+			model.add(currentValue, 20 * 60_000);
+			const result = model.forecast(20 * 60_000);
+			const firstOffset = result.points[0].value - result.unanchoredFirstForecastValue!;
+			const lastOffset = result.points.at(-1)!.value - result.baseForecastAtNow!;
+
+			expect(result.anchorApplied).to.equal(true);
+			if (currentValue !== 0) {
+				expect(firstOffset * currentValue).to.be.greaterThan(0);
+				expect(Math.abs(firstOffset)).to.be.lessThan(Math.abs(currentValue));
+				expect(Math.abs(lastOffset)).to.be.lessThan(Math.abs(firstOffset));
+			} else {
+				expect(firstOffset).to.equal(0);
+			}
+		}
+	});
+
+	it("retains the seasonal model shape while anchoring its current level", () => {
+		const settings = normalizePredictiveSettings({
+			enabled: true,
+			minimumTrainingSamples: 20,
+			seasonalityMode: "manual",
+			seasonalPeriodMinutes: 10,
+			horizonMinutes: 30,
+		});
+		const model = new PredictiveModel(settings);
+		for (let index = 0; index < 40; index++) {
+			model.add(20 + (index % 10), index * 60_000);
+		}
+		model.train(40 * 60_000);
+		model.add(50, 40 * 60_000);
+		const result = model.forecast(40 * 60_000);
+
+		expect(result.selectedModelType).to.equal("seasonal");
+		expect(result.anchorApplied).to.equal(true);
+		expect(result.points[0].value).to.be.greaterThan(result.unanchoredFirstForecastValue!);
+		expect(result.points[1].value - result.points[0].value).to.not.equal(0);
+	});
+
+	it("keeps real forecast timestamps without adding a synthetic t=0 point", () => {
+		const intervalMs = 8.6 * 60_000;
+		const model = new PredictiveModel(
+			normalizePredictiveSettings({ enabled: true, minimumTrainingSamples: 10, horizonMinutes: 300 }),
+		);
+		for (let index = 0; index < 20; index++) {
+			model.add(48, Math.round(index * intervalMs));
+		}
+		model.train(Math.round(20 * intervalMs));
+		model.add(69.2, Math.round(20 * intervalMs));
+		const result = model.forecast(Math.round(20 * intervalMs));
+
+		expect(result.points[0].timestamp).to.be.greaterThan(Math.round(20 * intervalMs));
+		expect(result.points[0].timestamp - Math.round(20 * intervalMs)).to.be.closeTo(intervalMs, 1);
+		expect(result.points.some(point => point.timestamp === Math.round(20 * intervalMs))).to.equal(false);
+	});
+
+	it("does not anchor a persisted history model without a fresh live value", () => {
+		const settings = normalizePredictiveSettings({ enabled: true, minimumTrainingSamples: 30 });
+		const original = new PredictiveModel(settings);
+		for (let index = 0; index < 40; index++) {
+			original.add(48, index * 60_000, "history");
+		}
+		original.train(40 * 60_000, "history");
+		const restored = new PredictiveModel(settings, original.toJSON());
+		const result = restored.forecast(3_000_000);
+
+		expect(result.currentValue).to.equal(undefined);
+		expect(result.anchorApplied).to.equal(false);
+		expect(result.points[0].value).to.equal(result.unanchoredFirstForecastValue);
+	});
+
+	it("does not anchor a stale live observation", () => {
+		const settings = normalizePredictiveSettings({ enabled: true, minimumTrainingSamples: 30 });
+		const model = new PredictiveModel(settings);
+		for (let index = 0; index < 40; index++) {
+			model.add(48, index * 60_000);
+		}
+		const result = model.train(5_000_000);
+
+		expect(result.currentValueAgeMinutes).to.be.greaterThan(settings.updateIntervalMinutes);
+		expect(result.anchorApplied).to.equal(false);
+	});
+
 	it("resamples high-frequency data for long forecasts while retaining history span", () => {
 		const model = new PredictiveModel(
 			normalizePredictiveSettings({
@@ -471,6 +620,80 @@ describe("predictive forecasting", () => {
 		expect(restored.needsHistoryBootstrap).to.equal(true);
 		expect(restored.bootstrapReason).to.equal("incomplete-model");
 		expect(restored.forecast().trainingSource).to.equal(undefined);
+	});
+
+	it("requests a training-basis bootstrap for every invalid persisted basis shape", () => {
+		const settings = normalizePredictiveSettings({
+			enabled: true,
+			minimumTrainingSamples: 10,
+			maximumTrainingPoints: 20,
+		});
+		const original = new PredictiveModel(settings);
+		for (let index = 0; index < 20; index++) {
+			original.add(index, index * 60_000, "history");
+		}
+		original.train(20 * 60_000, "history");
+		const current = original.toJSON()!;
+		const invalidBases: Array<PredictiveModelData["trainingBasis"]> = [
+			[],
+			[...current.trainingBasis!, { value: 1, timestamp: 20 * 60_000 }],
+			[{ value: Number.NaN, timestamp: 0 }],
+			[{ value: 1, timestamp: Number.NaN }],
+		];
+		for (const trainingBasis of invalidBases) {
+			const restored = new PredictiveModel(settings, { ...current, trainingBasis });
+			expect(restored.needsTrainingBasisBootstrap).to.equal(true);
+			expect(restored.trainingBasisRestoreStatus).to.equal("rejected");
+		}
+	});
+
+	it("does not replace a history or mixed model with live-only data when its basis is unavailable", () => {
+		const settings = normalizePredictiveSettings({
+			enabled: true,
+			minimumTrainingSamples: 10,
+			seasonalityMode: "off",
+		});
+		for (const source of ["history", "mixed"] as const) {
+			const original = new PredictiveModel(settings);
+			for (let index = 0; index < 20; index++) {
+				original.add(10 + index, index * 60_000, "history");
+			}
+			original.train(20 * 60_000, "history");
+			if (source === "mixed") {
+				for (let index = 20; index < 30; index++) {
+					original.add(20, index * 60_000);
+				}
+				original.train(30 * 60_000, "live");
+			}
+			const current = { ...original.toJSON()!, trainingSource: source, trainingBasis: [] };
+			const restored = new PredictiveModel(settings, current);
+			for (let index = 0; index < 10; index++) {
+				restored.add(99, (31 + index) * 60_000);
+			}
+			const result = restored.train(41 * 60_000, "live");
+			expect(result.trainingSource).to.equal(source);
+			expect(result.trainingSampleCount).to.equal(current.trainingSampleCount);
+			expect(restored.toJSON()?.trainingSource).to.equal(source);
+		}
+	});
+
+	it("keeps a valid history model when a history bootstrap has not completed", () => {
+		const settings = normalizePredictiveSettings({
+			enabled: true,
+			minimumTrainingSamples: 10,
+			seasonalityMode: "off",
+		});
+		const original = new PredictiveModel(settings);
+		for (let index = 0; index < 20; index++) {
+			original.add(index, index * 60_000, "history");
+		}
+		original.train(20 * 60_000, "history");
+		const restored = new PredictiveModel(settings, { ...original.toJSON()!, trainingBasis: [] });
+		const before = restored.toJSON();
+		const result = restored.train(21 * 60_000, "history");
+		expect(result.trainingSource).to.equal("history");
+		expect(restored.toJSON()).to.deep.equal(before);
+		expect(restored.needsTrainingBasisBootstrap).to.equal(true);
 	});
 
 	it("trains from history after replacing an incomplete persisted model", () => {

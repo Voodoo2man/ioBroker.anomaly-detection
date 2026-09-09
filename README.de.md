@@ -244,6 +244,10 @@ Verarbeitung und Modellspeicherung erfolgen vollständig lokal in ioBroker. Kein
 
 ## Changelog
 
+### 0.3.1 (2026-09-09)
+
+- Persistierte History- und Mixed-Predictive-Modelle werden vor Live-only-Retraining geschützt, wenn die Trainingsbasis nicht wiederhergestellt werden kann.
+
 ### 0.3.0 (2026-09-08)
 
 - Optionale lokale Predictive-Prognosen mit persistenten Modellen und Trainingsbasen ergänzt.

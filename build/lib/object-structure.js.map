@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../src/lib/object-structure.ts"],
+  "sourcesContent": ["/** Shared object metadata for the dynamically generated source tree. */\nexport const SOURCES_OBJECT_ID = \"sources\";\n\nexport const sourcesObject = {\n\t// The children are generated source devices; a folder is the appropriate\n\t// generic container for devices and their channel trees.\n\ttype: \"folder\" as const,\n\tcommon: { name: \"Monitored sources\" },\n\tnative: {},\n};\n\n/** Returns the generated parent paths required by a source tree. */\n/** @param safeId Sanitized generated source identifier. */\nexport function generatedSourceParentIds(safeId: string): string[] {\n\tconst base = `${SOURCES_OBJECT_ID}.${safeId}`;\n\treturn [SOURCES_OBJECT_ID, base, `${base}.analysis`, `${base}.anomaly`, `${base}.detectors`, `${base}.evaluation`];\n}\n"],
+  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AACO,MAAM,oBAAoB;AAE1B,MAAM,gBAAgB;AAAA;AAAA;AAAA,EAG5B,MAAM;AAAA,EACN,QAAQ,EAAE,MAAM,oBAAoB;AAAA,EACpC,QAAQ,CAAC;AACV;AAIO,SAAS,yBAAyB,QAA0B;AAClE,QAAM,OAAO,GAAG,iBAAiB,IAAI,MAAM;AAC3C,SAAO,CAAC,mBAAmB,MAAM,GAAG,IAAI,aAAa,GAAG,IAAI,YAAY,GAAG,IAAI,cAAc,GAAG,IAAI,aAAa;AAClH;",
+  "names": []
+}

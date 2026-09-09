@@ -18,7 +18,7 @@ export type PredictiveSelectionReason =
 export type PredictiveTrainingSource = "history" | "persisted" | "live" | "mixed";
 export type PredictiveBootstrapReason =
 	"initial" | "missing-model" | "config-changed" | "legacy-model" | "algorithm-changed" | "incomplete-model";
-export const PREDICTIVE_ALGORITHM_VERSION = 6;
+export const PREDICTIVE_ALGORITHM_VERSION = 7;
 export const PREDICTIVE_HISTORY_RAW_LIMIT = 100_000;
 
 /**
@@ -500,6 +500,24 @@ export interface PredictiveResult {
 	 *
 	 */
 	historySpanMinutes?: number;
+	/** Current live value used for optional forecast anchoring. */
+	currentValue?: number;
+	/** Timestamp of the current live value used for optional anchoring. */
+	currentValueTimestamp?: number;
+	/** Age of the current live value when the result was generated. */
+	currentValueAgeMinutes?: number;
+	/** Unanchored model expectation at the forecast origin. */
+	baseForecastAtNow?: number;
+	/** Difference between the live value and the unanchored model expectation. */
+	initialForecastOffset?: number;
+	/** Whether the current live value passed the freshness check and was applied. */
+	anchorApplied?: boolean;
+	/** Exponential decay duration used for the current-state anchor. */
+	anchorDecayMinutes?: number;
+	/** First forecast value before current-state anchoring. */
+	unanchoredFirstForecastValue?: number;
+	/** First forecast value after current-state anchoring. */
+	anchoredFirstForecastValue?: number;
 	/**
 	 *
 	 */
@@ -682,7 +700,12 @@ export interface PredictiveModelData {
 	 *
 	 */
 	historySpanMinutes?: number;
+	lastObservedValue?: number;
+	lastObservedTimestamp?: number;
 }
+
+type TrainingBasisRestoreReason =
+	"accepted" | "missing" | "empty" | "exceeds-maximum-training-points" | "invalid-value" | "invalid-timestamp";
 
 const MAX_HORIZON_MINUTES = 360;
 const MAX_POINTS = 10_000;
@@ -735,6 +758,30 @@ function predictiveConfigFingerprint(settings: Required<PredictiveSettings>): st
 	].join("|");
 }
 
+function restoreTrainingBasis(
+	basis: PredictiveModelData["trainingBasis"],
+	maximumTrainingPoints: number,
+): { samples: ForecastPoint[]; reason: TrainingBasisRestoreReason } {
+	if (!Array.isArray(basis)) {
+		return { samples: [], reason: "missing" };
+	}
+	if (basis.length === 0) {
+		return { samples: [], reason: "empty" };
+	}
+	if (basis.length > maximumTrainingPoints) {
+		return { samples: [], reason: "exceeds-maximum-training-points" };
+	}
+	for (const sample of basis) {
+		if (!Number.isFinite(sample?.value)) {
+			return { samples: [], reason: "invalid-value" };
+		}
+		if (!Number.isFinite(sample?.timestamp)) {
+			return { samples: [], reason: "invalid-timestamp" };
+		}
+	}
+	return { samples: deduplicateSamples(basis), reason: "accepted" };
+}
+
 /**
  * Serializes predictive training while allowing later tasks to continue after an error.
  *
@@ -762,7 +809,11 @@ export class PredictiveModel {
 	private samples: ForecastPoint[] = [];
 	private trainingBasisSource: PredictiveTrainingSource | undefined;
 	private pendingLiveSamples = 0;
+	private lastObservedValue?: number;
+	private lastObservedTimestamp?: number;
 	private historyBootstrapRequired: boolean;
+	private trainingBasisRestored = false;
+	private trainingBasisRestoreReasonValue: TrainingBasisRestoreReason = "missing";
 	private readonly initialBootstrapReason?: PredictiveBootstrapReason;
 
 	/**
@@ -788,15 +839,14 @@ export class PredictiveModel {
 			persistedModelIsComplete
 				? data
 				: undefined;
-		const persistedBasis = this.data?.trainingBasis;
-		if (
-			Array.isArray(persistedBasis) &&
-			persistedBasis.length > 0 &&
-			persistedBasis.length <= settings.maximumTrainingPoints &&
-			persistedBasis.every(sample => Number.isFinite(sample?.value) && Number.isFinite(sample?.timestamp))
-		) {
-			this.samples = deduplicateSamples(persistedBasis);
+		const basisRestore = restoreTrainingBasis(this.data?.trainingBasis, settings.maximumTrainingPoints);
+		this.trainingBasisRestoreReasonValue = basisRestore.reason;
+		if (this.data && basisRestore.reason === "accepted") {
+			this.samples = basisRestore.samples;
 			this.trainingBasisSource = this.data?.trainingSource;
+			this.lastObservedValue = this.data.lastObservedValue;
+			this.lastObservedTimestamp = this.data.lastObservedTimestamp;
+			this.trainingBasisRestored = true;
 		}
 		this.initialBootstrapReason = this.data
 			? undefined
@@ -826,6 +876,8 @@ export class PredictiveModel {
 		}
 		if (sampleSource === "live") {
 			this.pendingLiveSamples++;
+			this.lastObservedValue = value;
+			this.lastObservedTimestamp = timestamp;
 		}
 		const existingIndex = this.samples.findIndex(sample => sample.timestamp === timestamp);
 		if (existingIndex >= 0) {
@@ -864,6 +916,10 @@ export class PredictiveModel {
 				return this.result(this.data.status ?? "unreliable", now);
 			}
 			return this.result("learning", undefined, "insufficientSamples");
+		}
+		const historyBasedModel = this.data?.trainingSource === "history" || this.data?.trainingSource === "mixed";
+		if (this.data && historyBasedModel && !this.trainingBasisRestored && trainingSource !== "history") {
+			return this.result(this.data.status ?? "unreliable", now, "waitingForTraining");
 		}
 		const rawIntervalMs = medianInterval(this.samples) || 60_000;
 		const intervalMs = selectModelInterval(this.samples, rawIntervalMs, this.settings);
@@ -1016,9 +1072,13 @@ export class PredictiveModel {
 			rawSampleCount: this.samples.length,
 			rawIntervalMinutes: rawIntervalMs / 60_000,
 			historySpanMinutes: historySpan(this.samples) / 60_000,
+			lastObservedValue: this.lastObservedValue,
+			lastObservedTimestamp: this.lastObservedTimestamp,
 		};
 		this.samples = trainingBasis;
 		this.trainingBasisSource = effectiveTrainingSource;
+		this.trainingBasisRestored = true;
+		this.trainingBasisRestoreReasonValue = "accepted";
 		this.pendingLiveSamples = 0;
 		this.historyBootstrapRequired = false;
 		return this.result(status, now);
@@ -1067,7 +1127,15 @@ export class PredictiveModel {
 
 	/** Indicates a legacy valid model whose bounded training basis is missing. */
 	public get needsTrainingBasisBootstrap(): boolean {
-		return !!this.data && !Array.isArray(this.data.trainingBasis);
+		return !!this.data && !this.trainingBasisRestored;
+	}
+
+	public get trainingBasisRestoreStatus(): "accepted" | "rejected" {
+		return this.trainingBasisRestored ? "accepted" : "rejected";
+	}
+
+	public get trainingBasisRestoreReason(): TrainingBasisRestoreReason {
+		return this.trainingBasisRestoreReasonValue;
 	}
 
 	/**
@@ -1090,32 +1158,67 @@ export class PredictiveModel {
 	): PredictiveResult {
 		const data = this.data;
 		const points: ForecastPoint[] = [];
+		const forecastNow = now ?? Date.now();
+		const horizonMs = this.settings.horizonMinutes * 60_000;
+		const currentValue = this.lastObservedValue;
+		const currentValueTimestamp = this.lastObservedTimestamp;
+		const currentValueAgeMs =
+			currentValueTimestamp !== undefined ? Math.max(0, forecastNow - currentValueTimestamp) : undefined;
+		const freshnessLimitMs = data ? Math.max(data.intervalMs * 3, this.settings.updateIntervalMinutes * 60_000) : 0;
+		const anchorApplied =
+			data !== undefined &&
+			Number.isFinite(currentValue) &&
+			currentValueTimestamp !== undefined &&
+			currentValueAgeMs !== undefined &&
+			currentValueAgeMs <= freshnessLimitMs;
+		let baseForecastAtNow: number | undefined;
+		let initialForecastOffset: number | undefined;
+		let anchorDecayMinutes: number | undefined;
+		let unanchoredFirstForecastValue: number | undefined;
+		let anchoredFirstForecastValue: number | undefined;
 		if (data && (status === "ready" || status === "unreliable")) {
 			const baseCount = Math.max(1, Math.ceil((this.settings.horizonMinutes * 60_000) / data.intervalMs));
 			const step = Math.max(1, Math.ceil(baseCount / MAX_FORECAST_POINTS));
 			const count = Math.ceil(baseCount / step);
-			for (let index = 1; index <= count; index++) {
-				const modelStep = index * step;
-				const targetTimestamp = (now ?? Date.now()) + modelStep * data.intervalMs;
+			const baseForecast = (modelStep: number, targetTimestamp: number): number => {
 				const seasonal = data.period
 					? (data.seasonal[(data.trainingSampleCount - 1 + modelStep) % data.period] ?? 0)
 					: 0;
-				const timeOfDay =
-					data.selectedModelType === "timeOfDay" && data.timeOfDay?.length
-						? timeOfDayPrediction(
-								{
-									bucketMinutes: data.timeOfDayBucketMinutes ?? 15,
-									buckets: data.timeOfDay,
-									daysCovered: data.timeOfDayDaysCovered ?? 0,
-									coverage: data.timeOfDayBucketCoverage ?? 0,
-								},
-								targetTimestamp,
-								0,
-							)
-						: undefined;
+				return data.selectedModelType === "timeOfDay" && data.timeOfDay?.length
+					? timeOfDayPrediction(
+							{
+								bucketMinutes: data.timeOfDayBucketMinutes ?? 15,
+								buckets: data.timeOfDay,
+								daysCovered: data.timeOfDayDaysCovered ?? 0,
+								coverage: data.timeOfDayBucketCoverage ?? 0,
+							},
+							targetTimestamp,
+							0,
+						)
+					: data.level + boundedTrend(data.trend * modelStep, data) + seasonal;
+			};
+			baseForecastAtNow = baseForecast(0, forecastNow);
+			initialForecastOffset = Number.isFinite(currentValue)
+				? (currentValue as number) - baseForecastAtNow
+				: undefined;
+			const decayDurationMs = Math.max(
+				data.intervalMs,
+				data.period > 0 ? Math.min(horizonMs, data.period * data.intervalMs) : horizonMs / 4,
+			);
+			anchorDecayMinutes = decayDurationMs / 60_000;
+			for (let index = 1; index <= count; index++) {
+				const modelStep = index * step;
+				const targetTimestamp = forecastNow + modelStep * data.intervalMs;
+				const unanchored = baseForecast(modelStep, targetTimestamp);
+				const decay = Math.exp(-(modelStep * data.intervalMs) / decayDurationMs);
+				const value = anchorApplied ? unanchored + (initialForecastOffset ?? 0) * decay : unanchored;
+				if (index === 1) {
+					unanchoredFirstForecastValue = unanchored;
+					anchoredFirstForecastValue = value;
+				}
 				points.push({
 					timestamp: targetTimestamp,
-					value: timeOfDay ?? data.level + boundedTrend(data.trend * modelStep, data) + seasonal,
+					value,
 				});
 			}
 		}
@@ -1169,6 +1272,15 @@ export class PredictiveModel {
 			rawSampleCount: data?.rawSampleCount,
 			rawIntervalMinutes: data?.rawIntervalMinutes,
 			historySpanMinutes: data?.historySpanMinutes,
+			currentValue,
+			currentValueTimestamp,
+			currentValueAgeMinutes: currentValueAgeMs === undefined ? undefined : currentValueAgeMs / 60_000,
+			baseForecastAtNow,
+			initialForecastOffset,
+			anchorApplied,
+			anchorDecayMinutes,
+			unanchoredFirstForecastValue,
+			anchoredFirstForecastValue,
 		};
 	}
 }
