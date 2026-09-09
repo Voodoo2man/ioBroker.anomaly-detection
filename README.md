@@ -317,6 +317,16 @@ All adapter-written result states use `ack=true`. `retrain` is the only command 
 
 For example, with `activeContext=alias.0.tv.relay=false`, `actual=0 W`, `baselineScope=context`, and `expected≈0`, the OFF context is mature and is being used. With `baselineScope=global` and `expected≈300`, no usable context baseline was selected and the ordinary global fallback was used. With `baselineScope=insufficient`, the valid current context is still learning; no value baseline is used for that observation.
 
+## Predictive forecasting
+
+Optional predictive forecasting produces a bounded, local forecast for each monitored numerical state. The forecast is generated from the persisted training basis and does not use cloud services or AI APIs. The model supports level/trend, seasonal, and time-of-day profiles and selects the configured model using deterministic backtesting.
+
+Forecast points retain their real timestamps and model interval. The current live value is displayed separately as an actual marker; it is not inserted into or connected to the dashed forecast series. This makes a difference between the current measurement and the model expectation at the forecast origin visible without creating an artificial ramp.
+
+The forecast card reports the horizon, selected model, model interval, training source, training sample count, last training time, seasonality, and quality classification. Quality is based on historical mean absolute error (MAE). Forecast states can be `disabled`, `learning`, `ready`, `unreliable`, or `error`; limited or unreliable forecasts remain visible with an explicit status.
+
+Predictive settings are configured per source: enablement, forecast horizon, update interval, minimum and maximum training points, and seasonality mode (off, automatic, or manual). Initial training can use live values or a compatible history provider. Persisted models and their bounded training bases survive adapter restarts; missing or incompatible training data is handled without replacing a history-based model with live-only training.
+
 ## Limitations
 
 An anomaly means that a value or behaviour is unusual relative to the observations that were learned. It does not establish the root cause. Poor source data, long periods without representative normal operation, changing equipment behaviour, or unsuitable detector settings can produce false positives or missed anomalies. Review initial learning results and tune each source where necessary.
@@ -326,6 +336,11 @@ An anomaly means that a value or behaviour is unusual relative to the observatio
 Processing and model storage are completely local to ioBroker. No monitored value is sent to an external AI service, analytics service, or cloud API.
 
 ## Changelog
+
+### 0.4.0 (2026-09-09)
+
+- Improve predictive forecasting with current-state anchoring and explainable forecast diagnostics.
+- Keep the actual current value separate from the forecast chart series and improve forecast time-axis and value-axis formatting.
 
 ### 0.3.1 (2026-09-09)
 

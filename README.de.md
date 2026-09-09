@@ -236,6 +236,16 @@ Für jede Quelle legt der Adapter unter folgendem Pfad eine sichere, determinist
 
 Alle vom Adapter geschriebenen Ergebnis-States verwenden `ack=true`. `retrain` ist der einzige Befehls-State und wird nach der Verarbeitung zurückgesetzt.
 
+## Predictive-Prognosen
+
+Die optionale Predictive-Funktion erzeugt für jede überwachte numerische Quelle eine begrenzte lokale Prognose. Die Prognose verwendet die persistierte Trainingsbasis und keine Cloud-Dienste oder KI-APIs. Unterstützt werden Level/Trend-, saisonale und Tageszeitmodelle; das konfigurierte Modell wird durch deterministisches Backtesting ausgewählt.
+
+Die Prognosepunkte behalten ihre echten Zeitstempel und das Modellintervall. Der aktuelle Live-Wert wird als separater Ist-Marker dargestellt; er wird weder in die gestrichelte Forecast-Serie eingefügt noch mit ihr verbunden. So bleibt eine Abweichung zwischen Messwert und modellierter Erwartung am Prognoseursprung sichtbar, ohne eine künstliche Rampe zu erzeugen.
+
+Die Prognosekarte zeigt Horizont, ausgewähltes Modell, Modellintervall, Trainingsquelle, Anzahl der Trainingswerte, letzten Trainingszeitpunkt, Saisonalität und Qualitätsklasse. Die Qualität basiert auf dem historischen mittleren absoluten Fehler (MAE). Die Zustände können `disabled`, `learning`, `ready`, `unreliable` oder `error` sein; eingeschränkte oder unzuverlässige Prognosen bleiben mit einem eindeutigen Status sichtbar.
+
+Die Predictive-Einstellungen werden pro Quelle festgelegt: Aktivierung, Prognosehorizont, Aktualisierungsintervall, minimale und maximale Trainingspunktzahl sowie der Saisonalitätsmodus (aus, automatisch oder manuell). Das Initialtraining kann Live-Werte oder einen kompatiblen History-Provider verwenden. Persistierte Modelle und ihre begrenzten Trainingsbasen bleiben über Neustarts erhalten; fehlende oder inkompatible Trainingsdaten ersetzen ein History-Modell nicht durch ein reines Live-Training.
+
 ## Einschränkungen und Datenschutz
 
 Eine Anomalie bedeutet, dass ein Wert oder Verhalten relativ zu den gelernten Beobachtungen ungewöhnlich ist. Sie beweist weder einen Gerätefehler noch dessen Ursache. Ungeeignete Einstellungen, nicht repräsentative Trainingszeiträume oder sich änderndes Anlagenverhalten können Fehlalarme oder übersehene Anomalien verursachen.
@@ -243,6 +253,11 @@ Eine Anomalie bedeutet, dass ein Wert oder Verhalten relativ zu den gelernten Be
 Verarbeitung und Modellspeicherung erfolgen vollständig lokal in ioBroker. Kein Messwert wird an einen externen KI-, Analyse- oder Cloud-Dienst gesendet.
 
 ## Changelog
+
+### 0.4.0 (2026-09-09)
+
+- Predictive-Prognosen mit Verankerung am aktuellen Zustand und erklärbaren Forecast-Diagnosen verbessert.
+- Den aktuellen Ist-Wert von der Forecast-Serie getrennt sowie die Zeit- und Wertachsen der Prognosediagramme verbessert.
 
 ### 0.3.1 (2026-09-09)
 
