@@ -27,6 +27,7 @@ var import_history_source_resolver = require("./lib/history-source-resolver");
 var import_source_cleanup = require("./lib/source-cleanup");
 var import_source_monitor = require("./lib/source-monitor");
 var import_context_value = require("./lib/context-value");
+var import_object_structure = require("./lib/object-structure");
 var import_predictive = require("./lib/predictive");
 const MODEL_STATE_ID = "models";
 const PREDICTIVE_MODEL_STATE_ID = "predictiveModels";
@@ -109,6 +110,7 @@ class AnomalyDetection extends utils.Adapter {
   async onReady() {
     var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
     await this.ensureModelState();
+    await this.setObjectNotExistsAsync(import_object_structure.SOURCES_OBJECT_ID, import_object_structure.sourcesObject);
     const predictiveStored = parsePredictiveModels((_a = await this.getStateAsync(PREDICTIVE_MODEL_STATE_ID)) == null ? void 0 : _a.val);
     const persistedValue = (_b = await this.getStateAsync(MODEL_STATE_ID)) == null ? void 0 : _b.val;
     let stored = (0, import_source_monitor.parseStoredModel)(persistedValue);
@@ -156,6 +158,11 @@ class AnomalyDetection extends utils.Adapter {
           predictiveStored[safeId]
         );
         this.predictiveModels.set(safeId, predictiveModel2);
+        if (predictiveStored[safeId]) {
+          this.log.debug(
+            `Predictive training basis restore: source=${id} status=${predictiveModel2.trainingBasisRestoreStatus} reason=${predictiveModel2.trainingBasisRestoreReason}`
+          );
+        }
         if (predictiveModel2.needsHistoryBootstrap) {
           const reason = (_f = predictiveModel2.bootstrapReason) != null ? _f : "missing-model";
           this.log.debug(`Predictive model reset for ${id}: ${reason}`);
@@ -448,6 +455,12 @@ class AnomalyDetection extends utils.Adapter {
         const current = this.predictiveResults.get(safeId);
         const interval = (0, import_predictive.normalizePredictiveSettings)((_a = this.sources.get(safeId)) == null ? void 0 : _a.predictive).updateIntervalMinutes * 6e4;
         if ((current == null ? void 0 : current.lastTrainingAt) && Date.now() - current.lastTrainingAt < interval) {
+          const refreshed = model.forecast(Date.now());
+          this.predictiveResults.set(safeId, refreshed);
+          await this.setStateAsync(`sources.${safeId}.predictive.result`, {
+            val: JSON.stringify(refreshed),
+            ack: true
+          });
           return;
         }
         const result = model.train();
@@ -582,7 +595,7 @@ class AnomalyDetection extends utils.Adapter {
   }
   async ensureSourceObjects(safeId, source, unit) {
     var _a;
-    const base = `sources.${safeId}`;
+    const base = `${import_object_structure.SOURCES_OBJECT_ID}.${safeId}`;
     await this.setObjectNotExistsAsync(base, {
       type: "device",
       common: { name: source.name || source.id },

@@ -1,8 +1,16 @@
 {
 	"common": {
 		"name": "anomaly-detection",
-		"version": "0.3.0",
+		"version": "0.4.0",
 		"news": {
+			"0.4.0": {
+				"en": "Improve predictive forecasting with current-state anchoring and explainable forecast diagnostics",
+				"de": "Predictive-Prognosen mit Verankerung am aktuellen Zustand und erklärbaren Forecast-Diagnosen verbessert"
+			},
+			"0.3.1": {
+				"en": "Protect persisted history and mixed predictive models from live-only retraining when the training basis cannot be restored",
+				"de": "Persistierte History- und Mixed-Predictive-Modelle vor Live-only-Retraining geschützt, wenn die Trainingsbasis nicht wiederhergestellt werden kann"
+			},
 			"0.3.0": {
 				"en": "Add predictive forecasting, persistent model training bases, history bootstrap, adaptive history segmentation, and explainable diagnostics",
 				"de": "Predictive-Prognosen, persistente Trainingsbasen, History-Bootstrap, adaptive History-Segmentierung und erklärbare Diagnosen hinzugefügt"

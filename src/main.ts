@@ -5,6 +5,7 @@ import { HistorySourceResolver, selectHistorySource, type HistorySource } from "
 import { cleanupStaleSources } from "./lib/source-cleanup";
 import { SourceMonitor, parseStoredModel, type ObservationResult, type SourceSettings } from "./lib/source-monitor";
 import { createContextPart } from "./lib/context-value";
+import { SOURCES_OBJECT_ID, sourcesObject } from "./lib/object-structure";
 import {
 	PredictiveModel,
 	PredictiveTrainingQueue,
@@ -132,6 +133,9 @@ class AnomalyDetection extends utils.Adapter {
 
 	private async onReady(): Promise<void> {
 		await this.ensureModelState();
+		// The source container is a real parent of every generated source device.
+		// Creating it on every startup also repairs existing installations.
+		await this.setObjectNotExistsAsync(SOURCES_OBJECT_ID, sourcesObject);
 		const predictiveStored = parsePredictiveModels((await this.getStateAsync(PREDICTIVE_MODEL_STATE_ID))?.val);
 		const persistedValue = (await this.getStateAsync(MODEL_STATE_ID))?.val;
 		let stored = parseStoredModel(persistedValue);
@@ -181,6 +185,13 @@ class AnomalyDetection extends utils.Adapter {
 					predictiveStored[safeId],
 				);
 				this.predictiveModels.set(safeId, predictiveModel);
+				if (predictiveStored[safeId]) {
+					this.log.debug(
+						`Predictive training basis restore: source=${id} ` +
+							`status=${predictiveModel.trainingBasisRestoreStatus} ` +
+							`reason=${predictiveModel.trainingBasisRestoreReason}`,
+					);
+				}
 				if (predictiveModel.needsHistoryBootstrap) {
 					const reason = predictiveModel.bootstrapReason ?? "missing-model";
 					this.log.debug(`Predictive model reset for ${id}: ${reason}`);
@@ -497,6 +508,12 @@ class AnomalyDetection extends utils.Adapter {
 				const interval =
 					normalizePredictiveSettings(this.sources.get(safeId)?.predictive).updateIntervalMinutes * 60_000;
 				if (current?.lastTrainingAt && Date.now() - current.lastTrainingAt < interval) {
+					const refreshed = model.forecast(Date.now());
+					this.predictiveResults.set(safeId, refreshed);
+					await this.setStateAsync(`sources.${safeId}.predictive.result`, {
+						val: JSON.stringify(refreshed),
+						ack: true,
+					});
 					return;
 				}
 				const result = model.train();
@@ -636,7 +653,7 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private async ensureSourceObjects(safeId: string, source: ConfiguredSource, unit?: string): Promise<void> {
-		const base = `sources.${safeId}`;
+		const base = `${SOURCES_OBJECT_ID}.${safeId}`;
 		await this.setObjectNotExistsAsync(base, {
 			type: "device",
 			common: { name: source.name || source.id },

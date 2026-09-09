@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Alert, Box, Button, Card, CardContent, Chip, Collapse, Divider, Grid, Stack, Typography } from "@mui/material";
 import { Refresh, ExpandMore, ExpandLess } from "@mui/icons-material";
 import { chartYDomain } from "./chart-domain";
+import { formatForecastTick, prepareForecastChartData } from "./forecast-chart";
 
 type Detector = { name: string; score: number; reasonCode: string };
 type ChartSample = { value: number; timestamp: number };
@@ -1376,10 +1377,15 @@ function forecastExpectedLabel(minutes: number): string {
 	return t("forecastExpectedIn", language() === "de" ? `${minutes} Minuten` : `${minutes} minutes`);
 }
 
-function forecastEndLabel(minutes: number): string {
-	return minutes >= 60 && minutes % 60 === 0
-		? t("forecastHoursShort", minutes / 60)
-		: t("forecastMinutesShort", minutes);
+function forecastAxisTimeLabel(offsetMs: number): string {
+	if (offsetMs === 0) {
+		return t("forecastNow");
+	}
+	const minutes = Math.round(offsetMs / 60_000);
+	if (minutes >= 60 && minutes % 60 === 0) {
+		return `+${minutes / 60} h`;
+	}
+	return `+${minutes} min`;
 }
 
 function predictiveModelLabel(model?: "levelTrend" | "seasonal" | "timeOfDay"): string {
@@ -1447,27 +1453,27 @@ function ForecastCard({ source }: { source: Source }): React.JSX.Element {
 	const diagnostics = forecast.diagnostics;
 	const actual = source.evaluation.actual;
 	const currentTimestamp = forecast.generatedAt ?? source.evaluation.lastEvaluated ?? Date.now();
-	const points = forecast.points.filter(point => Number.isFinite(point.value));
-	const chartPoints =
-		Number.isFinite(actual) && points[0]?.timestamp !== currentTimestamp
-			? [{ timestamp: currentTimestamp, value: actual as number }, ...points]
-			: points;
-	const domain = chartYDomain(
-		chartPoints.map(point => point.value),
-		[],
-		{ floorAtZero: false },
-	);
-	const path = chartPoints
+	const chartData = prepareForecastChartData(actual, currentTimestamp, forecast.horizonMinutes, forecast.points);
+	const points = chartData.forecastPoints;
+	const domain = chartData.yDomain;
+	const plotLeft = 44;
+	const plotRight = 278;
+	const plotTop = 10;
+	const plotBottom = 112;
+	const plotWidth = plotRight - plotLeft;
+	const valueY = (value: number): number =>
+		plotBottom - ((value - domain.min) / Math.max(0.001, domain.max - domain.min)) * (plotBottom - plotTop);
+	const path = points
 		.map((point, index) => {
-			const start = chartPoints[0]?.timestamp ?? currentTimestamp;
-			const end = start + forecast.horizonMinutes * 60_000;
+			const start = chartData.startTimestamp;
+			const end = chartData.endTimestamp;
 			const x =
 				end > start
-					? Math.max(0, Math.min(280, ((point.timestamp - start) / (end - start)) * 280))
+					? plotLeft + Math.max(0, Math.min(1, (point.timestamp - start) / (end - start))) * plotWidth
 					: index === 0
-						? 0
-						: 280;
-			const y = 112 - ((point.value - domain.min) / Math.max(0.001, domain.max - domain.min)) * 100;
+						? plotLeft
+						: plotRight;
+			const y = valueY(point.value);
 			return `${index ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
 		})
 		.join(" ");
@@ -1476,7 +1482,7 @@ function ForecastCard({ source }: { source: Source }): React.JSX.Element {
 	const selectionReason = diagnostics?.model?.selectionReason ?? forecast.selectionReason;
 	const quality = diagnostics?.quality;
 	const qualityClass = forecast.qualityClass ?? quality?.qualityClassification?.class ?? "unknown";
-	const showChart = (forecast.status === "ready" || forecast.status === "unreliable") && chartPoints.length > 0;
+	const showChart = (forecast.status === "ready" || forecast.status === "unreliable") && points.length > 0;
 	const seasonality = diagnostics?.seasonality;
 	const periodicityPercent = Number.isFinite(seasonality?.periodicityScore)
 		? (seasonality?.periodicityScore as number) * 100
@@ -1617,31 +1623,75 @@ function ForecastCard({ source }: { source: Source }): React.JSX.Element {
 							role="img"
 							aria-label={t("predictive")}
 						>
+							{chartData.yTicks.map(value => (
+								<React.Fragment key={`y-${value}`}>
+									<line
+										x1={plotLeft}
+										x2={plotRight}
+										y1={valueY(value)}
+										y2={valueY(value)}
+										stroke="currentColor"
+										opacity="0.12"
+									/>
+									<text
+										x={plotLeft - 4}
+										y={valueY(value) + 3}
+										textAnchor="end"
+										fontSize="8"
+										fill="currentColor"
+										opacity="0.75"
+									>
+										{formatForecastTick(value, chartData.yTickDecimals)}
+									</text>
+								</React.Fragment>
+							))}
 							<text
-								x="0"
-								y="136"
-								fontSize="11"
+								x={plotLeft}
+								y="8"
+								fontSize="7"
 								fill="currentColor"
+								opacity="0.65"
 							>
-								{t("forecastNow")}
+								{source.unit || t("chartValue")}
 							</text>
-							<text
-								x="280"
-								y="136"
-								textAnchor="end"
-								fontSize="11"
-								fill="currentColor"
-							>
-								{forecastEndLabel(forecast.horizonMinutes)}
-							</text>
-							{Number.isFinite(actual) && (
+							{chartData.xTicks.map(offset => {
+								const x =
+									plotLeft +
+									(offset / Math.max(1, chartData.endTimestamp - chartData.startTimestamp)) *
+										plotWidth;
+								return (
+									<React.Fragment key={`x-${offset}`}>
+										<line
+											x1={x}
+											x2={x}
+											y1={plotTop}
+											y2={plotBottom}
+											stroke="currentColor"
+											opacity="0.08"
+										/>
+										<text
+											x={x}
+											y="130"
+											textAnchor={
+												offset === 0
+													? "start"
+													: offset === chartData.xTicks.at(-1)
+														? "end"
+														: "middle"
+											}
+											fontSize="8"
+											fill="currentColor"
+											opacity="0.75"
+										>
+											{forecastAxisTimeLabel(offset)}
+										</text>
+									</React.Fragment>
+								);
+							})}
+							{chartData.actualPoint && (
 								<circle
-									cx="0"
-									cy={
-										112 -
-										(((actual as number) - domain.min) / Math.max(0.001, domain.max - domain.min)) *
-											100
-									}
+									cx={plotLeft}
+									cy={valueY(chartData.actualPoint.value)}
 									r="3"
 									fill="currentColor"
 								/>
@@ -1653,6 +1703,32 @@ function ForecastCard({ source }: { source: Source }): React.JSX.Element {
 								strokeWidth="2"
 								strokeDasharray="6 4"
 							/>
+							{points.map(point => {
+								const x =
+									plotLeft +
+									Math.max(
+										0,
+										Math.min(
+											1,
+											(point.timestamp - chartData.startTimestamp) /
+												Math.max(1, chartData.endTimestamp - chartData.startTimestamp),
+										),
+									) *
+										plotWidth;
+								return (
+									<circle
+										key={`${point.timestamp}-${point.value}`}
+										cx={x}
+										cy={valueY(point.value)}
+										r="2"
+										fill="currentColor"
+									>
+										<title>
+											{`${forecastAxisTimeLabel(point.timestamp - chartData.startTimestamp)}: ${formatRangeValue(point.value)}${source.unit ? ` ${source.unit}` : ""}`}
+										</title>
+									</circle>
+								);
+							})}
 						</svg>
 					</>
 				) : null}
