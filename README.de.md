@@ -2,7 +2,8 @@
 
 # ioBroker.anomaly-detection
 
-[![NPM-Version](https://img.shields.io/npm/v/iobroker.anomaly-detection.svg)](https://www.npmjs.com/package/iobroker.anomaly-detection)
+[![NPM version](https://img.shields.io/npm/v/iobroker.anomaly-detection.svg?color=blue)](https://www.npmjs.com/package/iobroker.anomaly-detection)
+[![Downloads](https://img.shields.io/npm/dm/iobroker.anomaly-detection.svg)](https://www.npmjs.com/package/iobroker.anomaly-detection)
 
 [English](README.md) · **Deutsch**
 
