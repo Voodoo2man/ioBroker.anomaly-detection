@@ -1,4 +1,9 @@
 {
+	"sectionGeneral": "ЗАГАЛЬНІ НАЛАШТУВАННЯ ТА ДЖЕРЕЛО ДАНИХ",
+	"sectionDetection": "ВИЯВЛЕННЯ АНОМАЛІЙ",
+	"sectionDetectors": "ДЕТЕКТОРИ",
+	"sectionContext": "КОНТЕКСТ",
+	"sectionForecast": "ПРОГНОЗ",
 	"Anomaly threshold": "Anomaly threshold",
 	"Context state ID": "Ідентифікатор стану контексту",
 	"Context states (maximum 3)": "Стани контексту (максимум 3)",

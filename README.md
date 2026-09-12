@@ -373,6 +373,6 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 
 ## License
 
-MIT License
+This adapter is licensed under the [MIT License](LICENSE).
 
 Copyright (c) 2026 Voodoo2man <Voodoo2man@outlook.de>

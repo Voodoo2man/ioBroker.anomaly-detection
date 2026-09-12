@@ -1,4 +1,9 @@
 {
+	"sectionGeneral": "ALGEMEEN EN GEGEVENSBRON",
+	"sectionDetection": "ANOMALIEDETECTIE",
+	"sectionDetectors": "DETECTOREN",
+	"sectionContext": "CONTEXT",
+	"sectionForecast": "VOORSPELLING",
 	"Anomaly threshold": "Anomaly threshold",
 	"Context state ID": "Contextstatus-ID",
 	"Context states (maximum 3)": "Contextstatussen (maximaal 3)",

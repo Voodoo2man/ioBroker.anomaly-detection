@@ -5,28 +5,29 @@
 		"news": {
 			"0.4.0": {
 				"en": "Improve predictive forecasting with current-state anchoring and explainable forecast diagnostics",
-				"de": "Predictive-Prognosen mit Verankerung am aktuellen Zustand und erklärbaren Forecast-Diagnosen verbessert"
-			},
-			"0.3.1": {
-				"en": "Protect persisted history and mixed predictive models from live-only retraining when the training basis cannot be restored",
-				"de": "Persistierte History- und Mixed-Predictive-Modelle vor Live-only-Retraining geschützt, wenn die Trainingsbasis nicht wiederhergestellt werden kann"
+				"de": "Predictive-Prognosen mit Verankerung am aktuellen Zustand und erklärbaren Forecast-Diagnosen verbessert",
+				"ru": "Улучшено прогнозирование с привязкой к текущему состоянию и понятной диагностикой прогноза",
+				"pt": "Melhoradas as previsões com ancoragem no estado atual e diagnósticos explicáveis",
+				"nl": "Voorspellingen verbeterd met verankering aan de huidige toestand en uitlegbare voorspellingsdiagnostiek",
+				"fr": "Amélioration des prévisions avec ancrage sur l’état actuel et diagnostics explicables",
+				"it": "Migliorate le previsioni con ancoraggio allo stato attuale e diagnostica del forecast spiegabile",
+				"es": "Mejora de las previsiones con anclaje en el estado actual y diagnósticos explicables",
+				"pl": "Ulepszono prognozowanie dzięki zakotwiczeniu w bieżącym stanie i objaśnialnej diagnostyce prognoz",
+				"uk": "Покращено прогнозування з прив’язкою до поточного стану та зрозумілою діагностикою прогнозу",
+				"zh-cn": "改进预测功能，基于当前状态进行锚定并提供可解释的预测诊断"
 			},
 			"0.3.0": {
 				"en": "Add predictive forecasting, persistent model training bases, history bootstrap, adaptive history segmentation, and explainable diagnostics",
-				"de": "Predictive-Prognosen, persistente Trainingsbasen, History-Bootstrap, adaptive History-Segmentierung und erklärbare Diagnosen hinzugefügt"
-			},
-			"0.2.14": {
-				"en": "Improve analysis charts, historical explanations, and responsive layout",
-				"de": "Analyse-Diagramme, historische Erklärungen und responsives Layout verbessert",
-				"ru": "Улучшены диаграммы анализа, исторические объяснения и адаптивная разметка",
-				"pt": "Melhorados os gráficos de análise, as explicações históricas e o layout responsivo",
-				"nl": "Analyse-grafieken, historische uitleg en responsieve indeling verbeterd",
-				"fr": "Amélioration des graphiques d’analyse, des explications historiques et de la mise en page responsive",
-				"it": "Migliorati grafici di analisi, spiegazioni storiche e layout responsive",
-				"es": "Mejoras en los gráficos de análisis, las explicaciones históricas y el diseño adaptable",
-				"pl": "Ulepszono wykresy analizy, wyjaśnienia historyczne i responsywny układ",
-				"uk": "Покращено аналітичні діаграми, історичні пояснення та адаптивне компонування",
-				"zh-cn": "改进分析图表、历史说明和响应式布局"
+				"de": "Predictive-Prognosen, persistente Trainingsbasen, History-Bootstrap, adaptive History-Segmentierung und erklärbare Diagnosen hinzugefügt",
+				"ru": "Добавлены прогнозирование, постоянные учебные базы моделей, начальная загрузка истории, адаптивное сегментирование истории и понятная диагностика",
+				"pt": "Adicionadas previsões, bases de treino persistentes, bootstrap do histórico, segmentação adaptativa do histórico e diagnósticos explicáveis",
+				"nl": "Voorspellingen, permanente modeltrainingsbasissen, geschiedenis-bootstrap, adaptieve geschiedenissegmentatie en uitlegbare diagnostiek toegevoegd",
+				"fr": "Ajout de prévisions, de bases d’entraînement persistantes, d’un bootstrap de l’historique, d’une segmentation adaptative de l’historique et de diagnostics explicables",
+				"it": "Aggiunti previsione, basi di addestramento persistenti, bootstrap della cronologia, segmentazione adattiva della cronologia e diagnostica spiegabile",
+				"es": "Se añadieron previsiones, bases de entrenamiento persistentes, bootstrap del historial, segmentación adaptativa del historial y diagnósticos explicables",
+				"pl": "Dodano prognozowanie, trwałe bazy treningowe modeli, inicjalizację historii, adaptacyjną segmentację historii i objaśnialną diagnostykę",
+				"uk": "Додано прогнозування, постійні навчальні бази моделей, початкове завантаження історії, адаптивну сегментацію історії та зрозумілу діагностику",
+				"zh-cn": "新增预测、持久化模型训练基础、历史记录初始化、 自适应历史分段和可解释诊断"
 			},
 			"0.1.1": {
 				"en": "Improve configuration UI layout, translations, and detector guidance",
@@ -125,8 +126,7 @@
 				"pl": "Anomalie",
 				"uk": "Аномалії",
 				"zh-cn": "异常"
-			},
-			"order": 10
+			}
 		},
 		"messagebox": true,
 		"supportedMessages": {

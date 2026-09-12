@@ -1,4 +1,9 @@
 {
+	"sectionGeneral": "常规和数据源",
+	"sectionDetection": "异常检测",
+	"sectionDetectors": "检测器",
+	"sectionContext": "上下文",
+	"sectionForecast": "预测",
 	"Anomaly threshold": "Anomaly threshold",
 	"Context state ID": "上下文状态ID",
 	"Context states (maximum 3)": "上下文状态（最多 3 个）",

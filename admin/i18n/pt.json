@@ -1,4 +1,9 @@
 {
+	"sectionGeneral": "GERAL E FONTE DE DADOS",
+	"sectionDetection": "DETEÇÃO DE ANOMALIAS",
+	"sectionDetectors": "DETETORES",
+	"sectionContext": "CONTEXTO",
+	"sectionForecast": "PREVISÃO",
 	"Anomaly threshold": "Anomaly threshold",
 	"Context state ID": "ID do estado do contexto",
 	"Context states (maximum 3)": "Estados de contexto (máximo 3)",
