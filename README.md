@@ -4,7 +4,8 @@
 
 [English](README.md) · **Deutsch** ([README.de.md](README.de.md))
 
-[![NPM version](https://img.shields.io/npm/v/iobroker.anomaly-detection.svg)](https://www.npmjs.com/package/iobroker.anomaly-detection)
+[![NPM version](https://img.shields.io/npm/v/iobroker.anomaly-detection.svg?color=blue)](https://www.npmjs.com/package/iobroker.anomaly-detection)
+[![Downloads](https://img.shields.io/npm/dm/iobroker.anomaly-detection.svg)](https://www.npmjs.com/package/iobroker.anomaly-detection)
 
 Learns the normal behaviour of selected numerical ioBroker states and reports statistically unusual values locally.
 
@@ -372,6 +373,6 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 
 ## License
 
-MIT License
+This adapter is licensed under the [MIT License](LICENSE).
 
 Copyright (c) 2026 Voodoo2man <Voodoo2man@outlook.de>

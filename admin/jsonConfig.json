@@ -553,9 +553,9 @@
 						"de": "Erkennt wiederkehrende Muster wie Heiz-, Lade- oder Tageszyklen, wenn das Muster ausreichend stabil ist."
 					},
 					"options": [
-						{ "value": "off", "label": { "en": "Off", "de": "Aus" } },
-						{ "value": "auto", "label": { "en": "Detect automatically", "de": "Automatisch erkennen" } },
-						{ "value": "manual", "label": { "en": "Set manually", "de": "Manuell festlegen" } }
+						{ "value": "off", "label": { "en": "Off", "de": "Aus", "ru": "Выкл.", "pt": "Desligado", "nl": "Uit", "fr": "Désactivé", "it": "Disattivato", "es": "Desactivado", "pl": "Wyłączone", "uk": "Вимкнено", "zh-cn": "关闭" } },
+						{ "value": "auto", "label": { "en": "Detect automatically", "de": "Automatisch erkennen", "ru": "Определять автоматически", "pt": "Detetar automaticamente", "nl": "Automatisch detecteren", "fr": "Détecter automatiquement", "it": "Rileva automaticamente", "es": "Detectar automáticamente", "pl": "Wykrywaj automatycznie", "uk": "Визначати автоматично", "zh-cn": "自动检测" } },
+						{ "value": "manual", "label": { "en": "Set manually", "de": "Manuell festlegen", "ru": "Задать вручную", "pt": "Definir manualmente", "nl": "Handmatig instellen", "fr": "Définir manuellement", "it": "Imposta manualmente", "es": "Establecer manualmente", "pl": "Ustaw ręcznie", "uk": "Задати вручну", "zh-cn": "手动设置" } }
 					],
 					"default": "off",
 					"hidden": "data.predictiveEnabled !== true",

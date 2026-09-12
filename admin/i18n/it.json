@@ -1,4 +1,9 @@
 {
+	"sectionGeneral": "GENERALE E FONTE DATI",
+	"sectionDetection": "RILEVAMENTO ANOMALIE",
+	"sectionDetectors": "RILEVATORI",
+	"sectionContext": "CONTESTO",
+	"sectionForecast": "PREVISIONE",
 	"Anomaly threshold": "Anomaly threshold",
 	"Context state ID": "ID dello stato del contesto",
 	"Context states (maximum 3)": "Stati del contesto (massimo 3)",

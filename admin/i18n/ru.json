@@ -1,4 +1,9 @@
 {
+	"sectionGeneral": "ОБЩИЕ НАСТРОЙКИ И ИСТОЧНИК ДАННЫХ",
+	"sectionDetection": "ОБНАРУЖЕНИЕ АНОМАЛИЙ",
+	"sectionDetectors": "ДЕТЕКТОРЫ",
+	"sectionContext": "КОНТЕКСТ",
+	"sectionForecast": "ПРОГНОЗ",
 	"Anomaly threshold": "Anomaly threshold",
 	"Context state ID": "Идентификатор состояния контекста",
 	"Context states (maximum 3)": "Состояния контекста (максимум 3)",
