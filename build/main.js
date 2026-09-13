@@ -1257,7 +1257,7 @@ class AnomalyDetection extends utils.Adapter {
     try {
       const models = Object.fromEntries(
         [...this.predictiveModels].flatMap(([safeId, model]) => {
-          const data = model.toJSON();
+          const data = model.toPersistenceJSON();
           return data ? [[safeId, data]] : [];
         })
       );
@@ -1274,8 +1274,13 @@ class AnomalyDetection extends utils.Adapter {
   onUnload(callback) {
     if (this.persistTimer) {
       this.clearTimeout(this.persistTimer);
+      this.persistTimer = void 0;
     }
-    void this.persistModels().finally(callback);
+    void this.persistOnUnload().finally(callback);
+  }
+  async persistOnUnload() {
+    await this.predictiveTrainingQueue.drain();
+    await Promise.all([this.persistModels(), this.persistPredictiveModels()]);
   }
 }
 if (require.main !== module) {

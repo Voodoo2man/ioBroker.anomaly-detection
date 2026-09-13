@@ -101,6 +101,10 @@ class PredictiveTrainingQueue {
     this.tail = run.catch(() => void 0);
     return run;
   }
+  /** Waits until all predictive work queued so far has finished. */
+  drain() {
+    return this.tail;
+  }
 }
 class PredictiveModel {
   /**
@@ -110,19 +114,19 @@ class PredictiveModel {
    */
   constructor(settings, data) {
     this.settings = settings;
-    var _a, _b;
     const fingerprint = predictiveConfigFingerprint(settings);
     const algorithmMatches = (data == null ? void 0 : data.algorithmVersion) === PREDICTIVE_ALGORITHM_VERSION;
-    const persistedTrainingSamples = data == null ? void 0 : data.trainingSampleCount;
+    const compatibleData = (data == null ? void 0 : data.version) === 1 && algorithmMatches && data.configFingerprint === fingerprint ? data : void 0;
+    const persistedTrainingSamples = compatibleData == null ? void 0 : compatibleData.trainingSampleCount;
     const persistedModelIsComplete = typeof persistedTrainingSamples === "number" && Number.isFinite(persistedTrainingSamples) && persistedTrainingSamples >= settings.minimumTrainingSamples;
-    this.data = (data == null ? void 0 : data.version) === 1 && algorithmMatches && data.configFingerprint === fingerprint && persistedModelIsComplete ? data : void 0;
-    const basisRestore = restoreTrainingBasis((_a = this.data) == null ? void 0 : _a.trainingBasis, settings.maximumTrainingPoints);
+    this.data = compatibleData && persistedModelIsComplete ? data : void 0;
+    const basisRestore = restoreTrainingBasis(compatibleData == null ? void 0 : compatibleData.trainingBasis, settings.maximumTrainingPoints);
     this.trainingBasisRestoreReasonValue = basisRestore.reason;
-    if (this.data && basisRestore.reason === "accepted") {
+    if (basisRestore.reason === "accepted") {
       this.samples = basisRestore.samples;
-      this.trainingBasisSource = (_b = this.data) == null ? void 0 : _b.trainingSource;
-      this.lastObservedValue = this.data.lastObservedValue;
-      this.lastObservedTimestamp = this.data.lastObservedTimestamp;
+      this.trainingBasisSource = compatibleData == null ? void 0 : compatibleData.trainingSource;
+      this.lastObservedValue = compatibleData == null ? void 0 : compatibleData.lastObservedValue;
+      this.lastObservedTimestamp = compatibleData == null ? void 0 : compatibleData.lastObservedTimestamp;
       this.trainingBasisRestored = true;
     }
     this.initialBootstrapReason = this.data ? void 0 : data ? !algorithmMatches ? "algorithm-changed" : data.configFingerprint ? data.configFingerprint !== fingerprint ? "config-changed" : !persistedModelIsComplete ? "incomplete-model" : "config-changed" : "legacy-model" : "missing-model";
@@ -340,7 +344,39 @@ class PredictiveModel {
    *
    */
   toJSON() {
-    return this.data;
+    if (!this.data) {
+      return void 0;
+    }
+    return {
+      ...this.data,
+      trainingBasis: resample(this.samples, this.settings.maximumTrainingPoints)
+    };
+  }
+  /** Returns an active model or a bounded live-learning snapshot for shutdown persistence. */
+  toPersistenceJSON() {
+    if (this.data) {
+      return this.toJSON();
+    }
+    if (this.samples.length === 0) {
+      return void 0;
+    }
+    const intervalMs = medianInterval(this.samples) || 6e4;
+    return {
+      version: 1,
+      algorithmVersion: PREDICTIVE_ALGORITHM_VERSION,
+      configFingerprint: predictiveConfigFingerprint(this.settings),
+      persistedLearning: true,
+      level: 0,
+      trend: 0,
+      seasonal: [],
+      period: 0,
+      intervalMs,
+      trainingSampleCount: this.samples.length,
+      lastTrainingAt: 0,
+      trainingBasis: resample(this.samples, this.settings.maximumTrainingPoints),
+      lastObservedValue: this.lastObservedValue,
+      lastObservedTimestamp: this.lastObservedTimestamp
+    };
   }
   /**
    *

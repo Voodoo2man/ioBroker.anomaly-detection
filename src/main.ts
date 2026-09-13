@@ -1412,7 +1412,7 @@ class AnomalyDetection extends utils.Adapter {
 		try {
 			const models = Object.fromEntries(
 				[...this.predictiveModels].flatMap(([safeId, model]) => {
-					const data = model.toJSON();
+					const data = model.toPersistenceJSON();
 					return data ? [[safeId, data]] : [];
 				}),
 			);
@@ -1437,8 +1437,17 @@ class AnomalyDetection extends utils.Adapter {
 	private onUnload(callback: () => void): void {
 		if (this.persistTimer) {
 			this.clearTimeout(this.persistTimer);
+			this.persistTimer = undefined;
 		}
-		void this.persistModels().finally(callback);
+		void this.persistOnUnload().finally(callback);
+	}
+
+	private async persistOnUnload(): Promise<void> {
+		// Let an already queued live update finish before taking the snapshot.
+		// Both persistence methods handle their own errors so shutdown still
+		// reaches the ioBroker callback when a state write fails.
+		await this.predictiveTrainingQueue.drain();
+		await Promise.all([this.persistModels(), this.persistPredictiveModels()]);
 	}
 }
 

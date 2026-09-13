@@ -75,6 +75,27 @@ describe("predictive forecasting", () => {
 		expect(events).to.deep.equal(["first-start", "first-error", "second"]);
 	});
 
+	it("drains predictive work before shutdown persistence", async () => {
+		const queue = new PredictiveTrainingQueue();
+		let release: (() => void) | undefined;
+		const running = queue.enqueue(
+			() =>
+				new Promise<void>(resolve => {
+					release = resolve;
+				}),
+		);
+		let drained = false;
+		const drain = queue.drain().then(() => {
+			drained = true;
+		});
+
+		await Promise.resolve();
+		expect(drained).to.equal(false);
+		release!();
+		await Promise.all([running, drain]);
+		expect(drained).to.equal(true);
+	});
+
 	it("reports learning until the configured minimum is reached", () => {
 		const model = new PredictiveModel(normalizePredictiveSettings({ enabled: true, minimumTrainingSamples: 10 }));
 		for (let index = 0; index < 9; index++) {
@@ -137,6 +158,46 @@ describe("predictive forecasting", () => {
 		expect(collecting.trainingSampleCount).to.equal(trained.trainingSampleCount);
 		expect(collecting.trainingSource).to.equal("history");
 		expect(collecting.points.length).to.be.greaterThan(0);
+	});
+
+	it("persists live observations received after the last training run", () => {
+		const settings = normalizePredictiveSettings({
+			enabled: true,
+			minimumTrainingSamples: 10,
+			maximumTrainingPoints: 20,
+			seasonalityMode: "off",
+		});
+		const original = new PredictiveModel(settings);
+		for (let index = 0; index < 12; index++) {
+			original.add(10, index * 60_000);
+		}
+		original.train(12 * 60_000, "live");
+		original.add(20, 12 * 60_000);
+		original.add(21, 13 * 60_000);
+
+		const persisted = original.toJSON();
+		const restored = new PredictiveModel(settings, persisted);
+
+		expect(persisted?.trainingBasis?.at(-1)).to.deep.equal({ value: 21, timestamp: 13 * 60_000 });
+		expect(restored.toJSON()?.trainingBasis?.at(-2)).to.deep.equal({ value: 20, timestamp: 12 * 60_000 });
+		expect(restored.needsHistoryBootstrap).to.equal(false);
+	});
+
+	it("persists live-learning samples before the first training run", () => {
+		const settings = normalizePredictiveSettings({
+			enabled: true,
+			minimumTrainingSamples: 10,
+			seasonalityMode: "off",
+		});
+		const original = new PredictiveModel(settings);
+		for (let index = 0; index < 4; index++) {
+			original.add(index, index * 60_000);
+		}
+
+		const restored = new PredictiveModel(settings, original.toPersistenceJSON());
+		expect(restored.trainingSampleCount).to.equal(4);
+		expect(restored.train(5 * 60_000).status).to.equal("learning");
+		expect(restored.needsHistoryBootstrap).to.equal(true);
 	});
 
 	it("replaces a persisted model only after enough new live samples are available", () => {
