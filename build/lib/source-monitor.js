@@ -130,7 +130,7 @@ class SourceMonitor {
         );
       }
     }
-    if ((_g = this.settings.enableRate) != null ? _g : true) {
+    if (((_g = this.settings.enableRate) != null ? _g : true) && !contextIsLearning) {
       const rateBaseline = this.rateModel.baseline(timestamp, minSamples, timeContext, weekdayContext);
       const result = (0, import_detectors.detectRateDeviation)(rate, rateBaseline.series, minSamples, sensitivity);
       if (result) {
@@ -172,7 +172,7 @@ class SourceMonitor {
       if (this.settings.enableContext) {
         this.contextualModel.add(contextKey, value, timestamp, timeContext, weekdayContext);
       }
-      if (rate !== void 0) {
+      if (rate !== void 0 && !contextIsLearning) {
         this.rateModel.add(rate, timestamp, timeContext, weekdayContext);
       }
     }

@@ -560,7 +560,9 @@ export class SourceMonitor {
 				);
 			}
 		}
-		if (this.settings.enableRate ?? true) {
+		// A new context has no reliable rate baseline yet. Comparing it with the
+		// context-agnostic rate model would leak assumptions across contexts.
+		if ((this.settings.enableRate ?? true) && !contextIsLearning) {
 			const rateBaseline = this.rateModel.baseline(timestamp, minSamples, timeContext, weekdayContext);
 			const result = detectRateDeviation(rate, rateBaseline.series, minSamples, sensitivity);
 			if (result) {
@@ -602,7 +604,7 @@ export class SourceMonitor {
 			if (this.settings.enableContext) {
 				this.contextualModel.add(contextKey, value, timestamp, timeContext, weekdayContext);
 			}
-			if (rate !== undefined) {
+			if (rate !== undefined && !contextIsLearning) {
 				this.rateModel.add(rate, timestamp, timeContext, weekdayContext);
 			}
 		}
