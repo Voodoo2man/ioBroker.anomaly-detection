@@ -1,8 +1,21 @@
 {
 	"common": {
 		"name": "anomaly-detection",
-		"version": "0.4.0",
+		"version": "0.4.1",
 		"news": {
+			"0.4.1": {
+				"en": "Update repository compatibility and administration metadata",
+				"de": "Repository-Kompatibilität und Administrationsmetadaten aktualisiert",
+				"ru": "Обновлена совместимость с репозиторием и метаданные администрирования",
+				"pt": "Compatibilidade com o repositório e metadados de administração atualizados",
+				"nl": "Repositorycompatibiliteit en beheermetagegevens bijgewerkt",
+				"fr": "Compatibilité avec le dépôt et métadonnées d’administration mises à jour",
+				"it": "Aggiornata la compatibilità del repository e i metadati di amministrazione",
+				"es": "Actualizadas la compatibilidad del repositorio y los metadatos de administración",
+				"pl": "Zaktualizowano zgodność z repozytorium i metadane administracyjne",
+				"uk": "Оновлено сумісність із репозиторієм і метадані адміністрування",
+				"zh-cn": "更新仓库兼容性和管理元数据"
+			},
 			"0.4.0": {
 				"en": "Improve predictive forecasting with current-state anchoring and explainable forecast diagnostics",
 				"de": "Predictive-Prognosen mit Verankerung am aktuellen Zustand und erklärbaren Forecast-Diagnosen verbessert",
@@ -110,7 +123,7 @@
 		"dataSource": "push",
 		"adminUI": {
 			"config": "json",
-			"tab": "html"
+			"tab": "json"
 		},
 		"adminTab": {
 			"link": "jsonTab.json",

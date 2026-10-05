@@ -255,6 +255,10 @@ Verarbeitung und Modellspeicherung erfolgen vollständig lokal in ioBroker. Kein
 
 ## Changelog
 
+### 0.4.1 (2026-10-05)
+
+- Repository-Kompatibilität und Administrationsmetadaten aktualisiert.
+
 ### 0.4.0 (2026-09-09)
 
 - Predictive-Prognosen mit Verankerung am aktuellen Zustand und erklärbaren Forecast-Diagnosen verbessert.
