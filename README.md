@@ -338,6 +338,10 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 
 ## Changelog
 
+### 0.4.1 (2026-10-05)
+
+- Update repository compatibility and administration metadata.
+
 ### 0.4.0 (2026-09-09)
 
 - Improve predictive forecasting with current-state anchoring and explainable forecast diagnostics.
