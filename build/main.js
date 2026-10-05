@@ -99,6 +99,9 @@ class AnomalyDetection extends utils.Adapter {
   bootstrappingSources = /* @__PURE__ */ new Set();
   /** Last processed source timestamps; prevents duplicate delivery of one physical sample. */
   lastProcessedTimestamps = /* @__PURE__ */ new Map();
+  /** Work started by state-change callbacks that may enqueue predictive samples. */
+  pendingStateProcessing = /* @__PURE__ */ new Set();
+  unloading = false;
   persistTimer;
   constructor(options = {}) {
     super({ ...options, name: "anomaly-detection" });
@@ -265,7 +268,7 @@ class AnomalyDetection extends utils.Adapter {
   }
   onStateChange(id, state) {
     var _a, _b, _c;
-    if (!state) {
+    if (!state || this.unloading) {
       return;
     }
     for (const sourceId of (_a = this.contextSources.get(id)) != null ? _a : []) {
@@ -278,7 +281,7 @@ class AnomalyDetection extends utils.Adapter {
       const source = this.sources.get(safeId2);
       const monitor2 = sourceId ? this.monitors.get(sourceId) : void 0;
       if (sourceId && source && monitor2) {
-        void this.retrainSource(sourceId, safeId2, source, monitor2);
+        this.trackStateProcessing(this.retrainSource(sourceId, safeId2, source, monitor2));
       }
       return;
     }
@@ -288,8 +291,15 @@ class AnomalyDetection extends utils.Adapter {
       if (this.bootstrappingSources.has(id)) {
         return;
       }
-      void this.processState(id, safeId, monitor, state);
+      this.trackStateProcessing(this.processState(id, safeId, monitor, state));
     }
+  }
+  trackStateProcessing(task) {
+    const tracked = task.catch((error) => {
+      this.log.error(`State-change processing failed: ${error.message}`);
+    });
+    this.pendingStateProcessing.add(tracked);
+    void tracked.then(() => this.pendingStateProcessing.delete(tracked));
   }
   onMessage(message) {
     if (!message.callback) {
@@ -1272,6 +1282,7 @@ class AnomalyDetection extends utils.Adapter {
     return `${normalized}_${hash}`;
   }
   onUnload(callback) {
+    this.unloading = true;
     if (this.persistTimer) {
       this.clearTimeout(this.persistTimer);
       this.persistTimer = void 0;
@@ -1279,6 +1290,9 @@ class AnomalyDetection extends utils.Adapter {
     void this.persistOnUnload().finally(callback);
   }
   async persistOnUnload() {
+    while (this.pendingStateProcessing.size > 0) {
+      await Promise.all([...this.pendingStateProcessing]);
+    }
     await this.predictiveTrainingQueue.drain();
     await Promise.all([this.persistModels(), this.persistPredictiveModels()]);
   }

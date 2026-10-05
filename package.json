@@ -1,6 +1,6 @@
 {
 	"name": "iobroker.anomaly-detection",
-	"version": "0.4.0",
+	"version": "0.4.1",
 	"description": "Learns normal behavior of numerical ioBroker states and detects statistical anomalies.",
 	"author": {
 		"name": "Voodoo2man",
@@ -41,7 +41,7 @@
 		"@iobroker/adapter-dev": "^1.5.0",
 		"@iobroker/dev-server": "^0.8.0",
 		"@iobroker/eslint-config": "^2.3.4",
-		"@iobroker/testing": "^6.0.0",
+		"@iobroker/testing": "^6.3.0",
 		"@tsconfig/node22": "^22.0.2",
 		"@types/iobroker": "npm:@iobroker/types@^7.2.2",
 		"@types/node": "^22.0.0",
@@ -68,7 +68,7 @@
 		"prebuild:ts": "rimraf build",
 		"build:ts": "build-adapter ts",
 		"watch:ts": "build-adapter ts --watch",
-		"test:ts": "mocha --config test/mocharc.custom.json src/**/*.test.ts",
+		"test:ts": "mocha --config test/mocharc.custom.json \"src/**/*.test.ts\"",
 		"test:package": "mocha test/package --exit",
 		"test:integration": "mocha test/integration --exit",
 		"test": "npm run test:ts && npm run test:package",

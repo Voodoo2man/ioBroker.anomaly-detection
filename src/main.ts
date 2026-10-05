@@ -121,6 +121,9 @@ class AnomalyDetection extends utils.Adapter {
 	private readonly bootstrappingSources = new Set<string>();
 	/** Last processed source timestamps; prevents duplicate delivery of one physical sample. */
 	private readonly lastProcessedTimestamps = new Map<string, number>();
+	/** Work started by state-change callbacks that may enqueue predictive samples. */
+	private readonly pendingStateProcessing = new Set<Promise<void>>();
+	private unloading = false;
 	private persistTimer: ioBroker.Timeout | undefined;
 
 	public constructor(options: Partial<utils.AdapterOptions> = {}) {
@@ -303,7 +306,7 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private onStateChange(id: string, state: ioBroker.State | null | undefined): void {
-		if (!state) {
+		if (!state || this.unloading) {
 			return;
 		}
 		for (const sourceId of this.contextSources.get(id) ?? []) {
@@ -316,7 +319,7 @@ class AnomalyDetection extends utils.Adapter {
 			const source = this.sources.get(safeId);
 			const monitor = sourceId ? this.monitors.get(sourceId) : undefined;
 			if (sourceId && source && monitor) {
-				void this.retrainSource(sourceId, safeId, source, monitor);
+				this.trackStateProcessing(this.retrainSource(sourceId, safeId, source, monitor));
 			}
 			return;
 		}
@@ -326,8 +329,16 @@ class AnomalyDetection extends utils.Adapter {
 			if (this.bootstrappingSources.has(id)) {
 				return;
 			}
-			void this.processState(id, safeId, monitor, state);
+			this.trackStateProcessing(this.processState(id, safeId, monitor, state));
 		}
+	}
+
+	private trackStateProcessing(task: Promise<void>): void {
+		const tracked = task.catch(error => {
+			this.log.error(`State-change processing failed: ${(error as Error).message}`);
+		});
+		this.pendingStateProcessing.add(tracked);
+		void tracked.then(() => this.pendingStateProcessing.delete(tracked));
 	}
 
 	private onMessage(message: ioBroker.Message): void {
@@ -1435,6 +1446,7 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private onUnload(callback: () => void): void {
+		this.unloading = true;
 		if (this.persistTimer) {
 			this.clearTimeout(this.persistTimer);
 			this.persistTimer = undefined;
@@ -1443,7 +1455,11 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private async persistOnUnload(): Promise<void> {
-		// Let an already queued live update finish before taking the snapshot.
+		// Finish state/retrain callbacks first: they can enqueue predictive work
+		// only after their state writes or history reads have completed.
+		while (this.pendingStateProcessing.size > 0) {
+			await Promise.all([...this.pendingStateProcessing]);
+		}
 		// Both persistence methods handle their own errors so shutdown still
 		// reaches the ioBroker callback when a state write fails.
 		await this.predictiveTrainingQueue.drain();

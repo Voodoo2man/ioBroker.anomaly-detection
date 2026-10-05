@@ -217,6 +217,22 @@ describe("context-aware monitoring", () => {
 		expect(newOffContext.sampleCount).to.equal(31);
 	});
 
+	it("does not compare or learn global rates while a new context is still learning", () => {
+		const baselineMonitor = new SourceMonitor({ ...settings, enableContext: false });
+		const start = new Date(2026, 0, 1, 12, 0).getTime();
+		for (let index = 0; index < 8; index++) {
+			baselineMonitor.observe(300, start + index * 60_000);
+		}
+		const monitor = new SourceMonitor(settings, baselineMonitor.toJSON());
+		const beforeRateSamples = monitor.toJSON().rate.global.values.length;
+		monitor.observe(0, start + 8 * 60_000, off);
+		const newContext = monitor.observe(600, start + 9 * 60_000, off)!;
+		expect(newContext.statusCode).to.equal("learning");
+		expect(newContext.detectors.map(detector => detector.name)).not.to.include("rate");
+		expect(newContext.score).to.equal(0);
+		expect(monitor.toJSON().rate.global.values).to.have.length(beforeRateSamples);
+	});
+
 	it("shows the global baseline reason when no usable context baseline is selected", () => {
 		const monitor = new SourceMonitor({ ...settings, enableContext: false, enableRate: false });
 		const start = new Date(2026, 0, 1, 12, 0).getTime();
