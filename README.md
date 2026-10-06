@@ -375,6 +375,8 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 - (Voodoo2man) add optional bounded historical initial training
 - (Voodoo2man) select only enabled history sources per configured state
 
+For older changelog entries, see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
+
 ## License
 
 This adapter is licensed under the [MIT License](LICENSE).

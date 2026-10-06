@@ -293,6 +293,8 @@ Verarbeitung und Modellspeicherung erfolgen vollständig lokal in ioBroker. Kein
 - Optionales, begrenztes History-Training.
 - Auswahl aktivierter History-Quellen pro konfiguriertem Zustand.
 
+Ältere Changelog-Einträge findest du in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
+
 ## Lizenz
 
 MIT License
