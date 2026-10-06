@@ -1,8 +1,12 @@
 {
 	"common": {
 		"name": "anomaly-detection",
-		"version": "0.4.1",
-		"news": {
+    "version": "0.4.2",
+    "news": {
+      "0.4.2": {
+        "en": "Persist anomaly and forecast models periodically; finish pending adapter work before graceful shutdown; process monitored foreign states only after acknowledgement; complete admin translations; require admin 8.0.0 for the custom tab API",
+        "de": "Anomalie- und Prognosemodelle regelmäßig speichern; beim regulären Shutdown auf laufende Verarbeitung warten; überwachte Fremdzustände erst nach Bestätigung auswerten; Admin-Übersetzungen vervollständigen; Admin 8.0.0 für die Custom-Tab-API voraussetzen"
+      },
 			"0.4.1": {
 				"en": "Update repository compatibility and administration metadata",
 				"de": "Repository-Kompatibilität und Administrationsmetadaten aktualisiert",
