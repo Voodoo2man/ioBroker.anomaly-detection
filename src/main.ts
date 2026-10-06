@@ -501,9 +501,9 @@ class AnomalyDetection extends utils.Adapter {
 			}
 			this.invalidValueWarnings.delete(id);
 			this.evaluations.set(id, result);
+			this.schedulePersistence();
 			await this.writeResult(safeId, result);
 			await this.updatePredictive(safeId, state.val, state.ts ?? Date.now());
-			this.schedulePersistence();
 		} catch (error) {
 			this.log.error(`Could not process source state ${id}: ${(error as Error).message}`);
 		}
