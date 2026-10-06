@@ -310,8 +310,12 @@ class AnomalyDetection extends utils.Adapter {
 		if (!state || this.unloading) {
 			return;
 		}
-		for (const sourceId of this.contextSources.get(id) ?? []) {
-			this.contextValues.get(sourceId)?.set(id, state.val);
+		// Foreign states are authoritative only after their owning adapter has
+		// acknowledged the write. Keep unacknowledged retrain commands below.
+		if (state.ack === true) {
+			for (const sourceId of this.contextSources.get(id) ?? []) {
+				this.contextValues.get(sourceId)?.set(id, state.val);
+			}
 		}
 		const retrainMatch = id.match(/sources\.([^.]+)\.retrain$/);
 		if (retrainMatch && state.ack === false && state.val === true) {
@@ -327,6 +331,9 @@ class AnomalyDetection extends utils.Adapter {
 		const monitor = this.monitors.get(id);
 		const safeId = this.sourceIds.get(id);
 		if (monitor && safeId) {
+			if (state.ack !== true) {
+				return;
+			}
 			if (this.bootstrappingSources.has(id)) {
 				return;
 			}

@@ -272,8 +272,10 @@ class AnomalyDetection extends utils.Adapter {
     if (!state || this.unloading) {
       return;
     }
-    for (const sourceId of (_a = this.contextSources.get(id)) != null ? _a : []) {
-      (_b = this.contextValues.get(sourceId)) == null ? void 0 : _b.set(id, state.val);
+    if (state.ack === true) {
+      for (const sourceId of (_a = this.contextSources.get(id)) != null ? _a : []) {
+        (_b = this.contextValues.get(sourceId)) == null ? void 0 : _b.set(id, state.val);
+      }
     }
     const retrainMatch = id.match(/sources\.([^.]+)\.retrain$/);
     if (retrainMatch && state.ack === false && state.val === true) {
@@ -289,6 +291,9 @@ class AnomalyDetection extends utils.Adapter {
     const monitor = this.monitors.get(id);
     const safeId = this.sourceIds.get(id);
     if (monitor && safeId) {
+      if (state.ack !== true) {
+        return;
+      }
       if (this.bootstrappingSources.has(id)) {
         return;
       }

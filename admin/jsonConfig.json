@@ -17,7 +17,19 @@
 					"type": "header",
 					"attr": "_generalHeader",
 					"size": 3,
-					"text": { "en": "GENERAL & DATA SOURCE", "de": "ALLGEMEIN & DATENQUELLE" },
+					"text": {
+						"en": "GENERAL & DATA SOURCE",
+						"de": "ALLGEMEIN & DATENQUELLE",
+						"ru": "ОБЩИЕ И ИСТОЧНИКИ ДАННЫХ",
+						"pt": "GERAL E FONTE DE DADOS",
+						"nl": "ALGEMEEN EN GEGEVENSBRON",
+						"fr": "GÉNÉRAL ET SOURCE DE DONNÉES",
+						"it": "ORIGINE GENERALE E DATI",
+						"es": "GENERAL Y FUENTE DE DATOS",
+						"pl": "OGÓLNE I ŹRÓDŁO DANYCH",
+						"uk": "ЗАГАЛЬНІ ІНФОРМАЦІЇ ТА ДЖЕРЕЛО ДАНИХ",
+						"zh-cn": "常规和数据源"
+					},
 					"xs": 12,
 					"newLine": true
 				},
@@ -63,7 +75,16 @@
 					"label": "Initial training",
 					"help": {
 						"en": "Choose whether the model learns from new live values or imports existing history first.",
-						"de": "Legt fest, ob das Modell nur neue Live-Werte nutzt oder zuerst vorhandene Historie importiert."
+						"de": "Legt fest, ob das Modell nur neue Live-Werte nutzt oder zuerst vorhandene Historie importiert.",
+						"ru": "Выберите, будет ли модель учиться на новых текущих значениях или сначала импортировать существующую историю.",
+						"pt": "Escolha se o modelo aprende com novos valores em tempo real ou importa primeiro o histórico existente.",
+						"nl": "Kies of het model leert van nieuwe live waarden of eerst de bestaande geschiedenis importeert.",
+						"fr": "Choisissez si le modèle apprend à partir de nouvelles valeurs en direct ou importe d'abord l'historique existant.",
+						"it": "Scegli se il modello apprende dai nuovi valori in tempo reale o importa prima la cronologia esistente.",
+						"es": "Elija si el modelo aprende de nuevos valores en vivo o importa primero el historial existente.",
+						"pl": "Wybierz, czy model ma uczyć się na podstawie nowych wartości bieżących, czy najpierw importuje istniejącą historię.",
+						"uk": "Виберіть, чи модель вивчатиме нові живі значення чи спочатку імпортує наявну історію.",
+						"zh-cn": "选择模型是从新的实时值学习还是先导入现有历史记录。"
 					},
 					"default": "live",
 					"xs": 12,
@@ -73,8 +94,14 @@
 					"xl": 3,
 					"newLine": true,
 					"options": [
-						{ "label": "Learn from live values only", "value": "live" },
-						{ "label": "Import existing history", "value": "history" }
+						{
+							"label": "Learn from live values only",
+							"value": "live"
+						},
+						{
+							"label": "Import existing history",
+							"value": "history"
+						}
 					]
 				},
 				{
@@ -83,7 +110,16 @@
 					"label": "History source (enabled compatible providers only)",
 					"help": {
 						"en": "Select the enabled history adapter used for the initial training import.",
-						"de": "Wählt den aktivierten History-Adapter für den initialen Trainingsimport."
+						"de": "Wählt den aktivierten History-Adapter für den initialen Trainingsimport.",
+						"ru": "Выберите включенный адаптер истории, используемый для импорта начального обучения.",
+						"pt": "Selecione o adaptador de histórico habilitado usado para a importação de treinamento inicial.",
+						"nl": "Selecteer de ingeschakelde geschiedenisadapter die wordt gebruikt voor de initiële trainingsimport.",
+						"fr": "Sélectionnez l'adaptateur d'historique activé utilisé pour l'importation de la formation initiale.",
+						"it": "Seleziona l'adattatore della cronologia abilitato utilizzato per l'importazione dell'addestramento iniziale.",
+						"es": "Seleccione el adaptador de historial habilitado utilizado para la importación de entrenamiento inicial.",
+						"pl": "Wybierz włączony adapter historii używany do importu szkolenia wstępnego.",
+						"uk": "Виберіть увімкнений адаптер історії, який використовується для початкового імпорту навчання.",
+						"zh-cn": "选择用于初始训练导入的启用历史适配器。"
 					},
 					"default": "",
 					"xs": 12,
@@ -94,7 +130,9 @@
 					"newLine": false,
 					"command": "getHistoryProviders",
 					"jsonData": "{\"sourceId\": \"${data.id}\"}",
-					"alsoDependsOn": ["id"],
+					"alsoDependsOn": [
+						"id"
+					],
 					"manual": false,
 					"noTranslation": true,
 					"hidden": "data.initialTraining !== 'history'"
@@ -105,7 +143,16 @@
 					"label": "History training period (days)",
 					"help": {
 						"en": "Number of past days to request from the history provider.",
-						"de": "Anzahl der vergangenen Tage, die aus der History geladen werden."
+						"de": "Anzahl der vergangenen Tage, die aus der History geladen werden.",
+						"ru": "Количество прошлых дней, которое нужно запросить у поставщика истории.",
+						"pt": "Número de dias anteriores a serem solicitados ao provedor de histórico.",
+						"nl": "Aantal afgelopen dagen dat moet worden aangevraagd bij de geschiedenisprovider.",
+						"fr": "Nombre de jours passés à demander au fournisseur d'historique.",
+						"it": "Numero di giorni passati da richiedere al fornitore della cronologia.",
+						"es": "Número de días anteriores que se solicitarán al proveedor del historial.",
+						"pl": "Liczba ostatnich dni, o które należy poprosić dostawcę historii.",
+						"uk": "Кількість останніх днів, які потрібно запитати у постачальника історії.",
+						"zh-cn": "向历史记录提供程序请求的过去天数。"
 					},
 					"min": 7,
 					"max": 365,
@@ -125,7 +172,16 @@
 					"label": "Maximum imported samples",
 					"help": {
 						"en": "Limits how many historical samples are retained for bootstrap training.",
-						"de": "Begrenzt, wie viele historische Messwerte für das initiale Training übernommen werden."
+						"de": "Begrenzt, wie viele historische Messwerte für das initiale Training übernommen werden.",
+						"ru": "Ограничивает количество исторических выборок, сохраняемых для начального обучения.",
+						"pt": "Limita quantas amostras históricas são retidas para treinamento de inicialização.",
+						"nl": "Beperkt hoeveel historische voorbeelden worden bewaard voor bootstrap-training.",
+						"fr": "Lime le nombre d'échantillons historiques conservés pour la formation bootstrap.",
+						"it": "Limita il numero di campioni storici conservati per l'addestramento bootstrap.",
+						"es": "Limita la cantidad de muestras históricas que se retienen para el entrenamiento de arranque.",
+						"pl": "Ogranicza liczbę próbek historycznych przechowywanych na potrzeby treningu bootstrap.",
+						"uk": "Обмежує кількість історичних зразків, які зберігаються для початкового навчання.",
+						"zh-cn": "限制为引导训练保留的历史样本数量。"
 					},
 					"min": 30,
 					"max": 10000,
@@ -156,7 +212,19 @@
 					"type": "header",
 					"attr": "_anomalyHeader",
 					"size": 3,
-					"text": { "en": "ANOMALY DETECTION", "de": "ANOMALIEERKENNUNG" },
+					"text": {
+						"en": "ANOMALY DETECTION",
+						"de": "ANOMALIEERKENNUNG",
+						"ru": "ОБНАРУЖЕНИЕ АНОМАЛИЙ",
+						"pt": "DETECÇÃO DE ANOMALIAS",
+						"nl": "ANOMALIEDETECTIE",
+						"fr": "DÉTECTION D'ANOMALIE",
+						"it": "RILEVAMENTO ANOMALIE",
+						"es": "DETECCIÓN DE ANOMALIAS",
+						"pl": "WYKRYWANIE ANOMALII",
+						"uk": "АНОМАЛІЯ ВИЯВЛЕННЯ",
+						"zh-cn": "异常检测"
+					},
 					"xs": 12,
 					"newLine": true
 				},
@@ -166,7 +234,16 @@
 					"label": "Minimum learned samples",
 					"help": {
 						"en": "Minimum number of learned values before a baseline is used for scoring.",
-						"de": "Mindestanzahl gelernter Werte, bevor eine Basislinie zur Bewertung verwendet wird."
+						"de": "Mindestanzahl gelernter Werte, bevor eine Basislinie zur Bewertung verwendet wird.",
+						"ru": "Минимальное количество изученных значений, прежде чем базовый уровень будет использоваться для оценки.",
+						"pt": "Número mínimo de valores aprendidos antes que uma linha de base seja usada para pontuação.",
+						"nl": "Minimaal aantal geleerde waarden voordat een basislijn wordt gebruikt voor het scoren.",
+						"fr": "Nombre minimum de valeurs apprises avant qu'une ligne de base ne soit utilisée pour la notation.",
+						"it": "Numero minimo di valori appresi prima che una linea di base venga utilizzata per il punteggio.",
+						"es": "Número mínimo de valores aprendidos antes de que se utilice una línea de base para la puntuación.",
+						"pl": "Minimalna liczba wyuczonych wartości, zanim linia bazowa zostanie użyta do punktacji.",
+						"uk": "Мінімальна кількість вивчених значень перед використанням базової лінії для оцінки.",
+						"zh-cn": "在使用基线进行评分之前学习值的最小数量。"
 					},
 					"min": 5,
 					"max": 240,
@@ -185,7 +262,16 @@
 					"label": "Time bucket size (minutes)",
 					"help": {
 						"en": "Groups observations into time buckets for temporal baselines.",
-						"de": "Fasst Messwerte für zeitabhängige Basislinien in Zeit-Buckets zusammen."
+						"de": "Fasst Messwerte für zeitabhängige Basislinien in Zeit-Buckets zusammen.",
+						"ru": "Группирует наблюдения во временные интервалы для временных базовых показателей.",
+						"pt": "Agrupa observações em intervalos de tempo para linhas de base temporais.",
+						"nl": "Groepeert observaties in tijdsintervallen voor tijdelijke basislijnen.",
+						"fr": "Regroupe les observations dans des intervalles de temps pour les lignes de base temporelles.",
+						"it": "Raggruppa le osservazioni in intervalli di tempo per linee di base temporali.",
+						"es": "Agrupa las observaciones en períodos de tiempo para líneas de base temporales.",
+						"pl": "Grupuje obserwacje w przedziały czasowe dla tymczasowych linii bazowych.",
+						"uk": "Групує спостереження в сегменти часу для тимчасових базових ліній.",
+						"zh-cn": "将观察结果分组到时间基线的时间桶中。"
 					},
 					"min": 5,
 					"max": 720,
@@ -204,7 +290,16 @@
 					"label": "Sensitivity (robust z-score)",
 					"help": {
 						"en": "Controls how far a value must deviate from the learned baseline to be unusual.",
-						"de": "Bestimmt, wie stark ein Wert von der gelernten Basislinie abweichen muss."
+						"de": "Bestimmt, wie stark ein Wert von der gelernten Basislinie abweichen muss.",
+						"ru": "Управляет тем, насколько значение должно отклоняться от изученного базового уровня, чтобы быть необычным.",
+						"pt": "Controla o quanto um valor deve se desviar da linha de base aprendida para ser incomum.",
+						"nl": "Beheert hoe ver een waarde moet afwijken van de geleerde basislijn om ongebruikelijk te zijn.",
+						"fr": "Contrôle dans quelle mesure une valeur doit s'écarter de la ligne de base apprise pour être inhabituelle.",
+						"it": "Controlla di quanto un valore deve deviare dalla linea di base appresa per essere insolito.",
+						"es": "Controla hasta qué punto un valor debe desviarse de la línea de base aprendida para que sea inusual.",
+						"pl": "Określa, jak bardzo wartość musi odbiegać od wyuczonej wartości bazowej, aby była nietypowa.",
+						"uk": "Контролює, наскільки значення має відхилятися від вивченого базового рівня, щоб бути незвичайним.",
+						"zh-cn": "控制值必须偏离学习基线多远才属于异常。"
 					},
 					"min": 0.1,
 					"max": 20,
@@ -223,7 +318,16 @@
 					"label": "Anomaly threshold",
 					"help": {
 						"en": "Score at which an observation is classified as an anomaly.",
-						"de": "Ab diesem Score wird eine Beobachtung als Anomalie eingestuft."
+						"de": "Ab diesem Score wird eine Beobachtung als Anomalie eingestuft.",
+						"ru": "Показатель, при котором наблюдение классифицируется как аномалия.",
+						"pt": "Pontuação na qual uma observação é classificada como uma anomalia.",
+						"nl": "Score waarbij een waarneming als een anomalie wordt geclassificeerd.",
+						"fr": "Score auquel une observation est classée comme anomalie.",
+						"it": "Punteggio al quale un'osservazione viene classificata come anomalia.",
+						"es": "Puntuación con la que una observación se clasifica como anomalía.",
+						"pl": "Ocena, przy której obserwacja jest klasyfikowana jako anomalia.",
+						"uk": "Оцінка, за якою спостереження класифікується як аномалія.",
+						"zh-cn": "观察结果被分类为异常的分数。"
 					},
 					"min": 1,
 					"max": 100,
@@ -242,7 +346,16 @@
 					"label": "Minimum anomaly duration (minutes)",
 					"help": {
 						"en": "Requires an anomaly to persist for this long before it is reported.",
-						"de": "Eine Anomalie muss mindestens so lange bestehen, bevor sie gemeldet wird."
+						"de": "Eine Anomalie muss mindestens so lange bestehen, bevor sie gemeldet wird.",
+						"ru": "Требует, чтобы аномалия сохранялась в течение этого времени, прежде чем о ней будет сообщено.",
+						"pt": "Requer que uma anomalia persista por muito tempo antes de ser relatada.",
+						"nl": "Vereist dat een anomalie zo lang aanhoudt voordat deze wordt gerapporteerd.",
+						"fr": "Nécessite qu'une anomalie persiste aussi longtemps avant d'être signalée.",
+						"it": "Richiede che un'anomalia persista per questo tempo prima di essere segnalata.",
+						"es": "Requiere que una anomalía persista durante este tiempo antes de que se informe.",
+						"pl": "Wymaga, aby anomalia utrzymywała się przez tak długi czas, zanim zostanie zgłoszona.",
+						"uk": "Потрібно, щоб аномалія зберігалася задовго до того, як про неї повідомляється.",
+						"zh-cn": "要求异常在报告之前持续这么长时间。"
 					},
 					"min": 0,
 					"max": 10080,
@@ -259,17 +372,50 @@
 					"type": "header",
 					"attr": "_detectorsHeader",
 					"size": 3,
-					"text": { "en": "DETECTORS", "de": "DETEKTOREN" },
+					"text": {
+						"en": "DETECTORS",
+						"de": "DETEKTOREN",
+						"ru": "ДЕТЕКТОРЫ",
+						"pt": "DETECTORES",
+						"nl": "DETECTOREN",
+						"fr": "DETECTEURS",
+						"it": "RILEVATORI",
+						"es": "DETECTORES",
+						"pl": "DETEKTORY",
+						"uk": "ДЕТЕКТОРИ",
+						"zh-cn": "探测器"
+					},
 					"xs": 12,
 					"newLine": true
 				},
 				{
 					"attr": "enableMad",
 					"type": "checkbox",
-					"label": { "en": "Detect value deviations", "de": "Wertabweichungen erkennen" },
+					"label": {
+						"en": "Detect value deviations",
+						"de": "Wertabweichungen erkennen",
+						"ru": "Обнаружение отклонений значений",
+						"pt": "Detectar desvios de valor",
+						"nl": "Detecteer waardeafwijkingen",
+						"fr": "Détecter les écarts de valeur",
+						"it": "Rileva deviazioni di valore",
+						"es": "Detectar desviaciones de valores",
+						"pl": "Wykrywa odchylenia wartości",
+						"uk": "Виявляти відхилення значень",
+						"zh-cn": "检测值偏差"
+					},
 					"help": {
 						"en": "Detects individual values that differ significantly from learned normal behavior.",
-						"de": "Erkennt einzelne Werte, die deutlich vom gelernten Normalverhalten abweichen."
+						"de": "Erkennt einzelne Werte, die deutlich vom gelernten Normalverhalten abweichen.",
+						"ru": "Обнаруживает отдельные значения, которые значительно отличаются от изученного нормального поведения.",
+						"pt": "Detecta valores individuais que diferem significativamente do comportamento normal aprendido.",
+						"nl": "Detecteert individuele waarden die aanzienlijk verschillen van aangeleerd normaal gedrag.",
+						"fr": "Détecte les valeurs individuelles qui diffèrent considérablement du comportement normal appris.",
+						"it": "Rileva singoli valori che differiscono in modo significativo dal comportamento normale appreso.",
+						"es": "Detecta valores individuales que difieren significativamente del comportamiento normal aprendido.",
+						"pl": "Wykrywa pojedyncze wartości, które znacznie różnią się od wyuczonego normalnego zachowania.",
+						"uk": "Виявляти окремі значення, які суттєво відрізняються від вивченої нормальної поведінки.",
+						"zh-cn": "检测与习得的正常行为显着不同的个体值。"
 					},
 					"default": true,
 					"xs": 12,
@@ -282,10 +428,31 @@
 				{
 					"attr": "enableRate",
 					"type": "checkbox",
-					"label": { "en": "Monitor rate of change", "de": "Änderungsrate überwachen" },
+					"label": {
+						"en": "Monitor rate of change",
+						"de": "Änderungsrate überwachen",
+						"ru": "Отслеживание скорости изменения",
+						"pt": "Monitorar a taxa de alteração",
+						"nl": "Bewaak de veranderingssnelheid",
+						"fr": "Surveiller le taux de changement",
+						"it": "Monitora tasso di variazione",
+						"es": "Monitorea la tasa de cambio",
+						"pl": "Monitoruj tempo zmian",
+						"uk": "Відстежувати швидкість зміни",
+						"zh-cn": "监控变化率"
+					},
 					"help": {
 						"en": "Detects unusually fast changes between consecutive values.",
-						"de": "Erkennt ungewöhnlich schnelle Änderungen zwischen aufeinanderfolgenden Werten."
+						"de": "Erkennt ungewöhnlich schnelle Änderungen zwischen aufeinanderfolgenden Werten.",
+						"ru": "Обнаруживает необычно быстрые изменения между последовательными значениями.",
+						"pt": "Detectar alterações excepcionalmente rápidas entre valores consecutivos.",
+						"nl": "Detecteert ongebruikelijk snelle veranderingen tussen opeenvolgende waarden.",
+						"fr": "Détecte les changements inhabituellement rapides entre des valeurs consécutives.",
+						"it": "Rileva cambiamenti insolitamente rapidi tra valori consecutivi.",
+						"es": "Detecta cambios inusualmente rápidos entre valores consecutivos.",
+						"pl": "Wykrywa niezwykle szybkie zmiany pomiędzy kolejnymi wartościami.",
+						"uk": "Виявляти надзвичайно швидкі зміни між послідовними значеннями.",
+						"zh-cn": "检测连续值之间异常快速的变化。"
 					},
 					"default": true,
 					"xs": 12,
@@ -298,10 +465,31 @@
 				{
 					"attr": "enableStuck",
 					"type": "checkbox",
-					"label": { "en": "Detect stuck values", "de": "Festhängende Werte erkennen" },
+					"label": {
+						"en": "Detect stuck values",
+						"de": "Festhängende Werte erkennen",
+						"ru": "Обнаружение застрявших значений",
+						"pt": "Detectar valores presos",
+						"nl": "Detecteer vastzittende waarden",
+						"fr": "Détecter les valeurs bloquées",
+						"it": "Rileva valori bloccati",
+						"es": "Detecta valores estancados",
+						"pl": "Wykryj zablokowane wartości",
+						"uk": "Виявлення завислих значень",
+						"zh-cn": "检测卡住值"
+					},
 					"help": {
 						"en": "Detects values that remain unchanged longer than the configured duration.",
-						"de": "Erkennt Werte, die länger als die konfigurierte Dauer unverändert bleiben."
+						"de": "Erkennt Werte, die länger als die konfigurierte Dauer unverändert bleiben.",
+						"ru": "Обнаруживает значения, которые остаются неизменными дольше, чем настроенный период.",
+						"pt": "Detecta valores que permanecem inalterados por mais tempo do que a duração configurada.",
+						"nl": "Detecteert waarden die langer ongewijzigd blijven dan de geconfigureerde duur.",
+						"fr": "Détecte les valeurs qui restent inchangées plus longtemps que la durée configurée.",
+						"it": "Rileva valori che rimangono invariati più a lungo della durata configurata.",
+						"es": "Detecta valores que permanecen sin cambios por más tiempo que la duración configurada.",
+						"pl": "Wykrywa wartości, które pozostają niezmienione dłużej niż skonfigurowany czas trwania.",
+						"uk": "Виявлення значень, які залишаються незмінними довше налаштованої тривалості.",
+						"zh-cn": "检测保持不变时间超过配置持续时间的值。"
 					},
 					"default": false,
 					"xs": 12,
@@ -316,12 +504,30 @@
 					"type": "number",
 					"label": {
 						"en": "Stuck value duration (minutes)",
-						"de": "Dauer eines festhängenden Werts (Minuten)"
+						"de": "Dauer eines festhängenden Werts (Minuten)",
+						"ru": "Продолжительность закрепившегося значения (минуты)",
+						"pt": "Duração do valor travado (minutos)",
+						"nl": "Duur van vastgelopen waarde (minuten)",
+						"fr": "Durée de la valeur bloquée (minutes)",
+						"it": "Durata del valore bloccato (minuti)",
+						"es": "Duración del valor atascado (minutos)",
+						"pl": "Czas trwania zablokowanej wartości (w minutach)",
+						"uk": "Тривалість зависання значення (хвилини)",
+						"zh-cn": "卡住值持续时间（分钟）"
 					},
 					"hidden": "data.enableStuck !== true",
 					"help": {
 						"en": "Time an unchanged value must persist before it is considered stuck.",
-						"de": "Dauer, die ein unveränderter Wert bestehen muss, um als festhängend zu gelten."
+						"de": "Dauer, die ein unveränderter Wert bestehen muss, um als festhängend zu gelten.",
+						"ru": "Время, в течение которого неизмененное значение должно сохраняться, прежде чем оно будет считаться застрявшим.",
+						"pt": "Tempo em que um valor inalterado deve persistir antes de ser considerado travado.",
+						"nl": "Tijd dat een ongewijzigde waarde moet blijven bestaan voordat deze als vastgelopen wordt beschouwd.",
+						"fr": "Durée pendant laquelle une valeur inchangée doit persister avant d'être considérée comme bloquée.",
+						"it": "Tempo in cui un valore invariato deve persistere prima di essere considerato bloccato.",
+						"es": "Tiempo que un valor sin cambios debe persistir antes de que se considere atascado.",
+						"pl": "Czas, przez który niezmieniona wartość musi się utrzymywać, zanim zostanie uznana za zablokowaną.",
+						"uk": "Час, протягом якого незмінене значення має зберігатися, перш ніж вважатиметься застряглим.",
+						"zh-cn": "未更改值在被视为卡住之前必须持续存在的时间。"
 					},
 					"min": 1,
 					"max": 10080,
@@ -338,17 +544,50 @@
 					"type": "header",
 					"attr": "_contextHeader",
 					"size": 3,
-					"text": { "en": "CONTEXT", "de": "KONTEXT" },
+					"text": {
+						"en": "CONTEXT",
+						"de": "KONTEXT",
+						"ru": "КОНТЕКСТ",
+						"pt": "CONTEXTO",
+						"nl": "CONTEXT",
+						"fr": "CONTEXT",
+						"it": "CONTESTO",
+						"es": "CONTEXTO",
+						"pl": "CONTEXT",
+						"uk": "КОНТЕКСТ",
+						"zh-cn": "上下文"
+					},
 					"xs": 12,
 					"newLine": true
 				},
 				{
 					"attr": "timeContext",
 					"type": "checkbox",
-					"label": { "en": "Consider time of day", "de": "Tageszeit berücksichtigen" },
+					"label": {
+						"en": "Consider time of day",
+						"de": "Tageszeit berücksichtigen",
+						"ru": "Учитывать время суток",
+						"pt": "Considere a hora do dia",
+						"nl": "Overweeg het tijdstip van de dag",
+						"fr": "Considérez l'heure de la journée",
+						"it": "Considera l'ora del giorno",
+						"es": "Considera la hora del día",
+						"pl": "Weź pod uwagę porę dnia",
+						"uk": "Враховуйте час доби",
+						"zh-cn": "考虑一天中的时间"
+					},
 					"help": {
 						"en": "Learns separate baselines for different times of day.",
-						"de": "Lernt getrennte Basislinien für verschiedene Tageszeiten."
+						"de": "Lernt getrennte Basislinien für verschiedene Tageszeiten.",
+						"ru": "Изучает отдельные базовые показатели для разного времени суток.",
+						"pt": "Aprende linhas de base separadas para diferentes horários do dia.",
+						"nl": "Leert afzonderlijke basislijnen voor verschillende tijdstippen van de dag.",
+						"fr": "Apprend des lignes de base distinctes pour différentes heures de la journée.",
+						"it": "Apprende linee di base separate per diverse ore del giorno.",
+						"es": "Aprende líneas base separadas para diferentes horas del día.",
+						"pl": "Uczy się oddzielnych linii bazowych dla różnych pór dnia.",
+						"uk": "Вивчає окремі базові лінії для різних часів доби.",
+						"zh-cn": "了解一天中不同时间的单独基线。"
 					},
 					"default": true,
 					"xs": 12,
@@ -361,10 +600,31 @@
 				{
 					"attr": "weekdayContext",
 					"type": "checkbox",
-					"label": { "en": "Consider weekday", "de": "Wochentag berücksichtigen" },
+					"label": {
+						"en": "Consider weekday",
+						"de": "Wochentag berücksichtigen",
+						"ru": "Учитывает дни недели",
+						"pt": "Considere o dia da semana",
+						"nl": "Overweeg de weekdag",
+						"fr": "Considérez le jour de la semaine",
+						"it": "Considera i giorni feriali",
+						"es": "Considera el día laborable",
+						"pl": "Uwzględnij dzień tygodnia",
+						"uk": "Враховуйте день тижня",
+						"zh-cn": "考虑工作日"
+					},
 					"help": {
 						"en": "Learns separate baselines for different weekdays.",
-						"de": "Lernt getrennte Basislinien für verschiedene Wochentage."
+						"de": "Lernt getrennte Basislinien für verschiedene Wochentage.",
+						"ru": "Изучает отдельные базовые показатели для разных дней недели.",
+						"pt": "Aprende linhas de base separadas para diferentes dias da semana.",
+						"nl": "Leert afzonderlijke basislijnen voor verschillende weekdagen.",
+						"fr": "Apprend des lignes de base distinctes pour différents jours de la semaine.",
+						"it": "Apprende linee di base separate per diversi giorni della settimana.",
+						"es": "Aprende líneas base separadas para diferentes entre semana.",
+						"pl": "Uczy się oddzielnych linii bazowych dla różnych dni tygodnia.",
+						"uk": "Вивчає окремі базові лінії для різних днів тижня.",
+						"zh-cn": "了解不同工作日的单独基线。"
 					},
 					"default": false,
 					"xs": 12,
@@ -377,10 +637,31 @@
 				{
 					"attr": "enableContext",
 					"type": "checkbox",
-					"label": { "en": "Context-aware detection", "de": "Kontextbezogene Erkennung" },
+					"label": {
+						"en": "Context-aware detection",
+						"de": "Kontextbezogene Erkennung",
+						"ru": "Обнаружение с учетом контекста",
+						"pt": "Detecção com reconhecimento de contexto",
+						"nl": "Contextbewust detectie",
+						"fr": "Détection contextuelle",
+						"it": "Rilevamento sensibile al contesto",
+						"es": "Detección contextual",
+						"pl": "Wykrywanie kontekstowe",
+						"uk": "Контекстно-залежне виявлення",
+						"zh-cn": "上下文感知检测"
+					},
 					"help": {
 						"en": "Uses configured context states to compare values only with matching operating conditions.",
-						"de": "Vergleicht Werte anhand konfigurierter Kontextzustände nur mit passenden Betriebsbedingungen."
+						"de": "Vergleicht Werte anhand konfigurierter Kontextzustände nur mit passenden Betriebsbedingungen.",
+						"ru": "Использует настроенные состояния контекста для сравнения значений только с соответствующими условиями эксплуатации.",
+						"pt": "Usa estados de contexto configurados para comparar valores apenas com condições operacionais correspondentes.",
+						"nl": "Gebruikt geconfigureerde contextstatussen om waarden alleen te vergelijken met overeenkomende bedrijfsomstandigheden.",
+						"fr": "Utilise les états de contexte configurés pour comparer les valeurs uniquement avec les conditions de fonctionnement correspondantes.",
+						"it": "Utilizza gli stati del contesto configurati per confrontare i valori solo con le condizioni operative corrispondenti.",
+						"es": "Utiliza estados de contexto configurados para comparar valores solo con condiciones operativas coincidentes.",
+						"pl": "Wykorzystuje skonfigurowane stany kontekstu do porównywania wartości tylko z pasującymi warunkami pracy.",
+						"uk": "Використовує налаштовані контекстні стани для порівняння значень лише з відповідними робочими умовами.",
+						"zh-cn": "使用配置的上下文状态仅将值与匹配的操作条件进行比较。"
 					},
 					"default": false,
 					"xs": 12,
@@ -402,13 +683,21 @@
 					"xl": 12,
 					"newLine": true,
 					"items": [
-						{ "attr": "id", "type": "objectId", "label": "Context state ID", "types": "state", "xs": 8 },
+						{
+							"attr": "id",
+							"type": "objectId",
+							"label": "Context state ID",
+							"types": "state",
+							"xs": 8
+						},
 						{
 							"attr": "bucketWidth",
 							"type": "number",
 							"label": "Numeric bucket width",
 							"hidden": "(await getObject(data.id))?.common?.type !== 'number'",
-							"alsoDependsOn": ["id"],
+							"alsoDependsOn": [
+								"id"
+							],
 							"min": 0.0001,
 							"max": 1000000,
 							"default": 5,
@@ -419,10 +708,31 @@
 				{
 					"attr": "enableChangePoint",
 					"type": "checkbox",
-					"label": { "en": "Detect level shifts", "de": "Pegelverschiebungen erkennen" },
+					"label": {
+						"en": "Detect level shifts",
+						"de": "Pegelverschiebungen erkennen",
+						"ru": "Обнаруживает сдвиги уровня",
+						"pt": "Detectar mudanças de nível",
+						"nl": "Detecteer niveauverschuivingen",
+						"fr": "Détecter les changements de niveau",
+						"it": "Rileva cambiamenti di livello",
+						"es": "Detecta cambios de nivel",
+						"pl": "Wykrywa zmiany poziomu",
+						"uk": "Виявлення змін рівня",
+						"zh-cn": "检测级别变化"
+					},
 					"help": {
 						"en": "Detects a lasting change to the normal operating level.",
-						"de": "Erkennt eine anhaltende Verschiebung des normalen Betriebsniveaus."
+						"de": "Erkennt eine anhaltende Verschiebung des normalen Betriebsniveaus.",
+						"ru": "Обнаруживает устойчивое изменение нормального рабочего уровня.",
+						"pt": "Detecta uma mudança duradoura no nível operacional normal.",
+						"nl": "Detecteert een blijvende verandering in het normale bedrijfsniveau.",
+						"fr": "Détecte un changement durable par rapport au niveau de fonctionnement normal.",
+						"it": "Rileva un cambiamento duraturo al normale livello operativo.",
+						"es": "Detecta un cambio duradero en el nivel operativo normal.",
+						"pl": "Wykrywa trwałą zmianę w stosunku do normalnego poziomu działania.",
+						"uk": "Виявлення тривалої зміни нормального робочого рівня.",
+						"zh-cn": "检测正常操作级别的持久变化。"
 					},
 					"default": false,
 					"xs": 12,
@@ -435,10 +745,31 @@
 				{
 					"attr": "enableTrend",
 					"type": "checkbox",
-					"label": { "en": "Detect trends", "de": "Trends erkennen" },
+					"label": {
+						"en": "Detect trends",
+						"de": "Trends erkennen",
+						"ru": "Определяет тенденции",
+						"pt": "Detectar tendências",
+						"nl": "Detecteer trends",
+						"fr": "Détecter les tendances",
+						"it": "Rileva tendenze",
+						"es": "Detecta tendencias",
+						"pl": "Wykrywa trendy",
+						"uk": "Виявлення тенденцій",
+						"zh-cn": "检测趋势"
+					},
 					"help": {
 						"en": "Detects gradual upward or downward drift over time.",
-						"de": "Erkennt eine allmähliche Aufwärts- oder Abwärtsentwicklung über die Zeit."
+						"de": "Erkennt eine allmähliche Aufwärts- oder Abwärtsentwicklung über die Zeit.",
+						"ru": "Обнаруживает постепенный сдвиг вверх или вниз с течением времени.",
+						"pt": "Detecta um desvio gradual para cima ou para baixo ao longo do tempo.",
+						"nl": "Detecteert geleidelijke opwaartse of neerwaartse drift tijd.",
+						"fr": "Détecte une dérive progressive vers le haut ou vers le bas au fil du temps.",
+						"it": "Rileva una deriva graduale verso l'alto o verso il basso nel tempo.",
+						"es": "Detecta una tendencia gradual hacia arriba o hacia abajo a lo largo del tiempo.",
+						"pl": "Wykrywa stopniowe przesuwanie się w górę lub w dół w czasie.",
+						"uk": "Виявляє поступовий дрейф угору або вниз з часом.",
+						"zh-cn": "检测随时间推移逐渐向上或向下的漂移。"
 					},
 					"default": false,
 					"xs": 12,
@@ -452,17 +783,50 @@
 					"type": "header",
 					"attr": "_forecastHeader",
 					"size": 3,
-					"text": { "en": "FORECAST", "de": "PROGNOSE" },
+					"text": {
+						"en": "FORECAST",
+						"de": "PROGNOSE",
+						"ru": "ПРОГНОЗ",
+						"pt": "PREVISÃO",
+						"nl": "VOORSPELLING",
+						"fr": "PRÉVISION",
+						"it": "PREVISIONE",
+						"es": "PRONÓSTICO",
+						"pl": "PROGNOZA",
+						"uk": "ПРОГНОЗ",
+						"zh-cn": "预测"
+					},
 					"xs": 12,
 					"newLine": true
 				},
 				{
 					"attr": "predictiveEnabled",
 					"type": "checkbox",
-					"label": { "en": "Enable forecast", "de": "Prognose aktivieren" },
+					"label": {
+						"en": "Enable forecast",
+						"de": "Prognose aktivieren",
+						"ru": "Включить прогноз",
+						"pt": "Ativar previsão",
+						"nl": "Prognose inschakelen",
+						"fr": "Activer les prévisions",
+						"it": "Abilita previsione",
+						"es": "Habilitar pronóstico",
+						"pl": "Włącz prognozę",
+						"uk": "Увімкнути прогноз",
+						"zh-cn": "启用预测"
+					},
 					"help": {
 						"en": "Optionally creates a resource-efficient local forecast of future values.",
-						"de": "Erstellt optional eine ressourcenschonende lokale Vorhersage zukünftiger Werte."
+						"de": "Erstellt optional eine ressourcenschonende lokale Vorhersage zukünftiger Werte.",
+						"ru": "При необходимости создает ресурсоэффективный локальный прогноз будущих значений.",
+						"pt": "Opcionalmente, cria uma previsão local de valores futuros com eficiência de recursos.",
+						"nl": "Creëert optioneel een hulpbronnenefficiënte lokale voorspelling van toekomstige waarden.",
+						"fr": "Crée éventuellement une prévision locale économe en ressources des valeurs futures.",
+						"it": "Facoltativamente crea una previsione locale efficiente in termini di risorse dei valori futuri.",
+						"es": "Opcionalmente, crea un pronóstico local de valores futuros que ahorra recursos.",
+						"pl": "Opcjonalnie tworzy zasobooszczędną lokalną prognozę przyszłych wartości.",
+						"uk": "Необов’язково створює ресурсозберігаючий локальний прогноз майбутніх значень.",
+						"zh-cn": "可以选择创建未来值的资源节约型本地预测。"
 					},
 					"default": false,
 					"xs": 12,
@@ -475,10 +839,31 @@
 				{
 					"attr": "predictiveHorizonMinutes",
 					"type": "number",
-					"label": { "en": "Forecast horizon (minutes)", "de": "Prognosehorizont (Minuten)" },
+					"label": {
+						"en": "Forecast horizon (minutes)",
+						"de": "Prognosehorizont (Minuten)",
+						"ru": "Горизонт прогноза (минуты)",
+						"pt": "Horizonte de previsão (minutos)",
+						"nl": "Prognosehorizon (minuten)",
+						"fr": "Horizon de prévision (minutes)",
+						"it": "Orizzonte di previsione (minuti)",
+						"es": "Horizonte de pronóstico (minutos)",
+						"pl": "Horyzont prognozy (minuty)",
+						"uk": "Горизонт прогнозу (хвилини)",
+						"zh-cn": "预测范围（分钟）"
+					},
 					"help": {
 						"en": "Defines how far ahead values are forecast. Shorter horizons are usually more reliable.",
-						"de": "Legt fest, wie weit in die Zukunft Werte vorhergesagt werden. Kürzere Zeiträume sind in der Regel zuverlässiger."
+						"de": "Legt fest, wie weit in die Zukunft Werte vorhergesagt werden. Kürzere Zeiträume sind in der Regel zuverlässiger.",
+						"ru": "Определяет, насколько далеко вперед прогнозируются значения. Более короткие горизонты обычно более надежны.",
+						"pt": "Define o quanto os valores futuros são previstos. Horizontes mais curtos geralmente são mais confiáveis.",
+						"nl": "Definieert hoe ver vooruit waarden worden voorspeld. Een kortere horizon is doorgaans betrouwbaarder.",
+						"fr": "Définit la distance à laquelle les valeurs sont prévues. Les horizons plus courts sont généralement plus fiables.",
+						"it": "Definisce quanto lontano vengono previsti i valori. Gli orizzonti più brevi sono generalmente più affidabili.",
+						"es": "Define con qué anticipación se pronostican los valores. Los horizontes más cortos suelen ser más confiables.",
+						"pl": "Określa, jak daleko do przodu prognozowane są wartości. Krótsze horyzonty są zwykle bardziej wiarygodne.",
+						"uk": "Визначає, на скільки прогнозуються значення. Коротші горизонти зазвичай більш надійні.",
+						"zh-cn": "定义预测值的超前程度。较短的时间范围通常更可靠。"
 					},
 					"hidden": "data.predictiveEnabled !== true",
 					"min": 1,
@@ -493,10 +878,31 @@
 				{
 					"attr": "predictiveUpdateIntervalMinutes",
 					"type": "number",
-					"label": { "en": "Update interval (minutes)", "de": "Aktualisierungsintervall (Minuten)" },
+					"label": {
+						"en": "Update interval (minutes)",
+						"de": "Aktualisierungsintervall (Minuten)",
+						"ru": "Интервал обновления (минуты)",
+						"pt": "Intervalo de atualização (minutos)",
+						"nl": "Update-interval (minuten)",
+						"fr": "Intervalle de mise à jour (minutes)",
+						"it": "Intervallo di aggiornamento (minuti)",
+						"es": "Intervalo de actualización (minutos)",
+						"pl": "Interwał aktualizacji (w minutach)",
+						"uk": "Інтервал оновлення (хвилини)",
+						"zh-cn": "更新间隔（分钟）"
+					},
 					"help": {
 						"en": "Defines how often the forecast is recalculated. Larger intervals reduce CPU load.",
-						"de": "Legt fest, wie oft die Prognose neu berechnet wird. Größere Intervalle reduzieren die CPU-Last."
+						"de": "Legt fest, wie oft die Prognose neu berechnet wird. Größere Intervalle reduzieren die CPU-Last.",
+						"ru": "Определяет частоту перерасчета прогноза. Большие интервалы снижают нагрузку на ЦП.",
+						"pt": "Define com que frequência a previsão é recalculada. Intervalos maiores reduzem a carga da CPU.",
+						"nl": "Definieert hoe vaak de voorspelling opnieuw wordt berekend. Grotere intervallen verminderen de CPU-belasting.",
+						"fr": "Définit la fréquence à laquelle la prévision est recalculée. Des intervalles plus grands réduisent la charge du processeur.",
+						"it": "Definisce la frequenza con cui la previsione viene ricalcolata. Intervalli più grandi riducono il carico della CPU.",
+						"es": "Define con qué frecuencia se recalcula el pronóstico. Los intervalos más grandes reducen la carga de la CPU.",
+						"pl": "Określa częstotliwość ponownego obliczania prognozy. Większe interwały zmniejszają obciążenie procesora.",
+						"uk": "Визначає, як часто прогноз перераховується. Більші інтервали зменшують навантаження на ЦП.",
+						"zh-cn": "定义重新计算预测的频率。较大的间隔可减少 CPU 负载。"
 					},
 					"hidden": "data.predictiveEnabled !== true",
 					"min": 5,
@@ -511,10 +917,31 @@
 				{
 					"attr": "predictiveMinimumTrainingSamples",
 					"type": "number",
-					"label": { "en": "Minimum training samples", "de": "Mindestanzahl Trainingswerte" },
+					"label": {
+						"en": "Minimum training samples",
+						"de": "Mindestanzahl Trainingswerte",
+						"ru": "Минимум обучающих выборок",
+						"pt": "Amostras mínimas de treinamento",
+						"nl": "Minimale trainingsvoorbeelden",
+						"fr": "Échantillons d'entraînement minimum",
+						"it": "Campioni di addestramento minimi",
+						"es": "Muestras de entrenamiento mínimas",
+						"pl": "Minimalna liczba próbek szkoleniowych",
+						"uk": "Мінімальна кількість навчальних зразків",
+						"zh-cn": "最小训练样本"
+					},
 					"help": {
 						"en": "Minimum number of usable measurements required before a forecast can be created.",
-						"de": "So viele verwertbare Messwerte werden mindestens benötigt, bevor eine Prognose erstellt werden kann."
+						"de": "So viele verwertbare Messwerte werden mindestens benötigt, bevor eine Prognose erstellt werden kann.",
+						"ru": "Минимальное количество полезных измерений, необходимых для создания прогноза.",
+						"pt": "Número mínimo de medições utilizáveis necessárias antes que uma previsão possa ser criada.",
+						"nl": "Minimaal aantal bruikbare metingen vereist voordat een voorspelling kan worden gemaakt.",
+						"fr": "Nombre minimum de mesures utilisables requis avant qu'une prévision puisse être créée.",
+						"it": "Numero minimo di misurazioni utilizzabili richieste prima di poter creare una previsione.",
+						"es": "Número mínimo de mediciones utilizables necesarias antes de que se pueda crear un pronóstico.",
+						"pl": "Minimalna liczba użytecznych pomiarów wymaganych przed utworzeniem prognozy.",
+						"uk": "Мінімальна кількість придатних для використання вимірювань, необхідних для створення прогнозу.",
+						"zh-cn": "创建预测之前所需的最小可用测量值。"
 					},
 					"hidden": "data.predictiveEnabled !== true",
 					"min": 10,
@@ -529,10 +956,31 @@
 				{
 					"attr": "predictiveMaximumTrainingPoints",
 					"type": "number",
-					"label": { "en": "Maximum training samples", "de": "Maximale Trainingswerte" },
+					"label": {
+						"en": "Maximum training samples",
+						"de": "Maximale Trainingswerte",
+						"ru": "Максимальное количество обучающих выборок",
+						"pt": "Amostras máximas de treinamento",
+						"nl": "Maximale trainingsvoorbeelden",
+						"fr": "Échantillons d'entraînement maximum",
+						"it": "Campioni di addestramento massimi",
+						"es": "Muestras de entrenamiento máximas",
+						"pl": "Maksymalna liczba próbek szkoleniowych",
+						"uk": "Максимальна кількість навчальних зразків",
+						"zh-cn": "最大训练样本"
+					},
 					"help": {
 						"en": "Limits measurements used by the forecast model, reducing memory and computation.",
-						"de": "Begrenzt die für das Prognosemodell verwendeten Messwerte und damit Speicherbedarf und Rechenaufwand."
+						"de": "Begrenzt die für das Prognosemodell verwendeten Messwerte und damit Speicherbedarf und Rechenaufwand.",
+						"ru": "Ограничивает измерения, используемые прогнозной моделью, сокращая объем памяти и вычислений.",
+						"pt": "Limita as medições usadas pelo modelo de previsão, reduzindo a memória e a computação.",
+						"nl": "Beperkt metingen die door het voorspellingsmodel worden gebruikt, waardoor geheugen en berekeningen worden verminderd.",
+						"fr": "Limite les mesures utilisées par le modèle de prévision, réduisant ainsi la mémoire et les calculs.",
+						"it": "Limita le misurazioni utilizzate dal modello di previsione, riducendo memoria e calcoli.",
+						"es": "Limita las mediciones utilizadas por el modelo de pronóstico, lo que reduce la memoria y el cálculo.",
+						"pl": "Ogranicza pomiary używane przez model prognozy, redukując pamięć i obliczenia.",
+						"uk": "Обмежує вимірювання, які використовує модель прогнозу, зменшуючи пам’ять і обчислення.",
+						"zh-cn": "限制预测模型使用的测量值，从而减少内存和计算量。"
 					},
 					"hidden": "data.predictiveEnabled !== true",
 					"min": 20,
@@ -547,15 +995,81 @@
 				{
 					"attr": "predictiveSeasonalityMode",
 					"type": "select",
-					"label": { "en": "Seasonality", "de": "Saisonalität verwenden" },
+					"label": {
+						"en": "Seasonality",
+						"de": "Saisonalität verwenden",
+						"ru": "Сезонность",
+						"pt": "Sazonalidade",
+						"nl": "Seizoensgebondenheid",
+						"fr": "Saisonnalité",
+						"it": "Stagionalità",
+						"es": "Estacionalidad",
+						"pl": "Sezonowość",
+						"uk": "Сезонність",
+						"zh-cn": "季节性"
+					},
 					"help": {
 						"en": "Detects recurring patterns such as heating, charging or daily cycles when the pattern is stable enough.",
-						"de": "Erkennt wiederkehrende Muster wie Heiz-, Lade- oder Tageszyklen, wenn das Muster ausreichend stabil ist."
+						"de": "Erkennt wiederkehrende Muster wie Heiz-, Lade- oder Tageszyklen, wenn das Muster ausreichend stabil ist.",
+						"ru": "Обнаруживает повторяющиеся шаблоны, такие как нагрев, зарядка или ежедневные циклы, когда шаблон достаточно стабилен.",
+						"pt": "Detecta padrões recorrentes, como aquecimento, carregamento ou ciclos diários, quando o padrão é estável o suficiente.",
+						"nl": "Detecteert terugkerende patronen zoals verwarming, opladen of dagelijkse cycli wanneer het patroon stabiel genoeg is.",
+						"fr": "Détecte les modèles récurrents tels que le chauffage, la charge ou les cycles quotidiens lorsque le modèle est suffisamment stable.",
+						"it": "Rileva schemi ricorrenti come riscaldamento, ricarica o cicli giornalieri quando lo schema è sufficientemente stabile.",
+						"es": "Detecta patrones recurrentes como calentamiento, carga o ciclos diarios cuando el patrón es lo suficientemente estable.",
+						"pl": "Wykrywa powtarzające się wzorce, takie jak nagrzewanie, ładowanie lub cykle dzienne, jeśli wzorzec jest wystarczająco stabilny.",
+						"uk": "Виявляє повторювані шаблони, такі як нагрівання, заряджання або щоденні цикли, коли шаблон достатньо стабільний.",
+						"zh-cn": "当模式足够稳定时，检测重复出现的模式，例如加热、充电或日常循环。"
 					},
 					"options": [
-						{ "value": "off", "label": { "en": "Off", "de": "Aus", "ru": "Выкл.", "pt": "Desligado", "nl": "Uit", "fr": "Désactivé", "it": "Disattivato", "es": "Desactivado", "pl": "Wyłączone", "uk": "Вимкнено", "zh-cn": "关闭" } },
-						{ "value": "auto", "label": { "en": "Detect automatically", "de": "Automatisch erkennen", "ru": "Определять автоматически", "pt": "Detetar automaticamente", "nl": "Automatisch detecteren", "fr": "Détecter automatiquement", "it": "Rileva automaticamente", "es": "Detectar automáticamente", "pl": "Wykrywaj automatycznie", "uk": "Визначати автоматично", "zh-cn": "自动检测" } },
-						{ "value": "manual", "label": { "en": "Set manually", "de": "Manuell festlegen", "ru": "Задать вручную", "pt": "Definir manualmente", "nl": "Handmatig instellen", "fr": "Définir manuellement", "it": "Imposta manualmente", "es": "Establecer manualmente", "pl": "Ustaw ręcznie", "uk": "Задати вручну", "zh-cn": "手动设置" } }
+						{
+							"value": "off",
+							"label": {
+								"en": "Off",
+								"de": "Aus",
+								"ru": "Выкл.",
+								"pt": "Desligado",
+								"nl": "Uit",
+								"fr": "Désactivé",
+								"it": "Off",
+								"es": "Apagado",
+								"pl": "Wyłączone",
+								"uk": "Вимкнено",
+								"zh-cn": "关闭"
+							}
+						},
+						{
+							"value": "auto",
+							"label": {
+								"en": "Detect automatically",
+								"de": "Automatisch erkennen",
+								"ru": "Обнаруживает автоматически",
+								"pt": "Detectar automaticamente",
+								"nl": "Automatisch detecteren",
+								"fr": "Détecter automatiquement",
+								"it": "Rileva automaticamente",
+								"es": "Detecta automáticamente",
+								"pl": "Wykrywa automatycznie",
+								"uk": "Виявляти автоматично",
+								"zh-cn": "自动检测"
+							}
+						},
+						{
+							"value": "manual",
+							"label": {
+								"en": "Set manually",
+								"de": "Manuell festlegen",
+								"ru": "Установить вручную",
+								"pt": "Definir manualmente",
+								"nl": "Handmatig instellen",
+								"fr": "Définir manuellement",
+								"it": "Imposta manualmente",
+								"es": "Establecer manualmente",
+								"pl": "Ustaw ręcznie",
+								"uk": "Установити вручну",
+								"zh-cn": "手动设置"
+							}
+						}
 					],
 					"default": "off",
 					"hidden": "data.predictiveEnabled !== true",
@@ -568,10 +1082,31 @@
 				{
 					"attr": "predictiveSeasonalPeriodMinutes",
 					"type": "number",
-					"label": { "en": "Seasonal period (minutes)", "de": "Saisonale Periode (Minuten)" },
+					"label": {
+						"en": "Seasonal period (minutes)",
+						"de": "Saisonale Periode (Minuten)",
+						"ru": "Сезонный период (минуты)",
+						"pt": "Período sazonal (minutos)",
+						"nl": "Seizoensperiode (minuten)",
+						"fr": "Période saisonnière (minutes)",
+						"it": "Periodo stagionale (minuti)",
+						"es": "Período estacional (minutos)",
+						"pl": "Okres sezonowy (minuty)",
+						"uk": "Сезонний період (хвилини)",
+						"zh-cn": "季节周期（分钟）"
+					},
 					"help": {
 						"en": "Set a repeating period, for example 1440 for a daily cycle; 0 disables seasonality.",
-						"de": "Wiederholungsdauer, z. B. 1440 für einen Tageszyklus; 0 deaktiviert die Saisonalität."
+						"de": "Wiederholungsdauer, z. B. 1440 für einen Tageszyklus; 0 deaktiviert die Saisonalität.",
+						"ru": "Установить повторяющийся период, например 1440 для суточного цикла; 0 отключает сезонность.",
+						"pt": "Definir um período de repetição, por exemplo 1440 para um ciclo diário; 0 desativa a sazonalidade.",
+						"nl": "Stel een herhalende periode in, bijvoorbeeld 1440 voor een dagelijkse cyclus; 0 schakelt seizoensinvloeden uit.",
+						"fr": "Définir une période de répétition, par exemple 1440 pour un cycle quotidien ; 0 désactive la saisonnalité.",
+						"it": "Imposta un periodo ripetitivo, ad esempio 1440 per un ciclo giornaliero; 0 disabilita la stagionalità.",
+						"es": "Establecer un período de repetición, por ejemplo 1440 para un ciclo diario; 0 desactiva la estacionalidad.",
+						"pl": "Ustaw okres powtarzania, na przykład 1440 dla cyklu dziennego; 0 wyłącza sezonowość.",
+						"uk": "Установити повторюваний період, наприклад 1440 для щоденного циклу; 0 вимикає сезонність.",
+						"zh-cn": "设置重复周期，例如1440为每日周期； 0 禁用季节性。"
 					},
 					"hidden": "data.predictiveEnabled !== true || data.predictiveSeasonalityMode !== 'manual'",
 					"min": 0,

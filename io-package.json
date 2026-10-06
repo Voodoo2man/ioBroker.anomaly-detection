@@ -128,17 +128,17 @@
 		"adminTab": {
 			"link": "jsonTab.json",
 			"name": {
-				"en": "Anomalies",
-				"de": "Anomalien",
-				"ru": "Аномалии",
-				"pt": "Anomalias",
-				"nl": "Anomalieën",
-				"fr": "Anomalies",
-				"it": "Anomalie",
-				"es": "Anomalías",
-				"pl": "Anomalie",
-				"uk": "Аномалії",
-				"zh-cn": "异常"
+      "en": "Anomaly Detection – Anomalies",
+      "de": "Anomalieerkennung – Anomalien",
+      "ru": "Обнаружение аномалий – Аномалии",
+      "pt": "Deteção de anomalias – Anomalias",
+      "nl": "Anomaliedetectie – Anomalieën",
+      "fr": "Détection des anomalies – Anomalies",
+      "it": "Rilevamento anomalie – Anomalie",
+      "es": "Detección de anomalías – Anomalías",
+      "pl": "Wykrywanie anomalii – Anomalie",
+      "uk": "Виявлення аномалій – Аномалії",
+      "zh-cn": "异常检测 – 异常"
 			}
 		},
 		"messagebox": true,
@@ -152,7 +152,7 @@
 		],
 		"globalDependencies": [
 			{
-				"admin": ">=7.6.20"
+      "admin": ">=8.0.0"
 			}
 		]
 	},
