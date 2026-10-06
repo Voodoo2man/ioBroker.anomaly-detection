@@ -255,6 +255,12 @@ Verarbeitung und Modellspeicherung erfolgen vollständig lokal in ioBroker. Kein
 
 ## Changelog
 
+### 0.4.2 (2026-10-06)
+
+- Anomalie- und Prognosemodelle werden regelmäßig gespeichert; beim regulären Shutdown wartet der Adapter auf laufende Verarbeitung.
+- Überwachte Fremdzustände werden erst nach Bestätigung ausgewertet; die Admin-Oberfläche ist in allen unterstützten ioBroker-Sprachen übersetzt.
+- Für die Custom-Tab-API wird Admin 8.0.0 oder neuer vorausgesetzt.
+
 ### 0.4.1 (2026-10-05)
 
 - Repository-Kompatibilität und Administrationsmetadaten aktualisiert.
@@ -292,8 +298,6 @@ Verarbeitung und Modellspeicherung erfolgen vollständig lokal in ioBroker. Kein
 - Lokale statistische Anomalieerkennung als MVP.
 - Optionales, begrenztes History-Training.
 - Auswahl aktivierter History-Quellen pro konfiguriertem Zustand.
-
-Ältere Changelog-Einträge findest du in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 
 ## Lizenz
 
