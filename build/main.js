@@ -27,6 +27,7 @@ var import_history_source_resolver = require("./lib/history-source-resolver");
 var import_source_cleanup = require("./lib/source-cleanup");
 var import_source_monitor = require("./lib/source-monitor");
 var import_context_value = require("./lib/context-value");
+var import_pending_work = require("./lib/pending-work");
 var import_object_structure = require("./lib/object-structure");
 var import_predictive = require("./lib/predictive");
 const MODEL_STATE_ID = "models";
@@ -99,13 +100,13 @@ class AnomalyDetection extends utils.Adapter {
   bootstrappingSources = /* @__PURE__ */ new Set();
   /** Last processed source timestamps; prevents duplicate delivery of one physical sample. */
   lastProcessedTimestamps = /* @__PURE__ */ new Map();
-  /** Work started by state-change callbacks that may enqueue predictive samples. */
-  pendingStateProcessing = /* @__PURE__ */ new Set();
+  /** Startup, retrain, and state processing that must finish before shutdown persistence. */
+  pendingAdapterWork = /* @__PURE__ */ new Set();
   unloading = false;
   persistTimer;
   constructor(options = {}) {
     super({ ...options, name: "anomaly-detection" });
-    this.on("ready", this.onReady.bind(this));
+    this.on("ready", () => this.trackAdapterWork(this.onReady(), "Adapter startup"));
     this.on("stateChange", this.onStateChange.bind(this));
     this.on("message", this.onMessage.bind(this));
     this.on("unload", this.onUnload.bind(this));
@@ -281,7 +282,7 @@ class AnomalyDetection extends utils.Adapter {
       const source = this.sources.get(safeId2);
       const monitor2 = sourceId ? this.monitors.get(sourceId) : void 0;
       if (sourceId && source && monitor2) {
-        this.trackStateProcessing(this.retrainSource(sourceId, safeId2, source, monitor2));
+        this.trackAdapterWork(this.retrainSource(sourceId, safeId2, source, monitor2), "Source retraining");
       }
       return;
     }
@@ -291,15 +292,16 @@ class AnomalyDetection extends utils.Adapter {
       if (this.bootstrappingSources.has(id)) {
         return;
       }
-      this.trackStateProcessing(this.processState(id, safeId, monitor, state));
+      this.trackAdapterWork(this.processState(id, safeId, monitor, state), "State-change processing");
     }
   }
-  trackStateProcessing(task) {
+  trackAdapterWork(task, description) {
     const tracked = task.catch((error) => {
-      this.log.error(`State-change processing failed: ${error.message}`);
+      const reason = error instanceof Error ? error.message : String(error);
+      this.log.error(`${description} failed: ${reason}`);
     });
-    this.pendingStateProcessing.add(tracked);
-    void tracked.then(() => this.pendingStateProcessing.delete(tracked));
+    this.pendingAdapterWork.add(tracked);
+    void tracked.then(() => this.pendingAdapterWork.delete(tracked));
   }
   onMessage(message) {
     if (!message.callback) {
@@ -1242,13 +1244,16 @@ class AnomalyDetection extends utils.Adapter {
     );
   }
   schedulePersistence() {
-    if (this.persistTimer) {
+    if (this.unloading || this.persistTimer) {
       return;
     }
     this.persistTimer = this.setTimeout(() => {
       this.persistTimer = void 0;
-      void this.persistModels();
+      this.trackAdapterWork(this.persistModelSnapshots(), "Periodic model persistence");
     }, PERSIST_DELAY_MS);
+  }
+  async persistModelSnapshots() {
+    await Promise.all([this.persistModels(), this.persistPredictiveModels()]);
   }
   async persistModels() {
     try {
@@ -1290,11 +1295,9 @@ class AnomalyDetection extends utils.Adapter {
     void this.persistOnUnload().finally(callback);
   }
   async persistOnUnload() {
-    while (this.pendingStateProcessing.size > 0) {
-      await Promise.all([...this.pendingStateProcessing]);
-    }
+    await (0, import_pending_work.drainPendingWork)(this.pendingAdapterWork);
     await this.predictiveTrainingQueue.drain();
-    await Promise.all([this.persistModels(), this.persistPredictiveModels()]);
+    await this.persistModelSnapshots();
   }
 }
 if (require.main !== module) {

@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../src/lib/pending-work.ts"],
+  "sourcesContent": ["/** Waits for pending work, including work added while earlier tasks finish. */\nexport async function drainPendingWork(pending: Set<Promise<void>>): Promise<void> {\n\twhile (pending.size > 0) {\n\t\tawait Promise.all([...pending]);\n\t}\n}\n"],
+  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AACA,eAAsB,iBAAiB,SAA4C;AAClF,SAAO,QAAQ,OAAO,GAAG;AACxB,UAAM,QAAQ,IAAI,CAAC,GAAG,OAAO,CAAC;AAAA,EAC/B;AACD;",
+  "names": []
+}

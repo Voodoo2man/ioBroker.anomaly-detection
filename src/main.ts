@@ -5,6 +5,7 @@ import { HistorySourceResolver, selectHistorySource, type HistorySource } from "
 import { cleanupStaleSources } from "./lib/source-cleanup";
 import { SourceMonitor, parseStoredModel, type ObservationResult, type SourceSettings } from "./lib/source-monitor";
 import { createContextPart } from "./lib/context-value";
+import { drainPendingWork } from "./lib/pending-work";
 import { SOURCES_OBJECT_ID, sourcesObject } from "./lib/object-structure";
 import {
 	PredictiveModel,
@@ -121,14 +122,14 @@ class AnomalyDetection extends utils.Adapter {
 	private readonly bootstrappingSources = new Set<string>();
 	/** Last processed source timestamps; prevents duplicate delivery of one physical sample. */
 	private readonly lastProcessedTimestamps = new Map<string, number>();
-	/** Work started by state-change callbacks that may enqueue predictive samples. */
-	private readonly pendingStateProcessing = new Set<Promise<void>>();
+	/** Startup, retrain, and state processing that must finish before shutdown persistence. */
+	private readonly pendingAdapterWork = new Set<Promise<void>>();
 	private unloading = false;
 	private persistTimer: ioBroker.Timeout | undefined;
 
 	public constructor(options: Partial<utils.AdapterOptions> = {}) {
 		super({ ...options, name: "anomaly-detection" });
-		this.on("ready", this.onReady.bind(this));
+		this.on("ready", () => this.trackAdapterWork(this.onReady(), "Adapter startup"));
 		this.on("stateChange", this.onStateChange.bind(this));
 		this.on("message", this.onMessage.bind(this));
 		this.on("unload", this.onUnload.bind(this));
@@ -319,7 +320,7 @@ class AnomalyDetection extends utils.Adapter {
 			const source = this.sources.get(safeId);
 			const monitor = sourceId ? this.monitors.get(sourceId) : undefined;
 			if (sourceId && source && monitor) {
-				this.trackStateProcessing(this.retrainSource(sourceId, safeId, source, monitor));
+				this.trackAdapterWork(this.retrainSource(sourceId, safeId, source, monitor), "Source retraining");
 			}
 			return;
 		}
@@ -329,16 +330,17 @@ class AnomalyDetection extends utils.Adapter {
 			if (this.bootstrappingSources.has(id)) {
 				return;
 			}
-			this.trackStateProcessing(this.processState(id, safeId, monitor, state));
+			this.trackAdapterWork(this.processState(id, safeId, monitor, state), "State-change processing");
 		}
 	}
 
-	private trackStateProcessing(task: Promise<void>): void {
+	private trackAdapterWork(task: Promise<void>, description: string): void {
 		const tracked = task.catch(error => {
-			this.log.error(`State-change processing failed: ${(error as Error).message}`);
+			const reason = error instanceof Error ? error.message : String(error);
+			this.log.error(`${description} failed: ${reason}`);
 		});
-		this.pendingStateProcessing.add(tracked);
-		void tracked.then(() => this.pendingStateProcessing.delete(tracked));
+		this.pendingAdapterWork.add(tracked);
+		void tracked.then(() => this.pendingAdapterWork.delete(tracked));
 	}
 
 	private onMessage(message: ioBroker.Message): void {
@@ -1396,13 +1398,17 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private schedulePersistence(): void {
-		if (this.persistTimer) {
+		if (this.unloading || this.persistTimer) {
 			return;
 		}
 		this.persistTimer = this.setTimeout(() => {
 			this.persistTimer = undefined;
-			void this.persistModels();
+			this.trackAdapterWork(this.persistModelSnapshots(), "Periodic model persistence");
 		}, PERSIST_DELAY_MS);
+	}
+
+	private async persistModelSnapshots(): Promise<void> {
+		await Promise.all([this.persistModels(), this.persistPredictiveModels()]);
 	}
 
 	private async persistModels(): Promise<void> {
@@ -1457,13 +1463,11 @@ class AnomalyDetection extends utils.Adapter {
 	private async persistOnUnload(): Promise<void> {
 		// Finish state/retrain callbacks first: they can enqueue predictive work
 		// only after their state writes or history reads have completed.
-		while (this.pendingStateProcessing.size > 0) {
-			await Promise.all([...this.pendingStateProcessing]);
-		}
+		await drainPendingWork(this.pendingAdapterWork);
 		// Both persistence methods handle their own errors so shutdown still
 		// reaches the ioBroker callback when a state write fails.
 		await this.predictiveTrainingQueue.drain();
-		await Promise.all([this.persistModels(), this.persistPredictiveModels()]);
+		await this.persistModelSnapshots();
 	}
 }
 
