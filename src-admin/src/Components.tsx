@@ -3,6 +3,7 @@ import { Alert, Box, Button, Card, CardContent, Chip, Collapse, Divider, Grid, S
 import { Refresh, ExpandMore, ExpandLess } from "@mui/icons-material";
 import { chartYDomain } from "./chart-domain";
 import { formatForecastTick, prepareForecastChartData } from "./forecast-chart";
+import { localizedTranslations } from "./translations";
 
 type Detector = { name: string; score: number; reasonCode: string };
 type ChartSample = { value: number; timestamp: number };
@@ -348,6 +349,11 @@ const translations: Record<string, Record<string, string>> = {
 		sixHours: "6 h",
 		day: "24 h",
 		week: "7 days",
+		stateEnabled: "on",
+		stateDisabled: "off",
+		minutes: "%s minutes",
+		hours: "%s hours",
+		hourSingular: "%s hour",
 	},
 	de: {
 		"reason.normal": "Der Wert verhält sich wie erwartet.",
@@ -522,11 +528,19 @@ const translations: Record<string, Record<string, string>> = {
 		sixHours: "6 h",
 		day: "24 h",
 		week: "7 Tage",
+		stateEnabled: "eingeschaltet",
+		stateDisabled: "ausgeschaltet",
+		minutes: "%s Minuten",
+		hours: "%s Stunden",
+		hourSingular: "%s Stunde",
 	},
 };
 
+Object.assign(translations, localizedTranslations);
+
 function language(): string {
-	return (typeof navigator !== "undefined" ? navigator.language : "en").slice(0, 2).toLowerCase();
+	const locale = (typeof navigator !== "undefined" ? navigator.language : "en").toLowerCase();
+	return locale.startsWith("zh") ? "zh-cn" : locale.slice(0, 2);
 }
 function t(key: string, ...args: Array<string | number>): string {
 	const template = translations[language()]?.[key] || translations.en[key] || key;
@@ -604,10 +618,10 @@ function friendlyContext(value: string, labels?: Record<string, string>): string
 			const state = part.slice(separator + 1);
 			const label = labels?.[id] || id;
 			if (state === "true") {
-				return `${label} – ${language() === "de" ? "eingeschaltet" : "on"}`;
+				return `${label} – ${t("stateEnabled")}`;
 			}
 			if (state === "false") {
-				return `${label} – ${language() === "de" ? "ausgeschaltet" : "off"}`;
+				return `${label} – ${t("stateDisabled")}`;
 			}
 			return `${label}=${state}`;
 		})
@@ -1368,13 +1382,10 @@ function AnomalyCard({
 function forecastExpectedLabel(minutes: number): string {
 	if (minutes >= 60 && minutes % 60 === 0) {
 		const hours = minutes / 60;
-		const value =
-			language() === "de"
-				? `${hours} ${hours === 1 ? "Stunde" : "Stunden"}`
-				: `${hours} ${hours === 1 ? "hour" : "hours"}`;
+		const value = hours === 1 ? t("hourSingular", hours) : t("hours", hours);
 		return t("forecastExpectedIn", value);
 	}
-	return t("forecastExpectedIn", language() === "de" ? `${minutes} Minuten` : `${minutes} minutes`);
+	return t("forecastExpectedIn", t("minutes", minutes));
 }
 
 function forecastAxisTimeLabel(offsetMs: number): string {
@@ -1791,7 +1802,7 @@ function ForecastCard({ source }: { source: Source }): React.JSX.Element {
 									<Typography variant="body2">
 										{t("requestedHistorySpan")}:{" "}
 										{finiteDetail(
-											diagnostics.model.requestedHistorySpanMinutes,
+											diagnostics?.model?.requestedHistorySpanMinutes,
 											` ${t("minutesShort")}`,
 										)}
 									</Typography>
