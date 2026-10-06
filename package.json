@@ -58,8 +58,7 @@
 		"build/",
 		"www/",
 		"io-package.json",
-		"LICENSE",
-		"scripts/benchmark-predictive.js"
+		"LICENSE"
 	],
 	"scripts": {
 		"prebuild": "rimraf build",

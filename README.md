@@ -338,6 +338,12 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 
 ## Changelog
 
+### 0.4.2 (2026-10-06)
+
+- Persist anomaly and forecast models periodically and finish pending adapter work before graceful shutdown.
+- Process monitored foreign states only after acknowledgement and complete the admin translations for all supported ioBroker languages.
+- Require admin 8.0.0 for the custom tab API.
+
 ### 0.4.1 (2026-10-05)
 
 - Update repository compatibility and administration metadata.
@@ -374,8 +380,6 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 - (Voodoo2man) add local statistical anomaly detection MVP
 - (Voodoo2man) add optional bounded historical initial training
 - (Voodoo2man) select only enabled history sources per configured state
-
-For older changelog entries, see [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 
 ## License
 
