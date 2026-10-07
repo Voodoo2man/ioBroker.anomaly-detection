@@ -1,6 +1,5 @@
 import { clamp, type SampleSeries } from "./model/statistics";
 
-
 /** Result produced by an anomaly detector. */
 export interface DetectorResult {
 	/** Detector identifier. */
