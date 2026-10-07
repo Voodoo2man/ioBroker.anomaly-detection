@@ -64,6 +64,7 @@ function decimalPlacesForStep(step: number): number {
 
 /**
  * Formats a tick with only the precision needed to distinguish its neighbors.
+ *
  * @param value Tick value.
  * @param decimals Number of decimal places.
  * @param locale Optional number-formatting locale.

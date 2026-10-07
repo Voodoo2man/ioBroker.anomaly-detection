@@ -1,9 +1,15 @@
 import { clamp, type SampleSeries } from "./model/statistics";
 
+
+/** Result produced by an anomaly detector. */
 export interface DetectorResult {
+	/** Detector identifier. */
 	name: "value" | "context" | "rate" | "stuck" | "changePoint" | "trend";
+	/** Normalized anomaly score from 0 to 100. */
 	score: number;
+	/** Human-readable explanation of the result. */
 	reason: string;
+	/** Stable machine-readable reason code. */
 	reasonCode?:
 		| "unexpected_value"
 		| "context_deviation"
