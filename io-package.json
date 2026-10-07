@@ -1,8 +1,21 @@
 {
-	"common": {
-		"name": "anomaly-detection",
-    "version": "0.4.3",
+  "common": {
+    "name": "anomaly-detection",
+    "version": "0.4.4",
     "news": {
+      "0.4.4": {
+        "en": "Complete all common news translations and document the legacy changelog",
+        "de": "Alle Common-News-Übersetzungen vervollständigt und das alte Changelog dokumentiert",
+        "ru": "Завершены все переводы новостей и добавлена ссылка на старый список изменений",
+        "pt": "Concluídas todas as traduções das notícias e documentado o changelog antigo",
+        "nl": "Alle vertalingen van nieuwsberichten voltooid en het oude changelog gedocumenteerd",
+        "fr": "Toutes les traductions des actualités sont complètes et l’ancien journal des modifications est documenté",
+        "it": "Completate tutte le traduzioni delle notizie e documentato il changelog precedente",
+        "es": "Se completaron todas las traducciones de las novedades y se documentó el changelog anterior",
+        "pl": "Uzupełniono wszystkie tłumaczenia informacji o wydaniach i udokumentowano stary dziennik zmian",
+        "uk": "Завершено всі переклади новин і додано посилання на старий список змін",
+        "zh-cn": "完成所有版本新闻翻译并记录旧版变更日志"
+      },
       "0.4.3": {
         "en": "Respect the ioBroker system language when selecting the admin-tab language",
         "de": "Die Sprache des Admin-Tabs folgt jetzt der in ioBroker eingestellten Systemsprache",
@@ -18,164 +31,175 @@
       },
       "0.4.2": {
         "en": "Persist anomaly and forecast models periodically; finish pending adapter work before graceful shutdown; process monitored foreign states only after acknowledgement; complete admin translations; require admin 8.0.0 for the custom tab API",
-        "de": "Anomalie- und Prognosemodelle regelmäßig speichern; beim regulären Shutdown auf laufende Verarbeitung warten; überwachte Fremdzustände erst nach Bestätigung auswerten; Admin-Übersetzungen vervollständigen; Admin 8.0.0 für die Custom-Tab-API voraussetzen"
+        "de": "Anomalie- und Prognosemodelle regelmäßig speichern; beim regulären Shutdown auf laufende Verarbeitung warten; überwachte Fremdzustände erst nach Bestätigung auswerten; Admin-Übersetzungen vervollständigen; Admin 8.0.0 für die Custom-Tab-API voraussetzen",
+        "ru": "Периодически сохранять модели аномалий и прогнозов; завершать обработку перед корректным завершением работы; обрабатывать внешние состояния только после подтверждения; завершить переводы администрирования; требовать Admin 8.0.0 для Custom Tab API",
+        "pt": "Salvar periodicamente os modelos de anomalias e previsões; concluir o processamento pendente antes do encerramento normal; processar estados externos monitorados somente após confirmação; concluir as traduções de administração; exigir Admin 8.0.0 para a API de separadores personalizados",
+        "nl": "Anomalie- en prognosemodellen periodiek opslaan; lopende adapterverwerking voor netjes afsluiten voltooien; bewaakte externe statussen alleen na bevestiging verwerken; beheervertalingen voltooien; Admin 8.0.0 voor de Custom Tab API vereisen",
+        "fr": "Enregistrer périodiquement les modèles d’anomalies et de prévisions; terminer le traitement avant l’arrêt propre; traiter les états externes surveillés uniquement après confirmation; compléter les traductions d’administration; exiger Admin 8.0.0 pour l’API des onglets personnalisés",
+        "it": "Salvare periodicamente i modelli di anomalie e previsione; completare l’elaborazione prima dell’arresto ordinato; elaborare gli stati esterni monitorati solo dopo conferma; completare le traduzioni di amministrazione; richiedere Admin 8.0.0 per l’API delle schede personalizzate",
+        "es": "Guardar periódicamente los modelos de anomalías y previsiones; finalizar el procesamiento antes del apagado ordenado; procesar estados externos supervisados solo después de la confirmación; completar las traducciones de administración; requerir Admin 8.0.0 para la API de pestañas personalizadas",
+        "pl": "Okresowo zapisywać modele anomalii i prognoz; kończyć oczekujące przetwarzanie przed prawidłowym zamknięciem; przetwarzać monitorowane stany obce dopiero po potwierdzeniu; uzupełnić tłumaczenia administracyjne; wymagać Admin 8.0.0 dla API niestandardowych kart",
+        "uk": "Періодично зберігати моделі аномалій і прогнозів; завершувати очікувану обробку перед коректним завершенням; обробляти контрольовані зовнішні стани лише після підтвердження; завершити переклади адміністрування; вимагати Admin 8.0.0 для API користувацьких вкладок",
+        "zh-cn": "定期保存异常和预测模型；在正常关闭前完成待处理的适配器工作；仅在确认后处理受监控的外部状态；完成管理界面翻译；自定义标签页 API 要求 Admin 8.0.0"
       },
-			"0.4.1": {
-				"en": "Update repository compatibility and administration metadata",
-				"de": "Repository-Kompatibilität und Administrationsmetadaten aktualisiert",
-				"ru": "Обновлена совместимость с репозиторием и метаданные администрирования",
-				"pt": "Compatibilidade com o repositório e metadados de administração atualizados",
-				"nl": "Repositorycompatibiliteit en beheermetagegevens bijgewerkt",
-				"fr": "Compatibilité avec le dépôt et métadonnées d’administration mises à jour",
-				"it": "Aggiornata la compatibilità del repository e i metadati di amministrazione",
-				"es": "Actualizadas la compatibilidad del repositorio y los metadatos de administración",
-				"pl": "Zaktualizowano zgodność z repozytorium i metadane administracyjne",
-				"uk": "Оновлено сумісність із репозиторієм і метадані адміністрування",
-				"zh-cn": "更新仓库兼容性和管理元数据"
-			},
-			"0.4.0": {
-				"en": "Improve predictive forecasting with current-state anchoring and explainable forecast diagnostics",
-				"de": "Predictive-Prognosen mit Verankerung am aktuellen Zustand und erklärbaren Forecast-Diagnosen verbessert",
-				"ru": "Улучшено прогнозирование с привязкой к текущему состоянию и понятной диагностикой прогноза",
-				"pt": "Melhoradas as previsões com ancoragem no estado atual e diagnósticos explicáveis",
-				"nl": "Voorspellingen verbeterd met verankering aan de huidige toestand en uitlegbare voorspellingsdiagnostiek",
-				"fr": "Amélioration des prévisions avec ancrage sur l’état actuel et diagnostics explicables",
-				"it": "Migliorate le previsioni con ancoraggio allo stato attuale e diagnostica del forecast spiegabile",
-				"es": "Mejora de las previsiones con anclaje en el estado actual y diagnósticos explicables",
-				"pl": "Ulepszono prognozowanie dzięki zakotwiczeniu w bieżącym stanie i objaśnialnej diagnostyce prognoz",
-				"uk": "Покращено прогнозування з прив’язкою до поточного стану та зрозумілою діагностикою прогнозу",
-				"zh-cn": "改进预测功能，基于当前状态进行锚定并提供可解释的预测诊断"
-			},
-			"0.3.0": {
-				"en": "Add predictive forecasting, persistent model training bases, history bootstrap, adaptive history segmentation, and explainable diagnostics",
-				"de": "Predictive-Prognosen, persistente Trainingsbasen, History-Bootstrap, adaptive History-Segmentierung und erklärbare Diagnosen hinzugefügt",
-				"ru": "Добавлены прогнозирование, постоянные учебные базы моделей, начальная загрузка истории, адаптивное сегментирование истории и понятная диагностика",
-				"pt": "Adicionadas previsões, bases de treino persistentes, bootstrap do histórico, segmentação adaptativa do histórico e diagnósticos explicáveis",
-				"nl": "Voorspellingen, permanente modeltrainingsbasissen, geschiedenis-bootstrap, adaptieve geschiedenissegmentatie en uitlegbare diagnostiek toegevoegd",
-				"fr": "Ajout de prévisions, de bases d’entraînement persistantes, d’un bootstrap de l’historique, d’une segmentation adaptative de l’historique et de diagnostics explicables",
-				"it": "Aggiunti previsione, basi di addestramento persistenti, bootstrap della cronologia, segmentazione adattiva della cronologia e diagnostica spiegabile",
-				"es": "Se añadieron previsiones, bases de entrenamiento persistentes, bootstrap del historial, segmentación adaptativa del historial y diagnósticos explicables",
-				"pl": "Dodano prognozowanie, trwałe bazy treningowe modeli, inicjalizację historii, adaptacyjną segmentację historii i objaśnialną diagnostykę",
-				"uk": "Додано прогнозування, постійні навчальні бази моделей, початкове завантаження історії, адаптивну сегментацію історії та зрозумілу діагностику",
-				"zh-cn": "新增预测、持久化模型训练基础、历史记录初始化、 自适应历史分段和可解释诊断"
-			},
-			"0.1.1": {
-				"en": "Improve configuration UI layout, translations, and detector guidance",
-				"de": "Konfigurationsoberfläche, Übersetzungen und Hinweise zu Detektoren verbessert",
-				"ru": "Улучшены интерфейс конфигурации, переводы и рекомендации по детекторам",
-				"pt": "Melhorias no layout, traduções e orientações dos detetores na configuração",
-				"nl": "Verbeterde configuratie-indeling, vertalingen en detectorbegeleiding",
-				"fr": "Amélioration de l’interface de configuration, des traductions et des conseils de détection",
-				"it": "Migliorati layout di configurazione, traduzioni e indicazioni sui rilevatori",
-				"es": "Mejoras en el diseño de configuración, traducciones y orientación de detectores",
-				"pl": "Ulepszono układ konfiguracji, tłumaczenia i wskazówki dotyczące detektorów",
-				"uk": "Покращено макет конфігурації, переклади та рекомендації щодо детекторів",
-				"zh-cn": "改进配置界面布局、翻译和检测器说明"
-			},
-			"0.1.0": {
-				"en": "initial release",
-				"de": "Erstveröffentlichung",
-				"ru": "Начальная версия",
-				"pt": "lançamento inicial",
-				"nl": "Eerste uitgave",
-				"fr": "Première version",
-				"it": "Versione iniziale",
-				"es": "Versión inicial",
-				"pl": "Pierwsze wydanie",
-				"uk": "Початкова версія",
-				"zh-cn": "首次出版"
-			}
-		},
-		"titleLang": {
-			"en": "Anomaly Detection",
-			"de": "Anomalieerkennung",
-			"ru": "Обнаружение аномалий",
-			"pt": "Detecção de anomalias",
-			"nl": "Anomaliedetectie",
-			"fr": "Détection des anomalies",
-			"it": "Rilevamento anomalie",
-			"es": "Detección de anomalías",
-			"pl": "Wykrywanie anomalii",
-			"uk": "Виявлення аномалії",
-			"zh-cn": "异常检测"
-		},
-		"desc": {
-			"en": "Learns normal behavior of numerical ioBroker states and detects statistical anomalies.",
-			"de": "Erlernt das normale Verhalten numerischer ioBroker-Zustände und erkennt statistische Anomalien.",
-			"ru": "Изучает нормальное поведение числовых состояний ioBroker и обнаруживает статистические аномалии.",
-			"pt": "Aprende o comportamento normal dos estados numéricos do ioBroker e detecta anomalias estatísticas.",
-			"nl": "Leert normaal gedrag van numerieke ioBroker-statussen en detecteert statistische afwijkingen.",
-			"fr": "Apprend le comportement normal des états numériques d’ioBroker et détecte les anomalies statistiques.",
-			"it": "Apprende il comportamento normale degli stati numerici di ioBroker e rileva anomalie statistiche.",
-			"es": "Aprende el comportamiento normal de los estados numéricos de ioBroker y detecta anomalías estadísticas.",
-			"pl": "Uczy się normalnego zachowania numerycznych stanów ioBrokera i wykrywa anomalie statystyczne.",
-			"uk": "Вивчає нормальну поведінку числових станів ioBroker і виявляє статистичні аномалії.",
-			"zh-cn": "了解数字 ioBroker 状态的正常行为并检测统计异常。"
-		},
-		"authors": ["Voodoo2man <Voodoo2man@outlook.de>"],
-		"keywords": [
-			"anomaly detection",
-			"anomaly",
-			"monitoring",
-			"statistics",
-			"time series",
-			"sensor",
-			"predictive maintenance"
-		],
-		"licenseInformation": {
-			"type": "free",
-			"license": "MIT"
-		},
-		"platform": "Javascript/Node.js",
-		"icon": "anomaly-detection-icon.png",
-		"enabled": true,
-		"extIcon": "https://raw.githubusercontent.com/Voodoo2man/ioBroker.anomaly-detection/main/admin/anomaly-detection-icon.png",
-		"readme": "https://github.com/Voodoo2man/ioBroker.anomaly-detection/blob/main/README.md",
-		"loglevel": "info",
-		"tier": 3,
-		"mode": "daemon",
-		"type": "logic",
-		"compact": true,
-		"connectionType": "local",
-		"dataSource": "push",
-		"adminUI": {
-			"config": "json",
-			"tab": "json"
-		},
-		"adminTab": {
-			"link": "jsonTab.json",
-			"name": {
-      "en": "Anomaly Detection – Anomalies",
-      "de": "Anomalieerkennung – Anomalien",
-      "ru": "Обнаружение аномалий – Аномалии",
-      "pt": "Deteção de anomalias – Anomalias",
-      "nl": "Anomaliedetectie – Anomalieën",
-      "fr": "Détection des anomalies – Anomalies",
-      "it": "Rilevamento anomalie – Anomalie",
-      "es": "Detección de anomalías – Anomalías",
-      "pl": "Wykrywanie anomalii – Anomalie",
-      "uk": "Виявлення аномалій – Аномалії",
-      "zh-cn": "异常检测 – 异常"
-			}
-		},
-		"messagebox": true,
-		"supportedMessages": {
-			"custom": true
-		},
-		"dependencies": [
-			{
-				"js-controller": ">=6.0.11"
-			}
-		],
-		"globalDependencies": [
-			{
-      "admin": ">=8.0.0"
-			}
-		]
-	},
-	"native": {
-		"sources": []
-	},
-	"objects": [],
-	"instanceObjects": []
+      "0.4.1": {
+        "en": "Update repository compatibility and administration metadata",
+        "de": "Repository-Kompatibilität und Administrationsmetadaten aktualisiert",
+        "ru": "Обновлена совместимость с репозиторием и метаданные администрирования",
+        "pt": "Compatibilidade com o repositório e metadados de administração atualizados",
+        "nl": "Repositorycompatibiliteit en beheermetagegevens bijgewerkt",
+        "fr": "Compatibilité avec le dépôt et métadonnées d’administration mises à jour",
+        "it": "Aggiornata la compatibilità del repository e i metadati di amministrazione",
+        "es": "Actualizadas la compatibilidad del repositorio y los metadatos de administración",
+        "pl": "Zaktualizowano zgodność z repozytorium i metadane administracyjne",
+        "uk": "Оновлено сумісність із репозиторієм і метадані адміністрування",
+        "zh-cn": "更新仓库兼容性和管理元数据"
+      },
+      "0.4.0": {
+        "en": "Improve predictive forecasting with current-state anchoring and explainable forecast diagnostics",
+        "de": "Predictive-Prognosen mit Verankerung am aktuellen Zustand und erklärbaren Forecast-Diagnosen verbessert",
+        "ru": "Улучшено прогнозирование с привязкой к текущему состоянию и понятной диагностикой прогноза",
+        "pt": "Melhoradas as previsões com ancoragem no estado atual e diagnósticos explicáveis",
+        "nl": "Voorspellingen verbeterd met verankering aan de huidige toestand en uitlegbare voorspellingsdiagnostiek",
+        "fr": "Amélioration des prévisions avec ancrage sur l’état actuel et diagnostics explicables",
+        "it": "Migliorate le previsioni con ancoraggio allo stato attuale e diagnostica del forecast spiegabile",
+        "es": "Mejora de las previsiones con anclaje en el estado actual y diagnósticos explicables",
+        "pl": "Ulepszono prognozowanie dzięki zakotwiczeniu w bieżącym stanie i objaśnialnej diagnostyce prognoz",
+        "uk": "Покращено прогнозування з прив’язкою до поточного стану та зрозумілою діагностикою прогнозу",
+        "zh-cn": "改进预测功能，基于当前状态进行锚定并提供可解释的预测诊断"
+      },
+      "0.3.0": {
+        "en": "Add predictive forecasting, persistent model training bases, history bootstrap, adaptive history segmentation, and explainable diagnostics",
+        "de": "Predictive-Prognosen, persistente Trainingsbasen, History-Bootstrap, adaptive History-Segmentierung und erklärbare Diagnosen hinzugefügt",
+        "ru": "Добавлены прогнозирование, постоянные учебные базы моделей, начальная загрузка истории, адаптивное сегментирование истории и понятная диагностика",
+        "pt": "Adicionadas previsões, bases de treino persistentes, bootstrap do histórico, segmentação adaptativa do histórico e diagnósticos explicáveis",
+        "nl": "Voorspellingen, permanente modeltrainingsbasissen, geschiedenis-bootstrap, adaptieve geschiedenissegmentatie en uitlegbare diagnostiek toegevoegd",
+        "fr": "Ajout de prévisions, de bases d’entraînement persistantes, d’un bootstrap de l’historique, d’une segmentation adaptative de l’historique et de diagnostics explicables",
+        "it": "Aggiunti previsione, basi di addestramento persistenti, bootstrap della cronologia, segmentazione adattiva della cronologia e diagnostica spiegabile",
+        "es": "Se añadieron previsiones, bases de entrenamiento persistentes, bootstrap del historial, segmentación adaptativa del historial y diagnósticos explicables",
+        "pl": "Dodano prognozowanie, trwałe bazy treningowe modeli, inicjalizację historii, adaptacyjną segmentację historii i objaśnialną diagnostykę",
+        "uk": "Додано прогнозування, постійні навчальні бази моделей, початкове завантаження історії, адаптивну сегментацію історії та зрозумілу діагностику",
+        "zh-cn": "新增预测、持久化模型训练基础、历史记录初始化、 自适应历史分段和可解释诊断"
+      },
+      "0.1.1": {
+        "en": "Improve configuration UI layout, translations, and detector guidance",
+        "de": "Konfigurationsoberfläche, Übersetzungen und Hinweise zu Detektoren verbessert",
+        "ru": "Улучшены интерфейс конфигурации, переводы и рекомендации по детекторам",
+        "pt": "Melhorias no layout, traduções e orientações dos detetores na configuração",
+        "nl": "Verbeterde configuratie-indeling, vertalingen en detectorbegeleiding",
+        "fr": "Amélioration de l’interface de configuration, des traductions et des conseils de détection",
+        "it": "Migliorati layout di configurazione, traduzioni e indicazioni sui rilevatori",
+        "es": "Mejoras en el diseño de configuración, traducciones y orientación de detectores",
+        "pl": "Ulepszono układ konfiguracji, tłumaczenia i wskazówki dotyczące detektorów",
+        "uk": "Покращено макет конфігурації, переклади та рекомендації щодо детекторів",
+        "zh-cn": "改进配置界面布局、翻译和检测器说明"
+      },
+      "0.1.0": {
+        "en": "initial release",
+        "de": "Erstveröffentlichung",
+        "ru": "Начальная версия",
+        "pt": "lançamento inicial",
+        "nl": "Eerste uitgave",
+        "fr": "Première version",
+        "it": "Versione iniziale",
+        "es": "Versión inicial",
+        "pl": "Pierwsze wydanie",
+        "uk": "Початкова версія",
+        "zh-cn": "首次出版"
+      }
+    },
+    "titleLang": {
+      "en": "Anomaly Detection",
+      "de": "Anomalieerkennung",
+      "ru": "Обнаружение аномалий",
+      "pt": "Detecção de anomalias",
+      "nl": "Anomaliedetectie",
+      "fr": "Détection des anomalies",
+      "it": "Rilevamento anomalie",
+      "es": "Detección de anomalías",
+      "pl": "Wykrywanie anomalii",
+      "uk": "Виявлення аномалії",
+      "zh-cn": "异常检测"
+    },
+    "desc": {
+      "en": "Learns normal behavior of numerical ioBroker states and detects statistical anomalies.",
+      "de": "Erlernt das normale Verhalten numerischer ioBroker-Zustände und erkennt statistische Anomalien.",
+      "ru": "Изучает нормальное поведение числовых состояний ioBroker и обнаруживает статистические аномалии.",
+      "pt": "Aprende o comportamento normal dos estados numéricos do ioBroker e detecta anomalias estatísticas.",
+      "nl": "Leert normaal gedrag van numerieke ioBroker-statussen en detecteert statistische afwijkingen.",
+      "fr": "Apprend le comportement normal des états numériques d’ioBroker et détecte les anomalies statistiques.",
+      "it": "Apprende il comportamento normale degli stati numerici di ioBroker e rileva anomalie statistiche.",
+      "es": "Aprende el comportamiento normal de los estados numéricos de ioBroker y detecta anomalías estadísticas.",
+      "pl": "Uczy się normalnego zachowania numerycznych stanów ioBrokera i wykrywa anomalie statystyczne.",
+      "uk": "Вивчає нормальну поведінку числових станів ioBroker і виявляє статистичні аномалії.",
+      "zh-cn": "了解数字 ioBroker 状态的正常行为并检测统计异常。"
+    },
+    "authors": [
+      "Voodoo2man <Voodoo2man@outlook.de>"
+    ],
+    "keywords": [
+      "anomaly detection",
+      "anomaly",
+      "monitoring",
+      "statistics",
+      "time series",
+      "sensor",
+      "predictive maintenance"
+    ],
+    "licenseInformation": {
+      "type": "free",
+      "license": "MIT"
+    },
+    "platform": "Javascript/Node.js",
+    "icon": "anomaly-detection-icon.png",
+    "enabled": true,
+    "extIcon": "https://raw.githubusercontent.com/Voodoo2man/ioBroker.anomaly-detection/main/admin/anomaly-detection-icon.png",
+    "readme": "https://github.com/Voodoo2man/ioBroker.anomaly-detection/blob/main/README.md",
+    "loglevel": "info",
+    "tier": 3,
+    "mode": "daemon",
+    "type": "logic",
+    "compact": true,
+    "connectionType": "local",
+    "dataSource": "push",
+    "adminUI": {
+      "config": "json",
+      "tab": "json"
+    },
+    "adminTab": {
+      "link": "jsonTab.json",
+      "name": {
+        "en": "Anomaly Detection – Anomalies",
+        "de": "Anomalieerkennung – Anomalien",
+        "ru": "Обнаружение аномалий – Аномалии",
+        "pt": "Deteção de anomalias – Anomalias",
+        "nl": "Anomaliedetectie – Anomalieën",
+        "fr": "Détection des anomalies – Anomalies",
+        "it": "Rilevamento anomalie – Anomalie",
+        "es": "Detección de anomalías – Anomalías",
+        "pl": "Wykrywanie anomalii – Anomalie",
+        "uk": "Виявлення аномалій – Аномалії",
+        "zh-cn": "异常检测 – 异常"
+      }
+    },
+    "messagebox": true,
+    "supportedMessages": {
+      "custom": true
+    },
+    "dependencies": [
+      {
+        "js-controller": ">=6.0.11"
+      }
+    ],
+    "globalDependencies": [
+      {
+        "admin": ">=8.0.0"
+      }
+    ]
+  },
+  "native": {
+    "sources": []
+  },
+  "objects": [],
+  "instanceObjects": []
 }
