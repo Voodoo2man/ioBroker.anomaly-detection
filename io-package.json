@@ -1,8 +1,21 @@
 {
 	"common": {
 		"name": "anomaly-detection",
-    "version": "0.4.2",
+    "version": "0.4.3",
     "news": {
+      "0.4.3": {
+        "en": "Respect the ioBroker system language when selecting the admin-tab language",
+        "de": "Die Sprache des Admin-Tabs folgt jetzt der in ioBroker eingestellten Systemsprache",
+        "ru": "Язык вкладки администратора теперь соответствует системному языку ioBroker",
+        "pt": "O idioma do separador de administração agora segue o idioma do sistema ioBroker",
+        "nl": "De taal van het beheertabblad volgt nu de systeemtaal van ioBroker",
+        "fr": "La langue de l’onglet d’administration suit désormais la langue système d’ioBroker",
+        "it": "La lingua della scheda di amministrazione segue ora la lingua di sistema di ioBroker",
+        "es": "El idioma de la pestaña de administración ahora sigue el idioma del sistema ioBroker",
+        "pl": "Język karty administracyjnej jest teraz zgodny z językiem systemowym ioBroker",
+        "uk": "Мова вкладки адміністрування тепер відповідає системній мові ioBroker",
+        "zh-cn": "管理标签页现在遵循 ioBroker 的系统语言"
+      },
       "0.4.2": {
         "en": "Persist anomaly and forecast models periodically; finish pending adapter work before graceful shutdown; process monitored foreign states only after acknowledgement; complete admin translations; require admin 8.0.0 for the custom tab API",
         "de": "Anomalie- und Prognosemodelle regelmäßig speichern; beim regulären Shutdown auf laufende Verarbeitung warten; überwachte Fremdzustände erst nach Bestätigung auswerten; Admin-Übersetzungen vervollständigen; Admin 8.0.0 für die Custom-Tab-API voraussetzen"

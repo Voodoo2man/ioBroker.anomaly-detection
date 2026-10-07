@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { I18n } from "@iobroker/gui-components";
 import { Alert, Box, Button, Card, CardContent, Chip, Collapse, Divider, Grid, Stack, Typography } from "@mui/material";
 import { Refresh, ExpandMore, ExpandLess } from "@mui/icons-material";
 import { chartYDomain } from "./chart-domain";
@@ -539,7 +540,7 @@ const translations: Record<string, Record<string, string>> = {
 Object.assign(translations, localizedTranslations);
 
 function language(): string {
-	const locale = (typeof navigator !== "undefined" ? navigator.language : "en").toLowerCase();
+	const locale = (I18n.getLanguage() || (typeof navigator !== "undefined" ? navigator.language : "en")).toLowerCase();
 	return locale.startsWith("zh") ? "zh-cn" : locale.slice(0, 2);
 }
 function t(key: string, ...args: Array<string | number>): string {

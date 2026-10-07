@@ -255,6 +255,10 @@ Verarbeitung und Modellspeicherung erfolgen vollständig lokal in ioBroker. Kein
 
 ## Changelog
 
+### 0.4.3 (2026-10-07)
+
+- Die Sprache des Admin-Tabs folgt jetzt der in ioBroker eingestellten Systemsprache.
+
 ### 0.4.2 (2026-10-06)
 
 - Anomalie- und Prognosemodelle werden regelmäßig gespeichert; beim regulären Shutdown wartet der Adapter auf laufende Verarbeitung.

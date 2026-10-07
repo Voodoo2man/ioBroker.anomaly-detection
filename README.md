@@ -338,6 +338,10 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 
 ## Changelog
 
+### 0.4.3 (2026-10-07)
+
+- Respect the ioBroker system language when selecting the admin-tab language.
+
 ### 0.4.2 (2026-10-06)
 
 - Persist anomaly and forecast models periodically and finish pending adapter work before graceful shutdown.
