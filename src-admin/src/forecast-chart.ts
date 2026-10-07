@@ -62,7 +62,12 @@ function decimalPlacesForStep(step: number): number {
 	return decimals;
 }
 
-/** Formats a tick with only the precision needed to distinguish its neighbors. */
+/**
+ * Formats a tick with only the precision needed to distinguish its neighbors.
+ * @param value Tick value.
+ * @param decimals Number of decimal places.
+ * @param locale Optional number-formatting locale.
+ */
 export function formatForecastTick(value: number, decimals: number, locale?: string): string {
 	const rounded = Number(value.toFixed(decimals));
 	return new Intl.NumberFormat(locale, {

@@ -1,18 +1,27 @@
 import { clamp, median } from "./model/statistics";
 import type { DetectorResult } from "./detectors";
 
+/** A residual value together with the time at which it was measured. */
 export interface TimedResidual {
+	/** Residual value. */
 	value: number;
+	/** Measurement timestamp in milliseconds. */
 	timestamp: number;
 }
 
+/** Persisted state used for change-point detection. */
 export interface ChangePointData {
+	/** Recent residual samples. */
 	recent: TimedResidual[];
+	/** Direction of the current candidate level shift. */
 	candidateDirection?: "upward" | "downward";
+	/** Number of consecutive observations supporting the candidate. */
 	candidateCount: number;
 }
 
+/** Persisted state used for trend detection. */
 export interface TrendData {
+	/** Recent residual samples. */
 	recent: TimedResidual[];
 }
 
