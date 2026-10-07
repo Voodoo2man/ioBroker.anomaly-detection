@@ -1,16 +1,28 @@
+/** A timestamped numerical point shown in the forecast chart. */
 export interface ForecastChartPoint {
+	/** Point timestamp in milliseconds. */
 	timestamp: number;
+	/** Numerical value at the timestamp. */
 	value: number;
 }
 
+/** Fully prepared data and axes for the forecast chart. */
 export interface ForecastChartData {
+	/** Start timestamp of the chart. */
 	startTimestamp: number;
+	/** End timestamp of the chart. */
 	endTimestamp: number;
+	/** Current live value, when available. */
 	actualPoint?: ForecastChartPoint;
+	/** Model-generated forecast points. */
 	forecastPoints: ForecastChartPoint[];
+	/** Padded numerical domain for the Y axis. */
 	yDomain: { min: number; max: number };
+	/** Tick positions for the Y axis. */
 	yTicks: number[];
+	/** Number of decimal places used for Y-axis labels. */
 	yTickDecimals: number;
+	/** Tick offsets for the X axis. */
 	xTicks: number[];
 }
 
@@ -50,7 +62,13 @@ function decimalPlacesForStep(step: number): number {
 	return decimals;
 }
 
-/** Formats a tick with only the precision needed to distinguish its neighbors. */
+/**
+ * Formats a tick with only the precision needed to distinguish its neighbors.
+ *
+ * @param value Tick value.
+ * @param decimals Number of decimal places.
+ * @param locale Optional number-formatting locale.
+ */
 export function formatForecastTick(value: number, decimals: number, locale?: string): string {
 	const rounded = Number(value.toFixed(decimals));
 	return new Intl.NumberFormat(locale, {

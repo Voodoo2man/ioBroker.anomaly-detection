@@ -1,38 +1,59 @@
 import { clamp, median } from "./model/statistics";
 import type { DetectorResult } from "./detectors";
 
+/** A residual value together with the time at which it was measured. */
 export interface TimedResidual {
+	/** Residual value. */
 	value: number;
+	/** Measurement timestamp in milliseconds. */
 	timestamp: number;
 }
 
+/** Persisted state used for change-point detection. */
 export interface ChangePointData {
+	/** Recent residual samples. */
 	recent: TimedResidual[];
+	/** Direction of the current candidate level shift. */
 	candidateDirection?: "upward" | "downward";
+	/** Number of consecutive observations supporting the candidate. */
 	candidateCount: number;
 }
 
+/** Persisted state used for trend detection. */
 export interface TrendData {
+	/** Recent residual samples. */
 	recent: TimedResidual[];
 }
 
+/** Combined result of the advanced detectors for one observation. */
 export interface AdvancedEvaluation {
+	/** Change-point result, when a persistent level shift is detected. */
 	changePoint?: DetectorResult;
+	/** Trend result, when an unusual trend is detected. */
 	trend?: DetectorResult;
+	/** Whether the observation should be used to adapt the model. */
 	adapt: boolean;
 }
 
 const MAX_RECENT = 48;
 const MIN_RECENT = 12;
 const MIN_TREND_SPAN_MS = 6 * 60 * 60 * 1000;
-
 /** Maintains bounded residual windows for robust level-shift and trend evaluation. */
 export class AdvancedDetectors {
+	/** Recent residuals used for change-point detection. */
 	private recentChange: TimedResidual[];
+	/** Recent residuals used for trend detection. */
 	private recentTrend: TimedResidual[];
+	/** Current direction of a candidate level shift. */
 	private candidateDirection: "upward" | "downward" | undefined;
+	/** Number of consecutive observations supporting the candidate. */
 	private candidateCount: number;
 
+	/** Creates an advanced detector state from optional persisted data.
+	 *
+	 * @param change Persisted change-point state.
+	 * @param trend Persisted trend state.
+	 */
 	public constructor(change?: ChangePointData, trend?: TrendData) {
 		this.recentChange = sanitize(change?.recent);
 		this.recentTrend = sanitize(trend?.recent);
@@ -40,6 +61,16 @@ export class AdvancedDetectors {
 		this.candidateCount = Number.isInteger(change?.candidateCount) ? Math.max(0, change!.candidateCount) : 0;
 	}
 
+	/** Evaluates one residual and updates the detector windows.
+	 *
+	 * @param residual Current residual value.
+	 * @param timestamp Observation timestamp in milliseconds.
+	 * @param longMedian Long-term residual median.
+	 * @param longMad Long-term median absolute deviation.
+	 * @param enableChangePoint Whether change-point detection is enabled.
+	 * @param enableTrend Whether trend detection is enabled.
+	 * @param sensitivity Detection sensitivity threshold.
+	 */
 	public observe(
 		residual: number | undefined,
 		timestamp: number,
@@ -63,6 +94,7 @@ export class AdvancedDetectors {
 		return { changePoint, trend, adapt: changePoint !== undefined };
 	}
 
+	/** Serializes the detector state for persistence. */
 	public toJSON(): { changePoint: ChangePointData; trend: TrendData } {
 		return {
 			changePoint: {
