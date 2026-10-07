@@ -93,19 +93,6 @@
         "pl": "Ulepszono układ konfiguracji, tłumaczenia i wskazówki dotyczące detektorów",
         "uk": "Покращено макет конфігурації, переклади та рекомендації щодо детекторів",
         "zh-cn": "改进配置界面布局、翻译和检测器说明"
-      },
-      "0.1.0": {
-        "en": "initial release",
-        "de": "Erstveröffentlichung",
-        "ru": "Начальная версия",
-        "pt": "lançamento inicial",
-        "nl": "Eerste uitgave",
-        "fr": "Première version",
-        "it": "Versione iniziale",
-        "es": "Versión inicial",
-        "pl": "Pierwsze wydanie",
-        "uk": "Початкова версія",
-        "zh-cn": "首次出版"
       }
     },
     "titleLang": {

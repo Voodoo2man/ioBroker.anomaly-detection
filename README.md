@@ -338,6 +338,10 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 
 ## Changelog
 
+### 0.4.4 (2026-10-07)
+
+- Complete all common news translations and document the legacy changelog.
+
 ### 0.4.3 (2026-10-07)
 
 - Respect the ioBroker system language when selecting the admin-tab language.
