@@ -3,7 +3,7 @@
 	"private": true,
 	"type": "module",
 	"dependencies": {
-		"@iobroker/gui-components": "8.0.2",
+		"@iobroker/gui-components": "10.3.6",
 		"@iobroker/json-config": "8.0.2",
 		"@mui/icons-material": "^6.5.0",
 		"@mui/material": "^6.5.0",
