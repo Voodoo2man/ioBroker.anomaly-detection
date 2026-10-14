@@ -823,7 +823,16 @@ export class SourceMonitor {
 		return retained.length;
 	}
 
-	/** Replaces this model only when the history contains at least one usable sample. */
+	/**
+	 * Replaces this model only when the history contains enough usable samples.
+	 *
+	 * @param samples Sanitized historical observations.
+	 * @param provider Configured history adapter instance.
+	 * @param historySourceId Effective state ID queried from history.
+	 * @param start Requested history start timestamp.
+	 * @param end Requested history end timestamp.
+	 * @param configKey Import-relevant source configuration.
+	 */
 	public replaceFromHistory(
 		samples: readonly HistorySample[],
 		provider: string,
@@ -837,9 +846,12 @@ export class SourceMonitor {
 		if (imported === 0) {
 			return 0;
 		}
+		if (this.hasSufficientData && !replacement.hasSufficientData) {
+			return 0;
+		}
 		this.valueModel = replacement.valueModel;
 		this.rateModel = replacement.rateModel;
-		this.contextualModel = replacement.contextualModel;
+		// Generic history cannot reconstruct arbitrary live context values.
 		this.scopedStates.clear();
 		for (const [key, state] of replacement.scopedStates) {
 			this.scopedStates.set(key, state);

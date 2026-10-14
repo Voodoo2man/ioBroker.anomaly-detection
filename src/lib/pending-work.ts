@@ -38,3 +38,23 @@ export function enqueueSerializedWork<K>(
 	);
 	return current;
 }
+
+/**
+ * Acquires an exclusive per-key work slot, returning an idempotent release function.
+ *
+ * @param active Keys whose work slots are currently held.
+ * @param key Key whose work slot should be acquired.
+ */
+export function acquireExclusiveWork<K>(active: Set<K>, key: K): (() => void) | undefined {
+	if (active.has(key)) {
+		return undefined;
+	}
+	active.add(key);
+	let released = false;
+	return () => {
+		if (!released) {
+			released = true;
+			active.delete(key);
+		}
+	};
+}

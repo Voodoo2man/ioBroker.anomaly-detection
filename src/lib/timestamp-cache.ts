@@ -1,9 +1,14 @@
+/** Result of checking and optionally processing a timestamped observation. */
 export interface CachedObservation<T> {
+	/** Whether the timestamp was already accepted. */
 	duplicate: boolean;
+	/** Observation result, or undefined when rejected or deduplicated. */
 	result: T | undefined;
 }
 
-/** Deduplicates an observation and remembers its timestamp only after acceptance.
+/**
+ * Deduplicates an observation and remembers its timestamp only after acceptance.
+ *
  * @param cache Per-source timestamps already accepted by the observer.
  * @param key Source key used for deduplication.
  * @param timestamp Source timestamp, if supplied.

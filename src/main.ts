@@ -11,11 +11,13 @@ import {
 	type SourceSettings,
 } from "./lib/source-monitor";
 import { createContextPart } from "./lib/context-value";
-import { drainPendingWork, enqueueSerializedWork } from "./lib/pending-work";
+import { acquireExclusiveWork, drainPendingWork, enqueueSerializedWork } from "./lib/pending-work";
 import { withAbortableTimeout } from "./lib/history-request";
 import { mergeStartupModels } from "./lib/model-persistence";
 import { observeWithTimestampCache } from "./lib/timestamp-cache";
+import { writeStateValues } from "./lib/state-write";
 import { SOURCES_OBJECT_ID, sourcesObject } from "./lib/object-structure";
+import { objectName } from "./lib/object-names";
 import {
 	PredictiveModel,
 	PredictiveTrainingQueue,
@@ -325,14 +327,20 @@ class AnomalyDetection extends utils.Adapter {
 					this.log.debug(`Predictive bootstrap scheduled from history for ${id}`);
 				}
 				bootstrapTasks.push(async () => {
-					this.bootstrappingSources.add(id);
+					const release = acquireExclusiveWork(this.bootstrappingSources, id);
+					if (!release) {
+						return;
+					}
 					try {
 						await this.bootstrapSource(id, safeId, source, monitor, {
 							anomaly: anomalyBootstrap,
 							predictive: predictiveBootstrap,
 						});
 					} finally {
-						this.bootstrappingSources.delete(id);
+						release();
+						if (!this.unloading) {
+							await this.setStateChangedAsync(`sources.${safeId}.retrain`, { val: false, ack: true });
+						}
 					}
 				});
 			}
@@ -714,13 +722,20 @@ class AnomalyDetection extends utils.Adapter {
 	private async ensureModelState(): Promise<void> {
 		await this.setObjectNotExistsAsync(MODEL_STATE_ID, {
 			type: "state",
-			common: { name: "Persisted models", type: "string", role: "json", read: true, write: false, def: "" },
+			common: {
+				name: objectName("Persisted models"),
+				type: "string",
+				role: "json",
+				read: true,
+				write: false,
+				def: "",
+			},
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(PREDICTIVE_MODEL_STATE_ID, {
 			type: "state",
 			common: {
-				name: "Persisted predictive models",
+				name: objectName("Persisted predictive models"),
 				type: "string",
 				role: "json",
 				read: true,
@@ -774,28 +789,34 @@ class AnomalyDetection extends utils.Adapter {
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis`, {
 			type: "channel",
-			common: { name: "Anomaly analysis" },
+			common: { name: objectName("Anomaly analysis") },
 			native: {},
 		});
 		if (predictiveSettingsFor(source)?.enabled === true) {
 			await this.setObjectNotExistsAsync(`${base}.predictive`, {
 				type: "channel",
-				common: { name: "Predictive forecast" },
+				common: { name: objectName("Predictive forecast") },
 				native: {},
 			});
 			await this.setObjectNotExistsAsync(`${base}.predictive.result`, {
 				type: "state",
-				common: { name: "Forecast result", type: "string", role: "json", read: true, write: false },
+				common: { name: objectName("Forecast result"), type: "string", role: "json", read: true, write: false },
 				native: {},
 			});
 			await this.setObjectNotExistsAsync(`${base}.predictive.status`, {
 				type: "state",
-				common: { name: "Forecast status", type: "string", role: "info.status", read: true, write: false },
+				common: {
+					name: objectName("Forecast status"),
+					type: "string",
+					role: "info.status",
+					read: true,
+					write: false,
+				},
 				native: {},
 			});
 		}
 		const numberState = (
-			name: string,
+			name: ioBroker.StringOrTranslated,
 			role: string,
 			extra: Partial<ioBroker.StateCommon> = {},
 		): ioBroker.SettableObject => ({
@@ -805,60 +826,78 @@ class AnomalyDetection extends utils.Adapter {
 		});
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.actual`,
-			numberState("Actual value", "value", unit ? { unit } : {}),
+			numberState(objectName("Actual value"), "value", unit ? { unit } : {}),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.expected`,
-			numberState("Expected value", "value", unit ? { unit } : {}),
+			numberState(objectName("Expected value"), "value", unit ? { unit } : {}),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.deviation`,
-			numberState("Deviation", "value", unit ? { unit } : {}),
+			numberState(objectName("Deviation"), "value", unit ? { unit } : {}),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.score`,
-			numberState("Anomaly score", "value", { min: 0, max: 100, unit: "%" }),
+			numberState(objectName("Anomaly score"), "value", { min: 0, max: 100, unit: "%" }),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.sampleCount`,
-			numberState("Learned sample count", "value"),
+			numberState(objectName("Learned sample count"), "value"),
 		);
 		await this.setObjectNotExistsAsync(`${base}.analysis.baselineScope`, {
 			type: "state",
-			common: { name: "Active baseline scope", type: "string", role: "info.status", read: true, write: false },
+			common: {
+				name: objectName("Active baseline scope"),
+				type: "string",
+				role: "info.status",
+				read: true,
+				write: false,
+			},
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis.activeContext`, {
 			type: "state",
-			common: { name: "Active context", type: "string", role: "text", read: true, write: false },
+			common: { name: objectName("Active context"), type: "string", role: "text", read: true, write: false },
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.baselineSampleCount`,
-			numberState("Active baseline sample count", "value"),
+			numberState(objectName("Active baseline sample count"), "value"),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.contextSampleCount`,
-			numberState("Active context sample count", "value"),
+			numberState(objectName("Active context sample count"), "value"),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.relevantSampleCount`,
-			numberState("Relevant baseline sample count", "value"),
+			numberState(objectName("Relevant baseline sample count"), "value"),
 		);
 		await this.setObjectNotExistsAsync(`${base}.analysis.relevantSampleScope`, {
 			type: "state",
-			common: { name: "Relevant baseline scope", type: "string", role: "info.status", read: true, write: false },
+			common: {
+				name: objectName("Relevant baseline scope"),
+				type: "string",
+				role: "info.status",
+				read: true,
+				write: false,
+			},
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis.evaluationAvailable`, {
 			type: "state",
-			common: { name: "Evaluation available", type: "boolean", role: "indicator", read: true, write: false },
+			common: {
+				name: objectName("Evaluation available"),
+				type: "boolean",
+				role: "indicator",
+				read: true,
+				write: false,
+			},
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis.detected`, {
 			type: "state",
 			common: {
-				name: "Persistent anomaly detected",
+				name: objectName("Persistent anomaly detected"),
 				type: "boolean",
 				role: "indicator",
 				read: true,
@@ -869,28 +908,41 @@ class AnomalyDetection extends utils.Adapter {
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis.status`, {
 			type: "state",
-			common: { name: "Model status", type: "string", role: "info.status", read: true, write: false },
+			common: { name: objectName("Model status"), type: "string", role: "info.status", read: true, write: false },
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis.reason`, {
 			type: "state",
-			common: { name: "Anomaly reason", type: "string", role: "text", read: true, write: false },
+			common: { name: objectName("Anomaly reason"), type: "string", role: "text", read: true, write: false },
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis.lastAnomaly`, {
 			type: "state",
-			common: { name: "Last high-score anomaly", type: "string", role: "date", read: true, write: false },
+			common: {
+				name: objectName("Last high-score anomaly"),
+				type: "string",
+				role: "date",
+				read: true,
+				write: false,
+			},
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.retrain`, {
 			type: "state",
-			common: { name: "Retrain model", type: "boolean", role: "button", read: false, write: true, def: false },
+			common: {
+				name: objectName("Retrain model"),
+				type: "boolean",
+				role: "button",
+				read: false,
+				write: true,
+				def: false,
+			},
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis.bootstrapStatus`, {
 			type: "state",
 			common: {
-				name: "Historical bootstrap status",
+				name: objectName("Historical bootstrap status"),
 				type: "string",
 				role: "info.status",
 				read: true,
@@ -903,32 +955,36 @@ class AnomalyDetection extends utils.Adapter {
 
 	private async ensureExplainabilityObjects(
 		base: string,
-		numberState: (name: string, role: string, extra?: Partial<ioBroker.StateCommon>) => ioBroker.SettableObject,
+		numberState: (
+			name: ioBroker.StringOrTranslated,
+			role: string,
+			extra?: Partial<ioBroker.StateCommon>,
+		) => ioBroker.SettableObject,
 	): Promise<void> {
 		await this.setObjectNotExistsAsync(`${base}.anomaly`, {
 			type: "channel",
-			common: { name: "Current anomaly assessment" },
+			common: { name: objectName("Current anomaly assessment") },
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.evaluation`, {
 			type: "channel",
-			common: { name: "Evaluation details" },
+			common: { name: objectName("Evaluation details") },
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.detectors`, {
 			type: "channel",
-			common: { name: "Detector scores" },
+			common: { name: objectName("Detector scores") },
 			native: {},
 		});
-		const textState = (name: string, role = "text"): ioBroker.SettableObject => ({
+		const textState = (name: Parameters<typeof objectName>[0], role = "text"): ioBroker.SettableObject => ({
 			type: "state",
-			common: { name, type: "string", role, read: true, write: false },
+			common: { name: objectName(name), type: "string", role, read: true, write: false },
 			native: {},
 		});
 		const booleanState: ioBroker.SettableObject = {
 			type: "state",
 			common: {
-				name: "Anomaly active",
+				name: objectName("Anomaly active"),
 				type: "boolean",
 				role: "indicator",
 				read: true,
@@ -940,7 +996,7 @@ class AnomalyDetection extends utils.Adapter {
 		await this.setObjectNotExistsAsync(`${base}.anomaly.active`, booleanState);
 		await this.setObjectNotExistsAsync(
 			`${base}.anomaly.score`,
-			numberState("Overall anomaly score", "value", { min: 0, max: 100, unit: "%" }),
+			numberState(objectName("Overall anomaly score"), "value", { min: 0, max: 100, unit: "%" }),
 		);
 		await this.setObjectNotExistsAsync(`${base}.anomaly.severity`, textState("Severity", "info.status"));
 		await this.setObjectNotExistsAsync(`${base}.anomaly.reasonCode`, textState("Reason code"));
@@ -948,27 +1004,30 @@ class AnomalyDetection extends utils.Adapter {
 		await this.setObjectNotExistsAsync(`${base}.anomaly.since`, textState("Anomaly since", "date"));
 		await this.setObjectNotExistsAsync(`${base}.anomaly.lastNormal`, textState("Last normal evaluation", "date"));
 		await this.setObjectNotExistsAsync(`${base}.evaluation.status`, textState("Evaluation status", "info.status"));
-		await this.setObjectNotExistsAsync(`${base}.evaluation.currentValue`, numberState("Current value", "value"));
+		await this.setObjectNotExistsAsync(
+			`${base}.evaluation.currentValue`,
+			numberState(objectName("Current value"), "value"),
+		);
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.expectedLow`,
-			numberState("Expected range lower bound", "value"),
+			numberState(objectName("Expected range lower bound"), "value"),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.expectedHigh`,
-			numberState("Expected range upper bound", "value"),
+			numberState(objectName("Expected range upper bound"), "value"),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.decisionLow`,
-			numberState("Decision range lower bound", "value"),
+			numberState(objectName("Decision range lower bound"), "value"),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.decisionHigh`,
-			numberState("Decision range upper bound", "value"),
+			numberState(objectName("Decision range upper bound"), "value"),
 		);
 		await this.setObjectNotExistsAsync(`${base}.evaluation.baselineType`, textState("Baseline type"));
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.baselineSamples`,
-			numberState("Baseline samples", "value"),
+			numberState(objectName("Baseline samples"), "value"),
 		);
 		await this.setObjectNotExistsAsync(`${base}.evaluation.context`, textState("Used context"));
 		await this.setObjectNotExistsAsync(`${base}.evaluation.timeBucket`, textState("Time bucket"));
@@ -983,7 +1042,7 @@ class AnomalyDetection extends utils.Adapter {
 		] as const) {
 			await this.setObjectNotExistsAsync(
 				`${base}.detectors.${id}`,
-				numberState(label, "value", { min: 0, max: 100 }),
+				numberState(objectName(label), "value", { min: 0, max: 100 }),
 			);
 		}
 	}
@@ -1389,7 +1448,11 @@ class AnomalyDetection extends utils.Adapter {
 		if (this.unloading) {
 			return;
 		}
-		this.bootstrappingSources.add(sourceId);
+		const release = acquireExclusiveWork(this.bootstrappingSources, sourceId);
+		if (!release) {
+			this.log.debug(`Ignoring retrain request while source is already training: ${sourceId}`);
+			return;
+		}
 		try {
 			if (source.initialTraining === "history" && source.historyInstance?.trim()) {
 				await this.bootstrapSource(sourceId, safeId, source, monitor, {
@@ -1406,9 +1469,9 @@ class AnomalyDetection extends utils.Adapter {
 				await this.persistModels();
 			}
 		} finally {
-			this.bootstrappingSources.delete(sourceId);
+			release();
 			if (!this.unloading) {
-				await this.setStateAsync(`sources.${safeId}.retrain`, { val: false, ack: true });
+				await this.setStateChangedAsync(`sources.${safeId}.retrain`, { val: false, ack: true });
 			}
 		}
 	}
@@ -1501,13 +1564,20 @@ class AnomalyDetection extends utils.Adapter {
 		for (const detector of result.detectors) {
 			explainability[`detectors.${detectorIds[detector.name]}`] = detector.score;
 		}
-		await Promise.all(
-			[...Object.entries(values), ...Object.entries(explainability)].map(([key, value]) =>
-				this.setStateAsync(`${key.includes(".") ? `sources.${safeId}` : base}.${key}`, {
-					val: value,
-					ack: true,
-				}),
-			),
+		const stateValues: Array<readonly [string, ioBroker.StateValue]> = [
+			...Object.entries(values),
+			...Object.entries(explainability),
+		].map(([key, value]) => [`${key.includes(".") ? `sources.${safeId}` : base}.${key}`, value]);
+		const alwaysWrite = new Set([
+			`${base}.actual`,
+			`sources.${safeId}.evaluation.currentValue`,
+			`sources.${safeId}.evaluation.lastEvaluated`,
+		]);
+		await writeStateValues(
+			stateValues,
+			alwaysWrite,
+			(id, value) => this.setStateAsync(id, { val: value, ack: true }),
+			(id, value) => this.setStateChangedAsync(id, { val: value, ack: true }),
 		);
 	}
 

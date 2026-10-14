@@ -24,6 +24,12 @@ The adapter combines these deterministic detectors:
 
 `score` is a deterministic severity/confidence value from 0 to 100, not a statistical probability and not a diagnosis of the physical cause.
 
+## Requirements
+
+- Node.js 22 or newer (as declared in `package.json`).
+- ioBroker js-controller 6.0.11 or newer (as declared in `io-package.json`).
+- ioBroker Admin 8.0.0 or newer for the custom administration tab. React 19 and MUI 9 are used by the federated Admin UI; compatibility with every Admin 8.x host build has not been independently verified, so use a current supported Admin release.
+
 | Score  | Interpretation |
 | ------ | -------------- |
 | 0–49   | normal         |

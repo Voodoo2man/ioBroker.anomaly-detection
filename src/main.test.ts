@@ -25,7 +25,6 @@ import {
 	type HistoryObjectStore,
 } from "./lib/history-source-resolver";
 import { cleanupStaleSources, type GeneratedSourceDevice, type SourceCleanupStore } from "./lib/source-cleanup";
-import { mergeStartupModels } from "./lib/model-persistence";
 
 const makeSeries = (values: number[]): SampleSeries => new SampleSeries(240, values);
 
@@ -499,7 +498,7 @@ describe("historical bootstrap", () => {
 		expect(monitor.sampleCount).to.equal(240);
 	});
 
-	it("keeps a working anomaly model when history import retains no samples", () => {
+	it("keeps a working anomaly model when history import is below minimumSamples", () => {
 		const settings = { enabled: true, id: "test.0.value", minimumSamples: 2 };
 		const monitor = new SourceMonitor(settings);
 		monitor.observe(10, 1_000);
@@ -507,7 +506,7 @@ describe("historical bootstrap", () => {
 		const before = monitor.toJSON();
 
 		const imported = monitor.replaceFromHistory(
-			[],
+			[{ value: 11, timestamp: 3_000 }],
 			"history.0",
 			"test.0.value",
 			3_000,
@@ -517,6 +516,116 @@ describe("historical bootstrap", () => {
 
 		expect(imported).to.equal(0);
 		expect(monitor.toJSON()).to.deep.equal(before);
+	});
+
+	it("preserves a full 240-sample model when a replacement import has one sample", () => {
+		const monitor = new SourceMonitor({ enabled: true, id: "test.0.value" });
+		const start = new Date(2026, 0, 1, 12, 0).getTime();
+		monitor.bootstrapFromHistory(
+			Array.from({ length: 240 }, (_, index) => ({ value: 10 + (index % 3), timestamp: start + index * 60_000 })),
+			"history.0",
+			"test.0.value",
+			start,
+			start + 239 * 60_000,
+			"config-a",
+		);
+		const before = monitor.toJSON();
+
+		const imported = monitor.replaceFromHistory(
+			[{ value: 25, timestamp: start + 240 * 60_000 }],
+			"history.0",
+			"test.0.value",
+			start + 240 * 60_000,
+			start + 240 * 60_000,
+			"config-b",
+		);
+
+		expect(imported).to.equal(0);
+		expect(monitor.toJSON()).to.deep.equal(before);
+	});
+
+	it("accepts history imports at the minimum sample count", () => {
+		const monitor = new SourceMonitor({ enabled: true, id: "test.0.value", minimumSamples: 2 });
+		monitor.observe(10, 1_000);
+		monitor.observe(12, 2_000);
+
+		const imported = monitor.replaceFromHistory(
+			[
+				{ value: 20, timestamp: 3_000 },
+				{ value: 21, timestamp: 4_000 },
+			],
+			"history.0",
+			"test.0.value",
+			3_000,
+			4_000,
+			"config-b",
+		);
+
+		expect(imported).to.equal(2);
+		expect(monitor.toJSON().lastValue).to.equal(21);
+	});
+
+	it("preserves live context baselines when replacing time and rate history", () => {
+		const monitor = new SourceMonitor({
+			enabled: true,
+			id: "test.0.value",
+			minimumSamples: 1,
+			enableContext: true,
+			timeContext: false,
+			enableRate: false,
+		});
+		monitor.observe(10, 1_000, "mode:on");
+		monitor.observe(12, 2_000, "mode:on");
+		const contextBefore = monitor.toJSON().context;
+
+		monitor.replaceFromHistory(
+			[
+				{ value: 20, timestamp: 3_000 },
+				{ value: 21, timestamp: 4_000 },
+			],
+			"history.0",
+			"test.0.value",
+			3_000,
+			4_000,
+			"config-b",
+		);
+
+		expect(monitor.toJSON().context).to.deep.equal(contextBefore);
+	});
+
+	it("accepts imports above the configured minimum", () => {
+		const monitor = new SourceMonitor({ enabled: true, id: "test.0.value", minimumSamples: 2 });
+		const imported = monitor.replaceFromHistory(
+			[
+				{ value: 20, timestamp: 3_000 },
+				{ value: 21, timestamp: 4_000 },
+				{ value: 22, timestamp: 5_000 },
+			],
+			"history.0",
+			"test.0.value",
+			3_000,
+			5_000,
+			"config-b",
+		);
+
+		expect(imported).to.equal(3);
+		expect(monitor.hasSufficientData).to.equal(true);
+	});
+
+	it("allows a small initial history import to start a new source learning", () => {
+		const monitor = new SourceMonitor({ enabled: true, id: "test.0.value", minimumSamples: 30 });
+		const imported = monitor.replaceFromHistory(
+			[{ value: 20, timestamp: 3_000 }],
+			"history.0",
+			"test.0.value",
+			3_000,
+			3_000,
+			"config-a",
+		);
+
+		expect(imported).to.equal(1);
+		expect(monitor.hasSufficientData).to.equal(false);
+		expect(monitor.toJSON().lastValue).to.equal(20);
 	});
 
 	it("replaces the old anomaly model only after history has usable samples", () => {

@@ -1,7 +1,21 @@
 import { expect } from "chai";
-import { drainPendingWork, enqueueSerializedWork } from "./pending-work";
+import { acquireExclusiveWork, drainPendingWork, enqueueSerializedWork } from "./pending-work";
 
 describe("pending adapter work", () => {
+	it("allows only one active task per key and independent keys concurrently", () => {
+		const active = new Set<string>();
+		const releaseA = acquireExclusiveWork(active, "source-a");
+		expect(releaseA).to.be.a("function");
+		expect(acquireExclusiveWork(active, "source-a")).to.equal(undefined);
+		const releaseB = acquireExclusiveWork(active, "source-b");
+		expect(releaseB).to.be.a("function");
+
+		releaseA?.();
+		releaseA?.();
+		expect(acquireExclusiveWork(active, "source-a")).to.be.a("function");
+		releaseB?.();
+	});
+
 	it("waits for work added while an earlier task is finishing", async () => {
 		const pending = new Set<Promise<void>>();
 		let finishInitial!: () => void;

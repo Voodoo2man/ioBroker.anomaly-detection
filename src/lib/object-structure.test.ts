@@ -6,6 +6,7 @@ describe("generated source object structure", () => {
 		expect(SOURCES_OBJECT_ID).to.equal("sources");
 		expect(sourcesObject.type).to.equal("folder");
 		expect(sourcesObject.common).to.have.property("name");
+		expect(sourcesObject.common.name).to.include({ en: "Monitored sources", de: "Überwachte Quellen" });
 		expect(sourcesObject.native).to.deep.equal({});
 	});
 

@@ -1,4 +1,6 @@
-/** Combines restored models with initialized snapshots while startup is incomplete.
+/**
+ * Combines restored models with initialized snapshots while startup is incomplete.
+ *
  * @param stored Models restored from storage after intentional stale-source cleanup.
  * @param current Snapshots for sources initialized during this startup.
  * @param startupComplete Whether current contains the complete configured-source snapshot.
