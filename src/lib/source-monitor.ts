@@ -823,6 +823,38 @@ export class SourceMonitor {
 		return retained.length;
 	}
 
+	/** Replaces this model only when the history contains at least one usable sample. */
+	public replaceFromHistory(
+		samples: readonly HistorySample[],
+		provider: string,
+		historySourceId: string,
+		start: number,
+		end: number,
+		configKey: string,
+	): number {
+		const replacement = new SourceMonitor(this.settings);
+		const imported = replacement.bootstrapFromHistory(samples, provider, historySourceId, start, end, configKey);
+		if (imported === 0) {
+			return 0;
+		}
+		this.valueModel = replacement.valueModel;
+		this.rateModel = replacement.rateModel;
+		this.contextualModel = replacement.contextualModel;
+		this.scopedStates.clear();
+		for (const [key, state] of replacement.scopedStates) {
+			this.scopedStates.set(key, state);
+		}
+		this.activeStateScope = replacement.activeStateScope;
+		this.lastValue = replacement.lastValue;
+		this.lastTimestamp = replacement.lastTimestamp;
+		this.lastContextKey = replacement.lastContextKey;
+		this.repeatedSince = replacement.repeatedSince;
+		this.lastNormal = replacement.lastNormal;
+		this.bootstrap = replacement.bootstrap;
+		this.diagnostics = replacement.diagnostics;
+		return imported;
+	}
+
 	/**
 	 *
 	 */

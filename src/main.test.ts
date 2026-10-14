@@ -25,6 +25,7 @@ import {
 	type HistoryObjectStore,
 } from "./lib/history-source-resolver";
 import { cleanupStaleSources, type GeneratedSourceDevice, type SourceCleanupStore } from "./lib/source-cleanup";
+import { mergeStartupModels } from "./lib/model-persistence";
 
 const makeSeries = (values: number[]): SampleSeries => new SampleSeries(240, values);
 
@@ -497,6 +498,50 @@ describe("historical bootstrap", () => {
 		);
 		expect(monitor.sampleCount).to.equal(240);
 	});
+
+	it("keeps a working anomaly model when history import retains no samples", () => {
+		const settings = { enabled: true, id: "test.0.value", minimumSamples: 2 };
+		const monitor = new SourceMonitor(settings);
+		monitor.observe(10, 1_000);
+		monitor.observe(12, 2_000);
+		const before = monitor.toJSON();
+
+		const imported = monitor.replaceFromHistory(
+			[],
+			"history.0",
+			"test.0.value",
+			3_000,
+			4_000,
+			"config-b",
+		);
+
+		expect(imported).to.equal(0);
+		expect(monitor.toJSON()).to.deep.equal(before);
+	});
+
+	it("replaces the old anomaly model only after history has usable samples", () => {
+		const settings = { enabled: true, id: "test.0.value", minimumSamples: 2 };
+		const monitor = new SourceMonitor(settings);
+		monitor.observe(10, 1_000);
+		monitor.observe(12, 2_000);
+
+		const imported = monitor.replaceFromHistory(
+			[
+				{ value: 20, timestamp: 3_000 },
+				{ value: 21, timestamp: 4_000 },
+			],
+			"history.0",
+			"test.0.value",
+			3_000,
+			4_000,
+			"config-b",
+		);
+
+		expect(imported).to.equal(2);
+		expect(monitor.toJSON().lastValue).to.equal(21);
+		expect(monitor.toJSON().lastTimestamp).to.equal(4_000);
+		expect(monitor.bootstrapMatches("config-b")).to.equal(true);
+	});
 });
 
 describe("restart sample deduplication", () => {
@@ -525,6 +570,22 @@ describe("restart sample deduplication", () => {
 		expect(monitor.toJSON().lastTimestamp).to.equal(1);
 		expect(monitor.isNewTimestamp(1)).to.equal(false);
 		expect(monitor.isNewTimestamp(2)).to.equal(true);
+	});
+
+	it("does not cache an invalid value timestamp before a valid correction arrives", () => {
+		const monitor = new SourceMonitor({
+			enabled: true,
+			id: "test.0.value",
+			minimumSamples: 1,
+			enableMad: false,
+			enableRate: false,
+		});
+		const invalid = monitor.observe("not numeric", 1_000);
+		const valid = monitor.observe(0, 1_000);
+
+		expect(invalid).to.equal(undefined);
+		expect(valid?.actual).to.equal(0);
+		expect(monitor.sampleCount).to.equal(1);
 	});
 
 	it("does not let an older context sample reset anomaly state or diagnostics", () => {

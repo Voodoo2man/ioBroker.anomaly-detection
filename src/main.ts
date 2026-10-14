@@ -3,10 +3,18 @@ import * as utils from "@iobroker/adapter-core";
 import { sanitizeHistory, type HistoryProvider, type HistorySample } from "./lib/history-provider";
 import { HistorySourceResolver, selectHistorySource, type HistorySource } from "./lib/history-source-resolver";
 import { cleanupStaleSources } from "./lib/source-cleanup";
-import { SourceMonitor, parseStoredModel, type ObservationResult, type SourceSettings } from "./lib/source-monitor";
+import {
+	SourceMonitor,
+	parseStoredModel,
+	type ObservationResult,
+	type SourceModelData,
+	type SourceSettings,
+} from "./lib/source-monitor";
 import { createContextPart } from "./lib/context-value";
 import { drainPendingWork, enqueueSerializedWork } from "./lib/pending-work";
 import { withAbortableTimeout } from "./lib/history-request";
+import { mergeStartupModels } from "./lib/model-persistence";
+import { observeWithTimestampCache } from "./lib/timestamp-cache";
 import { SOURCES_OBJECT_ID, sourcesObject } from "./lib/object-structure";
 import {
 	PredictiveModel,
@@ -127,6 +135,10 @@ class AnomalyDetection extends utils.Adapter {
 	private readonly pendingAdapterWork = new Set<Promise<void>>();
 	private readonly resultWriteQueues = new Map<string, Promise<void>>();
 	private readonly historyAbortController = new AbortController();
+	private restoredModels: Record<string, SourceModelData> = {};
+	private restoredPredictiveModels: Record<string, PredictiveModelData> = {};
+	private startupModelsLoaded = false;
+	private startupComplete = false;
 	private unloading = false;
 	private persistTimer: ioBroker.Timeout | undefined;
 
@@ -173,6 +185,9 @@ class AnomalyDetection extends utils.Adapter {
 		if (this.unloading) {
 			return;
 		}
+		this.restoredModels = stored;
+		this.restoredPredictiveModels = predictiveStored;
+		this.startupModelsLoaded = true;
 		const configuredIds = new Set<string>();
 		const bootstrapTasks: Array<() => Promise<void>> = [];
 		for (const source of this.config.sources ?? []) {
@@ -343,6 +358,7 @@ class AnomalyDetection extends utils.Adapter {
 			}
 		}
 		this.log.info(`Monitoring ${this.monitors.size} numerical state${this.monitors.size === 1 ? "" : "s"}`);
+		this.startupComplete = true;
 	}
 
 	private onStateChange(id: string, state: ioBroker.State | null | undefined): void {
@@ -562,17 +578,18 @@ class AnomalyDetection extends utils.Adapter {
 			if (monitor.isStaleTimestamp(timestamp)) {
 				return;
 			}
-			if (sourceTimestamp !== undefined) {
-				if (this.lastProcessedTimestamps.get(id) === sourceTimestamp) {
-					return;
-				}
-				this.lastProcessedTimestamps.set(id, sourceTimestamp);
-				if (this.lastProcessedTimestamps.size > MAX_PROCESSED_TIMESTAMP_ENTRIES) {
-					this.lastProcessedTimestamps.delete(this.lastProcessedTimestamps.keys().next().value as string);
-				}
-			}
 			const isNewSample = monitor.isNewTimestamp(timestamp);
-			const result = monitor.observe(state.val, timestamp, this.contextKey(id));
+			const observation = observeWithTimestampCache(
+				this.lastProcessedTimestamps,
+				id,
+				sourceTimestamp,
+				() => monitor.observe(state.val, timestamp, this.contextKey(id)),
+				MAX_PROCESSED_TIMESTAMP_ENTRIES,
+			);
+			if (observation.duplicate) {
+				return;
+			}
+			const result = observation.result;
 			if (!result) {
 				if (!this.invalidValueWarnings.has(id)) {
 					this.invalidValueWarnings.add(id);
@@ -1082,11 +1099,8 @@ class AnomalyDetection extends utils.Adapter {
 			if (samples.length === 0) {
 				throw new Error("History provider returned no valid samples");
 			}
-			if (needs.anomaly) {
-				monitor.reset();
-			}
 			const imported = needs.anomaly
-				? monitor.bootstrapFromHistory(
+				? monitor.replaceFromHistory(
 						anomalySamples,
 						providerName,
 						historySource.sourceId,
@@ -1512,13 +1526,17 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private async persistModels(): Promise<void> {
+		if (!this.startupModelsLoaded) {
+			return;
+		}
 		try {
-			const models = Object.fromEntries(
+			const current = Object.fromEntries(
 				[...this.monitors].map(([sourceId, monitor]) => [
 					this.sourceIds.get(sourceId)!,
 					{ ...monitor.toJSON(), configuredSourceId: sourceId },
 				]),
 			);
+			const models = mergeStartupModels<SourceModelData>(this.restoredModels, current, this.startupComplete);
 			await this.setStateAsync(MODEL_STATE_ID, { val: JSON.stringify(models), ack: true });
 		} catch (error) {
 			this.log.error(`Could not persist anomaly models: ${(error as Error).message}`);
@@ -1526,13 +1544,17 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private async persistPredictiveModels(): Promise<void> {
+		if (!this.startupModelsLoaded) {
+			return;
+		}
 		try {
-			const models = Object.fromEntries(
+			const current = Object.fromEntries(
 				[...this.predictiveModels].flatMap(([safeId, model]) => {
 					const data = model.toPersistenceJSON();
 					return data ? [[safeId, data]] : [];
 				}),
 			);
+			const models = mergeStartupModels(this.restoredPredictiveModels, current, this.startupComplete);
 			await this.setStateAsync(PREDICTIVE_MODEL_STATE_ID, { val: JSON.stringify(models), ack: true });
 		} catch (error) {
 			this.log.warn(`Could not persist predictive models: ${(error as Error).message}`);
