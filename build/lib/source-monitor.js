@@ -87,10 +87,11 @@ class SourceMonitor {
    * @param contextKey
    */
   observe(value, timestamp, contextKey) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
     if (typeof value !== "number" || !Number.isFinite(value) || !Number.isFinite(timestamp)) {
       return void 0;
     }
+    const isNewSample = this.isNewTimestamp(timestamp);
     const minSamples = (_a = this.settings.minimumSamples) != null ? _a : DEFAULTS.minimumSamples;
     const sensitivity = (_b = this.settings.sensitivity) != null ? _b : DEFAULTS.sensitivity;
     const threshold = (_c = this.settings.anomalyThreshold) != null ? _c : DEFAULTS.anomalyThreshold;
@@ -103,8 +104,12 @@ class SourceMonitor {
     const contextBaseline = contextIsLearning ? void 0 : this.settings.enableContext ? this.contextualModel.baseline(contextKey, timestamp, minSamples, timeContext, weekdayContext) : void 0;
     const baseline = contextBaseline != null ? contextBaseline : standardBaseline;
     const stateScope = contextBaseline && contextKey ? contextKey : this.settings.enableContext ? `fallback:${baseline.scope}` : "global";
-    const state = this.getScopedState(stateScope, timestamp);
-    if (stateScope !== this.activeStateScope) {
+    const state = isNewSample ? this.getScopedState(stateScope, timestamp) : (_f = this.scopedStates.get(stateScope)) != null ? _f : {
+      advanced: new import_advanced_detectors.AdvancedDetectors(),
+      lastUsed: timestamp,
+      detected: false
+    };
+    if (isNewSample && stateScope !== this.activeStateScope) {
       state.anomalySince = void 0;
       state.detected = false;
       this.activeStateScope = stateScope;
@@ -117,7 +122,7 @@ class SourceMonitor {
     const contextChanged = this.settings.enableContext === true && contextKey !== this.lastContextKey;
     const rate = contextChanged ? void 0 : this.calculateRate(value, timestamp);
     const results = [];
-    if (((_f = this.settings.enableMad) != null ? _f : true) && !contextIsLearning) {
+    if (((_g = this.settings.enableMad) != null ? _g : true) && !contextIsLearning) {
       const result = (0, import_detectors.detectMadDeviation)(value, baseline.series, minSamples, sensitivity);
       if (result) {
         results.push(
@@ -130,25 +135,27 @@ class SourceMonitor {
         );
       }
     }
-    if (((_g = this.settings.enableRate) != null ? _g : true) && !contextIsLearning) {
+    if (((_h = this.settings.enableRate) != null ? _h : true) && !contextIsLearning) {
       const rateBaseline = this.rateModel.baseline(timestamp, minSamples, timeContext, weekdayContext);
       const result = (0, import_detectors.detectRateDeviation)(rate, rateBaseline.series, minSamples, sensitivity);
       if (result) {
         results.push(result);
       }
     }
-    this.updateRepeated(value, timestamp);
-    if ((_h = this.settings.enableStuck) != null ? _h : false) {
+    if (isNewSample) {
+      this.updateRepeated(value, timestamp);
+    }
+    if ((_i = this.settings.enableStuck) != null ? _i : false) {
       const result = (0, import_detectors.detectStuck)(
         this.repeatedSince,
         timestamp,
-        (_i = this.settings.stuckDurationMinutes) != null ? _i : DEFAULTS.stuckDurationMinutes
+        (_j = this.settings.stuckDurationMinutes) != null ? _j : DEFAULTS.stuckDurationMinutes
       );
       if (result) {
         results.push(result);
       }
     }
-    const advanced = state.advanced.observe(
+    const advanced = isNewSample ? state.advanced.observe(
       expected === void 0 ? void 0 : value - expected,
       timestamp,
       0,
@@ -156,18 +163,20 @@ class SourceMonitor {
       this.settings.enableChangePoint === true,
       this.settings.enableTrend === true,
       sensitivity
-    );
-    if (advanced.changePoint) {
+    ) : void 0;
+    if (advanced == null ? void 0 : advanced.changePoint) {
       results.push(advanced.changePoint);
     }
-    if (advanced.trend) {
+    if (advanced == null ? void 0 : advanced.trend) {
       results.push(advanced.trend);
     }
     const scoring = (0, import_scoring.scoreDetectors)(results);
-    this.updatePersistentDetection(state, scoring.score, timestamp, threshold);
+    if (isNewSample) {
+      this.updatePersistentDetection(state, scoring.score, timestamp, threshold);
+    }
     const isStrongAnomaly = scoring.score >= threshold;
     const learningNewContext = contextIsLearning;
-    if (!isStrongAnomaly || advanced.adapt || learningNewContext) {
+    if (isNewSample && (!isStrongAnomaly || (advanced == null ? void 0 : advanced.adapt) || learningNewContext)) {
       this.valueModel.add(value, timestamp, timeContext, weekdayContext);
       if (this.settings.enableContext) {
         this.contextualModel.add(contextKey, value, timestamp, timeContext, weekdayContext);
@@ -176,12 +185,14 @@ class SourceMonitor {
         this.rateModel.add(rate, timestamp, timeContext, weekdayContext);
       }
     }
-    this.lastValue = value;
-    this.lastTimestamp = timestamp;
-    if (!isStrongAnomaly) {
-      this.lastNormal = timestamp;
+    if (isNewSample) {
+      this.lastValue = value;
+      this.lastTimestamp = timestamp;
+      if (!isStrongAnomaly) {
+        this.lastNormal = timestamp;
+      }
+      this.lastContextKey = this.settings.enableContext === true ? contextKey : void 0;
     }
-    this.lastContextKey = this.settings.enableContext === true ? contextKey : void 0;
     const sufficient = this.valueModel.sampleCount >= minSamples;
     const contextSampleCount = hasActiveContext ? this.contextualModel.sampleCount(contextKey) : 0;
     const relevantSampleScope = hasActiveContext ? "context" : baselineScope;
@@ -210,7 +221,7 @@ class SourceMonitor {
       reasonCode: contextIsLearning ? "insufficient_training_data" : scoring.reasonCode,
       detectors: scoring.detectors,
       lastEvaluated: timestamp,
-      anomalySince: (_j = this.scopedStates.get(this.activeStateScope)) == null ? void 0 : _j.anomalySince,
+      anomalySince: (_k = this.scopedStates.get(this.activeStateScope)) == null ? void 0 : _k.anomalySince,
       lastNormal: this.lastNormal,
       expectedLow: expectedRange == null ? void 0 : expectedRange.low,
       expectedHigh: expectedRange == null ? void 0 : expectedRange.high,
@@ -218,26 +229,28 @@ class SourceMonitor {
       decisionHigh: decisionRange == null ? void 0 : decisionRange.high,
       timeBucket: baseline.scope === "global" ? void 0 : String(
         Math.floor(
-          (new Date(timestamp).getHours() * 60 + new Date(timestamp).getMinutes()) / ((_k = this.settings.bucketMinutes) != null ? _k : DEFAULTS.bucketMinutes)
+          (new Date(timestamp).getHours() * 60 + new Date(timestamp).getMinutes()) / ((_l = this.settings.bucketMinutes) != null ? _l : DEFAULTS.bucketMinutes)
         )
       )
     };
-    this.diagnostics.push({
-      timestamp,
-      actual: observation.actual,
-      expected: observation.expected,
-      decisionLow: observation.decisionLow,
-      decisionHigh: observation.decisionHigh,
-      score: observation.score,
-      detected: observation.detected,
-      statusCode: observation.statusCode,
-      reasonCode: observation.reasonCode,
-      baselineScope: observation.baselineScope,
-      baselineSampleCount: observation.baselineSampleCount,
-      activeContext: observation.activeContext
-    });
-    if (this.diagnostics.length > 500) {
-      this.diagnostics.splice(0, this.diagnostics.length - 500);
+    if (isNewSample) {
+      this.diagnostics.push({
+        timestamp,
+        actual: observation.actual,
+        expected: observation.expected,
+        decisionLow: observation.decisionLow,
+        decisionHigh: observation.decisionHigh,
+        score: observation.score,
+        detected: observation.detected,
+        statusCode: observation.statusCode,
+        reasonCode: observation.reasonCode,
+        baselineScope: observation.baselineScope,
+        baselineSampleCount: observation.baselineSampleCount,
+        activeContext: observation.activeContext
+      });
+      if (this.diagnostics.length > 500) {
+        this.diagnostics.splice(0, this.diagnostics.length - 500);
+      }
     }
     return observation;
   }
@@ -274,6 +287,14 @@ class SourceMonitor {
   get hasSufficientData() {
     var _a;
     return this.valueModel.sampleCount >= ((_a = this.settings.minimumSamples) != null ? _a : DEFAULTS.minimumSamples);
+  }
+  /** Whether a timestamp is newer than the last learned sample. */
+  isNewTimestamp(timestamp) {
+    return Number.isFinite(timestamp) && (this.lastTimestamp === void 0 || timestamp > this.lastTimestamp);
+  }
+  /** Whether a timestamp predates the last learned sample. */
+  isStaleTimestamp(timestamp) {
+    return Number.isFinite(timestamp) && this.lastTimestamp !== void 0 && timestamp < this.lastTimestamp;
   }
   /** Number of retained global value-model samples, capped at the model capacity. */
   get sampleCount() {
@@ -331,6 +352,41 @@ class SourceMonitor {
       importedSamples: retained.length
     };
     return retained.length;
+  }
+  /**
+   * Replaces this model only when the history contains enough usable samples.
+   *
+   * @param samples Sanitized historical observations.
+   * @param provider Configured history adapter instance.
+   * @param historySourceId Effective state ID queried from history.
+   * @param start Requested history start timestamp.
+   * @param end Requested history end timestamp.
+   * @param configKey Import-relevant source configuration.
+   */
+  replaceFromHistory(samples, provider, historySourceId, start, end, configKey) {
+    const replacement = new SourceMonitor(this.settings);
+    const imported = replacement.bootstrapFromHistory(samples, provider, historySourceId, start, end, configKey);
+    if (imported === 0) {
+      return 0;
+    }
+    if (this.hasSufficientData && !replacement.hasSufficientData) {
+      return 0;
+    }
+    this.valueModel = replacement.valueModel;
+    this.rateModel = replacement.rateModel;
+    this.scopedStates.clear();
+    for (const [key, state] of replacement.scopedStates) {
+      this.scopedStates.set(key, state);
+    }
+    this.activeStateScope = replacement.activeStateScope;
+    this.lastValue = replacement.lastValue;
+    this.lastTimestamp = replacement.lastTimestamp;
+    this.lastContextKey = replacement.lastContextKey;
+    this.repeatedSince = replacement.repeatedSince;
+    this.lastNormal = replacement.lastNormal;
+    this.bootstrap = replacement.bootstrap;
+    this.diagnostics = replacement.diagnostics;
+    return imported;
   }
   /**
    *

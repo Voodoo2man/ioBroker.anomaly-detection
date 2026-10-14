@@ -75,4 +75,39 @@ describe("pending adapter work", () => {
 		await Promise.all([first, second]);
 		expect(events).to.deep.equal(["a1-start", "b1", "a1-end", "a2"]);
 	});
+
+	it("persists the newest snapshot when an earlier state write is delayed", async () => {
+		const queues = new Map<string, Promise<void>>();
+		const model = { samples: 1 };
+		const persisted: number[] = [];
+		let signalFirstSnapshot!: () => void;
+		let releaseFirst!: () => void;
+		const firstSnapshotTaken = new Promise<void>(resolve => {
+			signalFirstSnapshot = resolve;
+		});
+		const firstWriteGate = new Promise<void>(resolve => {
+			releaseFirst = resolve;
+		});
+
+		const persist = (): Promise<void> =>
+			enqueueSerializedWork(queues, "models", async () => {
+				const snapshot = JSON.stringify(model);
+				if (persisted.length === 0) {
+					signalFirstSnapshot();
+					await firstWriteGate;
+				}
+				persisted.push(JSON.parse(snapshot).samples);
+			});
+
+		const olderPersist = persist();
+		await firstSnapshotTaken;
+		model.samples = 2;
+		const newerPersist = persist();
+		expect(persisted).to.deep.equal([]);
+
+		releaseFirst();
+		await Promise.all([olderPersist, newerPersist]);
+		expect(persisted).to.deep.equal([1, 2]);
+		expect(persisted.at(-1)).to.equal(model.samples);
+	});
 });

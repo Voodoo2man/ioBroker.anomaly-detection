@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../src/lib/state-write.ts"],
+  "sourcesContent": ["/**\n * Writes event timestamps unconditionally and skips unchanged derived values.\n *\n * @param values State IDs and values to publish.\n * @param alwaysWrite State IDs whose timestamps represent each observation event.\n * @param write Writes a state even when its value is unchanged.\n * @param writeChanged Writes a state only when its value differs.\n */\nexport async function writeStateValues<T>(\n\tvalues: readonly (readonly [string, T])[],\n\talwaysWrite: ReadonlySet<string>,\n\twrite: (id: string, value: T) => Promise<unknown>,\n\twriteChanged: (id: string, value: T) => Promise<unknown>,\n): Promise<void> {\n\tawait Promise.all(values.map(([id, value]) => (alwaysWrite.has(id) ? write(id, value) : writeChanged(id, value))));\n}\n"],
+  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAQA,eAAsB,iBACrB,QACA,aACA,OACA,cACgB;AAChB,QAAM,QAAQ,IAAI,OAAO,IAAI,CAAC,CAAC,IAAI,KAAK,MAAO,YAAY,IAAI,EAAE,IAAI,MAAM,IAAI,KAAK,IAAI,aAAa,IAAI,KAAK,CAAE,CAAC;AAClH;",
+  "names": []
+}

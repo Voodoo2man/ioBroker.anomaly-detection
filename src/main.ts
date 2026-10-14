@@ -16,7 +16,7 @@ import { withAbortableTimeout } from "./lib/history-request";
 import { mergeStartupModels } from "./lib/model-persistence";
 import { observeWithTimestampCache } from "./lib/timestamp-cache";
 import { writeStateValues } from "./lib/state-write";
-import { SOURCES_OBJECT_ID, sourcesObject } from "./lib/object-structure";
+import { ensureStateUnit, SOURCES_OBJECT_ID, sourcesObject } from "./lib/object-structure";
 import { objectName } from "./lib/object-names";
 import {
 	PredictiveModel,
@@ -136,6 +136,7 @@ class AnomalyDetection extends utils.Adapter {
 	/** Startup, retrain, and state processing that must finish before shutdown persistence. */
 	private readonly pendingAdapterWork = new Set<Promise<void>>();
 	private readonly resultWriteQueues = new Map<string, Promise<void>>();
+	private readonly persistenceQueues = new Map<string, Promise<void>>();
 	private readonly historyAbortController = new AbortController();
 	private restoredModels: Record<string, SourceModelData> = {};
 	private restoredPredictiveModels: Record<string, PredictiveModelData> = {};
@@ -950,7 +951,7 @@ class AnomalyDetection extends utils.Adapter {
 			},
 			native: {},
 		});
-		await this.ensureExplainabilityObjects(base, numberState);
+		await this.ensureExplainabilityObjects(base, numberState, unit);
 	}
 
 	private async ensureExplainabilityObjects(
@@ -960,6 +961,7 @@ class AnomalyDetection extends utils.Adapter {
 			role: string,
 			extra?: Partial<ioBroker.StateCommon>,
 		) => ioBroker.SettableObject,
+		unit?: string,
 	): Promise<void> {
 		await this.setObjectNotExistsAsync(`${base}.anomaly`, {
 			type: "channel",
@@ -1006,24 +1008,33 @@ class AnomalyDetection extends utils.Adapter {
 		await this.setObjectNotExistsAsync(`${base}.evaluation.status`, textState("Evaluation status", "info.status"));
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.currentValue`,
-			numberState(objectName("Current value"), "value"),
+			numberState(objectName("Current value"), "value", unit ? { unit } : {}),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.expectedLow`,
-			numberState(objectName("Expected range lower bound"), "value"),
+			numberState(objectName("Expected range lower bound"), "value", unit ? { unit } : {}),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.expectedHigh`,
-			numberState(objectName("Expected range upper bound"), "value"),
+			numberState(objectName("Expected range upper bound"), "value", unit ? { unit } : {}),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.decisionLow`,
-			numberState(objectName("Decision range lower bound"), "value"),
+			numberState(objectName("Decision range lower bound"), "value", unit ? { unit } : {}),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.decisionHigh`,
-			numberState(objectName("Decision range upper bound"), "value"),
+			numberState(objectName("Decision range upper bound"), "value", unit ? { unit } : {}),
 		);
+		for (const id of [
+			`${base}.evaluation.currentValue`,
+			`${base}.evaluation.expectedLow`,
+			`${base}.evaluation.expectedHigh`,
+			`${base}.evaluation.decisionLow`,
+			`${base}.evaluation.decisionHigh`,
+		]) {
+			await ensureStateUnit(this, id, unit);
+		}
 		await this.setObjectNotExistsAsync(`${base}.evaluation.baselineType`, textState("Baseline type"));
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.baselineSamples`,
@@ -1599,36 +1610,40 @@ class AnomalyDetection extends utils.Adapter {
 		if (!this.startupModelsLoaded) {
 			return;
 		}
-		try {
-			const current = Object.fromEntries(
-				[...this.monitors].map(([sourceId, monitor]) => [
-					this.sourceIds.get(sourceId)!,
-					{ ...monitor.toJSON(), configuredSourceId: sourceId },
-				]),
-			);
-			const models = mergeStartupModels<SourceModelData>(this.restoredModels, current, this.startupComplete);
-			await this.setStateAsync(MODEL_STATE_ID, { val: JSON.stringify(models), ack: true });
-		} catch (error) {
-			this.log.error(`Could not persist anomaly models: ${(error as Error).message}`);
-		}
+		await enqueueSerializedWork(this.persistenceQueues, MODEL_STATE_ID, async () => {
+			try {
+				const current = Object.fromEntries(
+					[...this.monitors].map(([sourceId, monitor]) => [
+						this.sourceIds.get(sourceId)!,
+						{ ...monitor.toJSON(), configuredSourceId: sourceId },
+					]),
+				);
+				const models = mergeStartupModels<SourceModelData>(this.restoredModels, current, this.startupComplete);
+				await this.setStateAsync(MODEL_STATE_ID, { val: JSON.stringify(models), ack: true });
+			} catch (error) {
+				this.log.error(`Could not persist anomaly models: ${(error as Error).message}`);
+			}
+		});
 	}
 
 	private async persistPredictiveModels(): Promise<void> {
 		if (!this.startupModelsLoaded) {
 			return;
 		}
-		try {
-			const current = Object.fromEntries(
-				[...this.predictiveModels].flatMap(([safeId, model]) => {
-					const data = model.toPersistenceJSON();
-					return data ? [[safeId, data]] : [];
-				}),
-			);
-			const models = mergeStartupModels(this.restoredPredictiveModels, current, this.startupComplete);
-			await this.setStateAsync(PREDICTIVE_MODEL_STATE_ID, { val: JSON.stringify(models), ack: true });
-		} catch (error) {
-			this.log.warn(`Could not persist predictive models: ${(error as Error).message}`);
-		}
+		await enqueueSerializedWork(this.persistenceQueues, PREDICTIVE_MODEL_STATE_ID, async () => {
+			try {
+				const current = Object.fromEntries(
+					[...this.predictiveModels].flatMap(([safeId, model]) => {
+						const data = model.toPersistenceJSON();
+						return data ? [[safeId, data]] : [];
+					}),
+				);
+				const models = mergeStartupModels(this.restoredPredictiveModels, current, this.startupComplete);
+				await this.setStateAsync(PREDICTIVE_MODEL_STATE_ID, { val: JSON.stringify(models), ack: true });
+			} catch (error) {
+				this.log.warn(`Could not persist predictive models: ${(error as Error).message}`);
+			}
+		});
 	}
 
 	private createSourceId(sourceId: string): string {

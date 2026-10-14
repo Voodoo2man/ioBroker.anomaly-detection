@@ -18,7 +18,9 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var pending_work_exports = {};
 __export(pending_work_exports, {
-  drainPendingWork: () => drainPendingWork
+  acquireExclusiveWork: () => acquireExclusiveWork,
+  drainPendingWork: () => drainPendingWork,
+  enqueueSerializedWork: () => enqueueSerializedWork
 });
 module.exports = __toCommonJS(pending_work_exports);
 async function drainPendingWork(pending) {
@@ -26,8 +28,42 @@ async function drainPendingWork(pending) {
     await Promise.all([...pending]);
   }
 }
+function enqueueSerializedWork(queues, key, task) {
+  var _a;
+  const previous = (_a = queues.get(key)) != null ? _a : Promise.resolve();
+  const current = previous.then(task, task);
+  queues.set(key, current);
+  void current.then(
+    () => {
+      if (queues.get(key) === current) {
+        queues.delete(key);
+      }
+    },
+    () => {
+      if (queues.get(key) === current) {
+        queues.delete(key);
+      }
+    }
+  );
+  return current;
+}
+function acquireExclusiveWork(active, key) {
+  if (active.has(key)) {
+    return void 0;
+  }
+  active.add(key);
+  let released = false;
+  return () => {
+    if (!released) {
+      released = true;
+      active.delete(key);
+    }
+  };
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  drainPendingWork
+  acquireExclusiveWork,
+  drainPendingWork,
+  enqueueSerializedWork
 });
 //# sourceMappingURL=pending-work.js.map

@@ -26,16 +26,35 @@ const MAX_RECENT = 48;
 const MIN_RECENT = 12;
 const MIN_TREND_SPAN_MS = 6 * 60 * 60 * 1e3;
 class AdvancedDetectors {
+  /** Recent residuals used for change-point detection. */
   recentChange;
+  /** Recent residuals used for trend detection. */
   recentTrend;
+  /** Current direction of a candidate level shift. */
   candidateDirection;
+  /** Number of consecutive observations supporting the candidate. */
   candidateCount;
+  /** Creates an advanced detector state from optional persisted data.
+   *
+   * @param change Persisted change-point state.
+   * @param trend Persisted trend state.
+   */
   constructor(change, trend) {
     this.recentChange = sanitize(change == null ? void 0 : change.recent);
     this.recentTrend = sanitize(trend == null ? void 0 : trend.recent);
     this.candidateDirection = change == null ? void 0 : change.candidateDirection;
     this.candidateCount = Number.isInteger(change == null ? void 0 : change.candidateCount) ? Math.max(0, change.candidateCount) : 0;
   }
+  /** Evaluates one residual and updates the detector windows.
+   *
+   * @param residual Current residual value.
+   * @param timestamp Observation timestamp in milliseconds.
+   * @param longMedian Long-term residual median.
+   * @param longMad Long-term median absolute deviation.
+   * @param enableChangePoint Whether change-point detection is enabled.
+   * @param enableTrend Whether trend detection is enabled.
+   * @param sensitivity Detection sensitivity threshold.
+   */
   observe(residual, timestamp, longMedian, longMad, enableChangePoint, enableTrend, sensitivity) {
     if (residual === void 0 || !Number.isFinite(residual)) {
       return { adapt: false };
@@ -50,6 +69,7 @@ class AdvancedDetectors {
     const trend = enableTrend ? this.detectTrend(sensitivity) : void 0;
     return { changePoint, trend, adapt: changePoint !== void 0 };
   }
+  /** Serializes the detector state for persistence. */
   toJSON() {
     return {
       changePoint: {

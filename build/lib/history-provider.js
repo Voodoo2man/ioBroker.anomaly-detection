@@ -21,6 +21,16 @@ __export(history_provider_exports, {
   sanitizeHistory: () => sanitizeHistory
 });
 module.exports = __toCommonJS(history_provider_exports);
+function parseFiniteNumber(value) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : void 0;
+  }
+  if (typeof value !== "string" || value.trim() === "") {
+    return void 0;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : void 0;
+}
 function sanitizeHistory(raw, limit, preserveTimestamps = []) {
   if (!Number.isInteger(limit) || limit < 1) {
     return [];
@@ -32,9 +42,9 @@ function sanitizeHistory(raw, limit, preserveTimestamps = []) {
       continue;
     }
     const candidate = entry;
-    const value = typeof candidate.val === "number" ? candidate.val : Number(candidate.val);
-    const timestamp = typeof candidate.ts === "number" ? candidate.ts : Number(candidate.ts);
-    if (Number.isFinite(value) && Number.isFinite(timestamp) && timestamp > 0) {
+    const value = parseFiniteNumber(candidate.val);
+    const timestamp = parseFiniteNumber(candidate.ts);
+    if (value !== void 0 && timestamp !== void 0 && timestamp > 0) {
       byTimestamp.set(timestamp, { value, timestamp });
     }
   }
