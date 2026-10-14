@@ -85,6 +85,22 @@ jobs:
       contents: write
 
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: npm
+
+      - name: Install adapter dependencies
+        run: npm ci
+
+      - name: Install admin dependencies
+        run: npm ci --prefix src-admin
+
+      - name: Build current admin assets
+        run: npm run build:admin
+
       - uses: ioBroker/testing-action-deploy@v1
         with:
           node-version: '24.x'

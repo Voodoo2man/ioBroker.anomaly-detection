@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "anomaly-detection",
-    "version": "0.4.4",
+    "version": "0.4.5",
     "news": {
       "0.4.4": {
         "en": "Complete all common news translations and document the legacy changelog",

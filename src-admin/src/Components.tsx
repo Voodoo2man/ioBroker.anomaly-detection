@@ -858,7 +858,7 @@ function HistoryChart({
 			<Stack
 				direction="row"
 				spacing={0.5}
-				alignItems="center"
+				sx={{ alignItems: "center" }}
 			>
 				<Button
 					size="small"
@@ -1224,11 +1224,7 @@ function AnomalyCard({
 					sx={{ mt: 0.5 }}
 				>
 					{evaluation.actual !== undefined && (
-						<Grid
-							item
-							xs={12}
-							sm={6}
-						>
+						<Grid size={{ xs: 12, sm: 6 }}>
 							<Typography
 								variant="body2"
 								color="text.secondary"
@@ -1242,11 +1238,7 @@ function AnomalyCard({
 						</Grid>
 					)}
 					{range && (
-						<Grid
-							item
-							xs={12}
-							sm={6}
-						>
+						<Grid size={{ xs: 12, sm: 6 }}>
 							<Typography
 								variant="body2"
 								color="text.secondary"
@@ -2118,10 +2110,7 @@ export function AnomalyDashboard(props: Props): React.JSX.Element {
 						}))
 						.map(source => (
 							<Grid
-								item
-								xs={12}
-								md={6}
-								xl={4}
+								size={{ xs: 12, md: 6, xl: 4 }}
 								key={source.id}
 							>
 								<ForecastCard source={source} />
@@ -2137,10 +2126,7 @@ export function AnomalyDashboard(props: Props): React.JSX.Element {
 				>
 					{sources.map(source => (
 						<Grid
-							item
-							xs={12}
-							md={6}
-							xl={4}
+							size={{ xs: 12, md: 6, xl: 4 }}
 							key={source.id}
 						>
 							<AnomalyCard

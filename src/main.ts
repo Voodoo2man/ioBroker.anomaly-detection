@@ -124,6 +124,7 @@ class AnomalyDetection extends utils.Adapter {
 	private readonly lastProcessedTimestamps = new Map<string, number>();
 	/** Startup, retrain, and state processing that must finish before shutdown persistence. */
 	private readonly pendingAdapterWork = new Set<Promise<void>>();
+	private readonly historyAbortController = new AbortController();
 	private unloading = false;
 	private persistTimer: ioBroker.Timeout | undefined;
 
@@ -489,6 +490,9 @@ class AnomalyDetection extends utils.Adapter {
 		try {
 			const sourceTimestamp = typeof state.ts === "number" && Number.isFinite(state.ts) ? state.ts : undefined;
 			const timestamp = sourceTimestamp ?? Date.now();
+			if (monitor.isStaleTimestamp(timestamp)) {
+				return;
+			}
 			if (sourceTimestamp !== undefined) {
 				if (this.lastProcessedTimestamps.get(id) === sourceTimestamp) {
 					return;
@@ -932,6 +936,9 @@ class AnomalyDetection extends utils.Adapter {
 		});
 		try {
 			const historySource = await this.resolveConfiguredHistorySource(sourceId, providerName);
+			if (this.unloading) {
+				return;
+			}
 			await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
 				val: `Importing history from ${historySource.sourceId} via ${providerName}`,
 				ack: true,
@@ -954,6 +961,9 @@ class AnomalyDetection extends utils.Adapter {
 				historyLimit,
 				predictiveSettings?.maximumTrainingPoints ?? source.maxHistorySamples ?? 2000,
 			);
+			if (this.unloading) {
+				return;
+			}
 			const samples = historyResult.samples;
 			const memoryAfter = process.memoryUsage();
 			const mb = (value: number): string => (value / 1024 / 1024).toFixed(1);
@@ -1074,6 +1084,9 @@ class AnomalyDetection extends utils.Adapter {
 				});
 			}
 		} catch (error) {
+			if (this.unloading) {
+				return;
+			}
 			this.log.warn(`Historical bootstrap failed for ${sourceId}: ${(error as Error).message}`);
 			await this.persistModels();
 			await this.setStateAsync(`sources.${safeId}.analysis.status`, {
@@ -1118,6 +1131,9 @@ class AnomalyDetection extends utils.Adapter {
 		let finalAdaptiveSegmentDuration: number | undefined;
 		let adaptiveLimitHits = 0;
 		const load = async (segmentStart: number, segmentEnd: number, depth: number): Promise<void> => {
+			if (this.unloading) {
+				return;
+			}
 			providerCalls++;
 			segmentQueries++;
 			const raw = await this.withHistoryTimeout(provider.getHistory(sourceId, segmentStart, segmentEnd, limit));
@@ -1316,15 +1332,29 @@ class AnomalyDetection extends utils.Adapter {
 
 	private async withHistoryTimeout<T>(operation: Promise<T>): Promise<T> {
 		return new Promise<T>((resolve, reject) => {
-			const timer = this.setTimeout(() => reject(new Error("History request timed out")), HISTORY_TIMEOUT_MS);
+			let cancelTimeout = (): void => {};
+			let onAbort = (): void => {};
+			const finish = (callback: () => void): void => {
+				cancelTimeout();
+				this.historyAbortController.signal.removeEventListener("abort", onAbort);
+				callback();
+			};
+			onAbort = (): void => finish(() => reject(new Error("History request aborted during shutdown")));
+			this.historyAbortController.signal.addEventListener("abort", onAbort, { once: true });
+			const timer = this.setTimeout(
+				() => finish(() => reject(new Error("History request timed out"))),
+				HISTORY_TIMEOUT_MS,
+			);
+			cancelTimeout = (): void => this.clearTimeout(timer);
+			if (this.historyAbortController.signal.aborted) {
+				onAbort();
+			}
 			operation.then(
 				value => {
-					this.clearTimeout(timer);
-					resolve(value);
+					finish(() => resolve(value));
 				},
 				error => {
-					this.clearTimeout(timer);
-					reject(error instanceof Error ? error : new Error(String(error)));
+					finish(() => reject(error instanceof Error ? error : new Error(String(error))));
 				},
 			);
 		});
@@ -1463,6 +1493,7 @@ class AnomalyDetection extends utils.Adapter {
 
 	private onUnload(callback: () => void): void {
 		this.unloading = true;
+		this.historyAbortController.abort();
 		if (this.persistTimer) {
 			this.clearTimeout(this.persistTimer);
 			this.persistTimer = undefined;

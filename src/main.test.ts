@@ -514,12 +514,41 @@ describe("restart sample deduplication", () => {
 		expect(first).to.exist;
 		expect(monitor.isNewTimestamp(0)).to.equal(false);
 		expect(monitor.observe(0, 0)).to.exist;
+		expect(monitor.diagnosticSnapshots).to.have.length(1);
 		expect(monitor.observe(5, 1)).to.exist;
 		expect(monitor.sampleCount).to.equal(initialSampleCount + 1);
 		expect(monitor.toJSON().lastValue).to.equal(5);
 		expect(monitor.toJSON().lastTimestamp).to.equal(1);
 		expect(monitor.isNewTimestamp(1)).to.equal(false);
 		expect(monitor.isNewTimestamp(2)).to.equal(true);
+	});
+
+	it("does not let an older context sample reset anomaly state or diagnostics", () => {
+		const settings = {
+			enabled: true,
+			id: "test.0.value",
+			enableContext: true,
+			timeContext: false,
+			enableRate: false,
+			enableTrend: false,
+			enableChangePoint: false,
+			minimumSamples: 5,
+			minimumAnomalyDurationMinutes: 0,
+		};
+		const monitor = new SourceMonitor(settings);
+		const start = 10_000;
+		for (let index = 0; index < 6; index++) {
+			monitor.observe(10, start + index, "mode=on");
+		}
+		const anomaly = monitor.observe(100, start + 6, "mode=on");
+		const diagnosticsBeforeStaleSample = monitor.diagnosticSnapshots.length;
+		expect(anomaly?.detected).to.equal(true);
+
+		const stale = monitor.observe(0, start + 3, "mode=off");
+
+		expect(stale).to.exist;
+		expect(monitor.diagnosticSnapshots).to.have.length(diagnosticsBeforeStaleSample);
+		expect(monitor.observe(100, start + 7, "mode=on")?.detected).to.equal(true);
 	});
 
 	it("does not relearn a persisted sample across repeated restarts", () => {

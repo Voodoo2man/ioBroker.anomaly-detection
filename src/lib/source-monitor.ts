@@ -522,8 +522,14 @@ export class SourceMonitor {
 				: this.settings.enableContext
 					? `fallback:${baseline.scope}`
 					: "global";
-		const state = this.getScopedState(stateScope, timestamp);
-		if (stateScope !== this.activeStateScope) {
+		const state = isNewSample
+			? this.getScopedState(stateScope, timestamp)
+			: (this.scopedStates.get(stateScope) ?? {
+					advanced: new AdvancedDetectors(),
+					lastUsed: timestamp,
+					detected: false,
+				});
+		if (isNewSample && stateScope !== this.activeStateScope) {
 			state.anomalySince = undefined;
 			state.detected = false;
 			this.activeStateScope = stateScope;
@@ -684,22 +690,24 @@ export class SourceMonitor {
 							),
 						),
 		};
-		this.diagnostics.push({
-			timestamp,
-			actual: observation.actual,
-			expected: observation.expected,
-			decisionLow: observation.decisionLow,
-			decisionHigh: observation.decisionHigh,
-			score: observation.score,
-			detected: observation.detected,
-			statusCode: observation.statusCode,
-			reasonCode: observation.reasonCode,
-			baselineScope: observation.baselineScope,
-			baselineSampleCount: observation.baselineSampleCount,
-			activeContext: observation.activeContext,
-		});
-		if (this.diagnostics.length > 500) {
-			this.diagnostics.splice(0, this.diagnostics.length - 500);
+		if (isNewSample) {
+			this.diagnostics.push({
+				timestamp,
+				actual: observation.actual,
+				expected: observation.expected,
+				decisionLow: observation.decisionLow,
+				decisionHigh: observation.decisionHigh,
+				score: observation.score,
+				detected: observation.detected,
+				statusCode: observation.statusCode,
+				reasonCode: observation.reasonCode,
+				baselineScope: observation.baselineScope,
+				baselineSampleCount: observation.baselineSampleCount,
+				activeContext: observation.activeContext,
+			});
+			if (this.diagnostics.length > 500) {
+				this.diagnostics.splice(0, this.diagnostics.length - 500);
+			}
 		}
 		return observation;
 	}
@@ -741,6 +749,11 @@ export class SourceMonitor {
 	/** Whether a timestamp is newer than the last learned sample. */
 	public isNewTimestamp(timestamp: number): boolean {
 		return Number.isFinite(timestamp) && (this.lastTimestamp === undefined || timestamp > this.lastTimestamp);
+	}
+
+	/** Whether a timestamp predates the last learned sample. */
+	public isStaleTimestamp(timestamp: number): boolean {
+		return Number.isFinite(timestamp) && this.lastTimestamp !== undefined && timestamp < this.lastTimestamp;
 	}
 
 	/** Number of retained global value-model samples, capped at the model capacity. */
