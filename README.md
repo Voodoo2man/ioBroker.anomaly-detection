@@ -292,7 +292,7 @@ Aliases remain the configured live source. For historical bootstrap, the adapter
 
 The default training period is 30 days (minimum 7) with at most 1,000 imported samples. Invalid values and timestamps are discarded, duplicate timestamps are merged, and oversized result sets are evenly sampled over the whole time range. A robust MAD pass excludes obvious extreme historical values before learning. Rate baselines are calculated only between chronologically adjacent samples with no more than six hours between them. Historical gaps never create a stuck-state finding.
 
-An imported, compatible model is reused after restart. Changing the history provider, training period or sample limit triggers a new import. The runtime validates the selected provider and its enabled history configuration again before every import. Invalid legacy values such as `0` are rejected immediately and are never sent a `getHistory` request. To explicitly discard a model and start again, set `sources.<sanitized-source-id>.retrain` to `true`; the adapter resets it to `false` with `ack=true`. If history import fails or returns too little usable data, the source remains usable and continues with live learning. The states `analysis.bootstrapStatus`, `analysis.status`, and `analysis.sampleCount` show the import outcome.
+An imported, compatible model is reused after restart. Changing the history provider, training period or sample limit triggers a new import. The runtime validates the selected provider and its enabled history configuration again before every import. Invalid legacy values such as `0` are rejected immediately and are never sent a `getHistory` request. To explicitly discard and retrain the anomaly model, set `sources.<sanitized-source-id>.retrain` to `true`; the adapter resets it to `false` with `ack=true`. A complete predictive model is intentionally retained by this command and is rebuilt only when its history model or training basis needs bootstrap. If history import fails or returns too little usable data, the source remains usable and continues with live learning. The states `analysis.bootstrapStatus`, `analysis.status`, and `analysis.sampleCount` show the import outcome.
 
 ## Resulting objects
 
@@ -316,7 +316,7 @@ For each source, the adapter creates a safe deterministic object ID under:
 | `baselineSampleCount` | number / `value`       | retained samples in the baseline actually used; `0` for `insufficient`                                       |
 | `contextSampleCount`  | number / `value`       | retained samples in the matching context model after the current accepted observation; `0` when none matches |
 | `bootstrapStatus`     | string / `info.status` | outcome of optional historical initial training                                                              |
-| `retrain`             | boolean / `button`     | write `true` to reset and retrain this source                                                                |
+| `retrain`             | boolean / `button`     | write `true` to reset and retrain the anomaly model; a complete predictive model is retained                |
 
 All adapter-written result states use `ack=true`. `retrain` is the only command state and is reset with `ack=true` after handling.
 

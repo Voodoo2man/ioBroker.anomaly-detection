@@ -2,6 +2,11 @@
 import * as utils from "@iobroker/adapter-core";
 import { sanitizeHistory, type HistoryProvider, type HistorySample } from "./lib/history-provider";
 import { HistorySourceResolver, selectHistorySource, type HistorySource } from "./lib/history-source-resolver";
+import {
+	anomalyBootstrapStateUpdate,
+	manualRetrainBootstrapNeeds,
+	shouldBootstrapPredictiveHistory,
+} from "./lib/bootstrap-policy";
 import { cleanupStaleSources } from "./lib/source-cleanup";
 import {
 	SourceMonitor,
@@ -1067,11 +1072,11 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private shouldBootstrapPredictive(source: ConfiguredSource, model: PredictiveModel | undefined): boolean {
-		return (
-			source.initialTraining === "history" &&
-			!!source.historyInstance?.trim() &&
-			!!model &&
-			(model.needsHistoryBootstrap || model.needsTrainingBasisBootstrap)
+		return shouldBootstrapPredictiveHistory(
+			source.initialTraining === "history",
+			!!source.historyInstance?.trim(),
+			!!model,
+			!!model && (model.needsHistoryBootstrap || model.needsTrainingBasisBootstrap),
 		);
 	}
 
@@ -1088,11 +1093,14 @@ class AnomalyDetection extends utils.Adapter {
 		const providerName = source.historyInstance!.trim();
 		const end = Date.now();
 		const anomalyStart = end - Math.max(7, source.trainingDays ?? 30) * 24 * 60 * 60 * 1000;
-		await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: "importingHistory", ack: true });
-		await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
-			val: "Importing historical data",
-			ack: true,
-		});
+		const startedState = anomalyBootstrapStateUpdate(needs, "started", monitor.hasSufficientData);
+		if (startedState) {
+			await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: startedState.status, ack: true });
+			await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
+				val: startedState.bootstrapStatus,
+				ack: true,
+			});
+		}
 		if (this.unloading) {
 			return;
 		}
@@ -1101,10 +1109,12 @@ class AnomalyDetection extends utils.Adapter {
 			if (this.unloading) {
 				return;
 			}
-			await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
-				val: `Importing history from ${historySource.sourceId} via ${providerName}`,
-				ack: true,
-			});
+			if (needs.anomaly) {
+				await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
+					val: `Importing history from ${historySource.sourceId} via ${providerName}`,
+					ack: true,
+				});
+			}
 			const provider = new IoBrokerHistoryProvider(this, providerName);
 			const predictiveSettings = needs.predictive ? normalizePredictiveSettings(source.predictive) : undefined;
 			const predictiveStart = needs.predictive
@@ -1229,16 +1239,20 @@ class AnomalyDetection extends utils.Adapter {
 					ack: true,
 				});
 			}
-			const status =
-				monitor.hasSufficientData && (source.autoStartMonitoringAfterImport ?? true)
-					? "monitoring"
-					: "learning";
-			if (needs.anomaly) {
-				await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: status, ack: true });
-			}
-			if (needs.anomaly) {
+			const completedState = anomalyBootstrapStateUpdate(
+				needs,
+				"completed",
+				monitor.hasSufficientData,
+				source.autoStartMonitoringAfterImport ?? true,
+				imported,
+			);
+			if (completedState) {
+				await this.setStateAsync(`sources.${safeId}.analysis.status`, {
+					val: completedState.status,
+					ack: true,
+				});
 				await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
-					val: `Historical training completed (${imported} samples)`,
+					val: completedState.bootstrapStatus,
 					ack: true,
 				});
 			}
@@ -1248,14 +1262,14 @@ class AnomalyDetection extends utils.Adapter {
 			}
 			this.log.warn(`Historical bootstrap failed for ${sourceId}: ${(error as Error).message}`);
 			await this.persistModels();
-			await this.setStateAsync(`sources.${safeId}.analysis.status`, {
-				val: monitor.hasSufficientData ? "monitoring" : "learning",
-				ack: true,
-			});
-			await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
-				val: "Insufficient historical data, continuing live learning",
-				ack: true,
-			});
+			const failedState = anomalyBootstrapStateUpdate(needs, "failed", monitor.hasSufficientData);
+			if (failedState) {
+				await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: failedState.status, ack: true });
+				await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
+					val: failedState.bootstrapStatus,
+					ack: true,
+				});
+			}
 		}
 	}
 
@@ -1466,9 +1480,15 @@ class AnomalyDetection extends utils.Adapter {
 		}
 		try {
 			if (source.initialTraining === "history" && source.historyInstance?.trim()) {
+				const predictiveModel = this.predictiveModels.get(safeId);
 				await this.bootstrapSource(sourceId, safeId, source, monitor, {
-					anomaly: true,
-					predictive: this.shouldBootstrapPredictive(source, this.predictiveModels.get(safeId)),
+					...manualRetrainBootstrapNeeds(
+						source.initialTraining === "history",
+						!!source.historyInstance?.trim(),
+						!!predictiveModel,
+						!!predictiveModel &&
+							(predictiveModel.needsHistoryBootstrap || predictiveModel.needsTrainingBasisBootstrap),
+					),
 				});
 			} else {
 				monitor.reset();

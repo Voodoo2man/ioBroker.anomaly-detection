@@ -24,6 +24,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var utils = __toESM(require("@iobroker/adapter-core"));
 var import_history_provider = require("./lib/history-provider");
 var import_history_source_resolver = require("./lib/history-source-resolver");
+var import_bootstrap_policy = require("./lib/bootstrap-policy");
 var import_source_cleanup = require("./lib/source-cleanup");
 var import_source_monitor = require("./lib/source-monitor");
 var import_context_value = require("./lib/context-value");
@@ -982,7 +983,12 @@ class AnomalyDetection extends utils.Adapter {
   }
   shouldBootstrapPredictive(source, model) {
     var _a;
-    return source.initialTraining === "history" && !!((_a = source.historyInstance) == null ? void 0 : _a.trim()) && !!model && (model.needsHistoryBootstrap || model.needsTrainingBasisBootstrap);
+    return (0, import_bootstrap_policy.shouldBootstrapPredictiveHistory)(
+      source.initialTraining === "history",
+      !!((_a = source.historyInstance) == null ? void 0 : _a.trim()),
+      !!model,
+      !!model && (model.needsHistoryBootstrap || model.needsTrainingBasisBootstrap)
+    );
   }
   async bootstrapSource(sourceId, safeId, source, monitor, needs) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
@@ -992,11 +998,14 @@ class AnomalyDetection extends utils.Adapter {
     const providerName = source.historyInstance.trim();
     const end = Date.now();
     const anomalyStart = end - Math.max(7, (_a = source.trainingDays) != null ? _a : 30) * 24 * 60 * 60 * 1e3;
-    await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: "importingHistory", ack: true });
-    await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
-      val: "Importing historical data",
-      ack: true
-    });
+    const startedState = (0, import_bootstrap_policy.anomalyBootstrapStateUpdate)(needs, "started", monitor.hasSufficientData);
+    if (startedState) {
+      await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: startedState.status, ack: true });
+      await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
+        val: startedState.bootstrapStatus,
+        ack: true
+      });
+    }
     if (this.unloading) {
       return;
     }
@@ -1005,10 +1014,12 @@ class AnomalyDetection extends utils.Adapter {
       if (this.unloading) {
         return;
       }
-      await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
-        val: `Importing history from ${historySource.sourceId} via ${providerName}`,
-        ack: true
-      });
+      if (needs.anomaly) {
+        await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
+          val: `Importing history from ${historySource.sourceId} via ${providerName}`,
+          ack: true
+        });
+      }
       const provider = new IoBrokerHistoryProvider(this, providerName);
       const predictiveSettings = needs.predictive ? (0, import_predictive.normalizePredictiveSettings)(source.predictive) : void 0;
       const predictiveStart = needs.predictive ? end - (0, import_predictive.predictiveHistorySpanMinutes)(predictiveSettings, (_b = source.trainingDays) != null ? _b : 30) * 6e4 : anomalyStart;
@@ -1096,13 +1107,20 @@ class AnomalyDetection extends utils.Adapter {
           ack: true
         });
       }
-      const status = monitor.hasSufficientData && ((_n = source.autoStartMonitoringAfterImport) != null ? _n : true) ? "monitoring" : "learning";
-      if (needs.anomaly) {
-        await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: status, ack: true });
-      }
-      if (needs.anomaly) {
+      const completedState = (0, import_bootstrap_policy.anomalyBootstrapStateUpdate)(
+        needs,
+        "completed",
+        monitor.hasSufficientData,
+        (_n = source.autoStartMonitoringAfterImport) != null ? _n : true,
+        imported
+      );
+      if (completedState) {
+        await this.setStateAsync(`sources.${safeId}.analysis.status`, {
+          val: completedState.status,
+          ack: true
+        });
         await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
-          val: `Historical training completed (${imported} samples)`,
+          val: completedState.bootstrapStatus,
           ack: true
         });
       }
@@ -1112,14 +1130,14 @@ class AnomalyDetection extends utils.Adapter {
       }
       this.log.warn(`Historical bootstrap failed for ${sourceId}: ${error.message}`);
       await this.persistModels();
-      await this.setStateAsync(`sources.${safeId}.analysis.status`, {
-        val: monitor.hasSufficientData ? "monitoring" : "learning",
-        ack: true
-      });
-      await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
-        val: "Insufficient historical data, continuing live learning",
-        ack: true
-      });
+      const failedState = (0, import_bootstrap_policy.anomalyBootstrapStateUpdate)(needs, "failed", monitor.hasSufficientData);
+      if (failedState) {
+        await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: failedState.status, ack: true });
+        await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
+          val: failedState.bootstrapStatus,
+          ack: true
+        });
+      }
     }
   }
   async loadSegmentedHistory(provider, sourceId, start, end, limit, maximumTrainingPoints) {
@@ -1290,7 +1308,7 @@ class AnomalyDetection extends utils.Adapter {
     }
   }
   async retrainSource(sourceId, safeId, source, monitor) {
-    var _a;
+    var _a, _b;
     if (this.unloading) {
       return;
     }
@@ -1301,9 +1319,14 @@ class AnomalyDetection extends utils.Adapter {
     }
     try {
       if (source.initialTraining === "history" && ((_a = source.historyInstance) == null ? void 0 : _a.trim())) {
+        const predictiveModel = this.predictiveModels.get(safeId);
         await this.bootstrapSource(sourceId, safeId, source, monitor, {
-          anomaly: true,
-          predictive: this.shouldBootstrapPredictive(source, this.predictiveModels.get(safeId))
+          ...(0, import_bootstrap_policy.manualRetrainBootstrapNeeds)(
+            source.initialTraining === "history",
+            !!((_b = source.historyInstance) == null ? void 0 : _b.trim()),
+            !!predictiveModel,
+            !!predictiveModel && (predictiveModel.needsHistoryBootstrap || predictiveModel.needsTrainingBasisBootstrap)
+          )
         });
       } else {
         monitor.reset();

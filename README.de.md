@@ -215,7 +215,7 @@ Für eine Quelle **Vorhandene History importieren** auswählen und danach eine *
 
 Standardmäßig werden 30 Tage und höchstens 1.000 Samples importiert. Ungültige Werte und Zeitstempel werden verworfen, doppelte Zeitstempel zusammengeführt und übergroße Ergebnismengen gleichmäßig über den gesamten Zeitraum verteilt. Offensichtliche historische Extremwerte werden vor dem Lernen robust ausgeschlossen. Große Zeitlücken erzeugen niemals eine Festhängend-Anomalie.
 
-Ein importiertes Modell wird nach einem Neustart wiederverwendet. Eine Änderung von History-Quelle, Zeitraum oder Sample-Limit startet einen neuen Import. Bei fehlgeschlagenem oder zu kleinem Import bleibt die Quelle nutzbar und lernt live weiter. Über `sources.<sanitized-source-id>.retrain = true` kann ein Modell ausdrücklich verworfen und neu trainiert werden; der Adapter setzt den Wert anschließend mit `ack=true` auf `false` zurück.
+Ein importiertes Modell wird nach einem Neustart wiederverwendet. Eine Änderung von History-Quelle, Zeitraum oder Sample-Limit startet einen neuen Import. Bei fehlgeschlagenem oder zu kleinem Import bleibt die Quelle nutzbar und lernt live weiter. Über `sources.<sanitized-source-id>.retrain = true` wird ausdrücklich das Anomaliemodell verworfen und neu trainiert; ein vollständiges Predictive-Modell bleibt dabei erhalten und wird nur bei erforderlichem History-Bootstrap neu aufgebaut. Der Adapter setzt den Wert anschließend mit `ack=true` auf `false` zurück.
 
 ## Erzeugte Objekte
 
@@ -239,7 +239,7 @@ Für jede Quelle legt der Adapter unter folgendem Pfad eine sichere, determinist
 | `baselineSampleCount` | number / `value`       | Samples der tatsächlich verwendeten Baseline                         |
 | `contextSampleCount`  | number / `value`       | Samples im passenden Kontextmodell                                   |
 | `bootstrapStatus`     | string / `info.status` | Ergebnis des optionalen History-Imports                              |
-| `retrain`             | boolean / `button`     | `true` schreiben, um Quelle und Modell zurückzusetzen                |
+| `retrain`             | boolean / `button`     | `true` schreiben, um das Anomaliemodell zurückzusetzen und neu zu trainieren; ein vollständiges Predictive-Modell bleibt erhalten |
 
 Alle vom Adapter geschriebenen Ergebnis-States verwenden `ack=true`. `retrain` ist der einzige Befehls-State und wird nach der Verarbeitung zurückgesetzt.
 
