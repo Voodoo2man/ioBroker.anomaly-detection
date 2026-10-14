@@ -5,7 +5,7 @@ import { HistorySourceResolver, selectHistorySource, type HistorySource } from "
 import { cleanupStaleSources } from "./lib/source-cleanup";
 import { SourceMonitor, parseStoredModel, type ObservationResult, type SourceSettings } from "./lib/source-monitor";
 import { createContextPart } from "./lib/context-value";
-import { drainPendingWork } from "./lib/pending-work";
+import { drainPendingWork, enqueueSerializedWork } from "./lib/pending-work";
 import { withAbortableTimeout } from "./lib/history-request";
 import { SOURCES_OBJECT_ID, sourcesObject } from "./lib/object-structure";
 import {
@@ -125,6 +125,7 @@ class AnomalyDetection extends utils.Adapter {
 	private readonly lastProcessedTimestamps = new Map<string, number>();
 	/** Startup, retrain, and state processing that must finish before shutdown persistence. */
 	private readonly pendingAdapterWork = new Set<Promise<void>>();
+	private readonly resultWriteQueues = new Map<string, Promise<void>>();
 	private readonly historyAbortController = new AbortController();
 	private unloading = false;
 	private persistTimer: ioBroker.Timeout | undefined;
@@ -139,11 +140,23 @@ class AnomalyDetection extends utils.Adapter {
 
 	private async onReady(): Promise<void> {
 		await this.ensureModelState();
+		if (this.unloading) {
+			return;
+		}
 		// The source container is a real parent of every generated source device.
 		// Creating it on every startup also repairs existing installations.
 		await this.setObjectNotExistsAsync(SOURCES_OBJECT_ID, sourcesObject);
+		if (this.unloading) {
+			return;
+		}
 		const predictiveStored = parsePredictiveModels((await this.getStateAsync(PREDICTIVE_MODEL_STATE_ID))?.val);
+		if (this.unloading) {
+			return;
+		}
 		const persistedValue = (await this.getStateAsync(MODEL_STATE_ID))?.val;
+		if (this.unloading) {
+			return;
+		}
 		let stored = parseStoredModel(persistedValue);
 		if (
 			typeof persistedValue === "string" &&
@@ -157,9 +170,15 @@ class AnomalyDetection extends utils.Adapter {
 			(this.config.sources ?? []).flatMap(source => (source.id?.trim() ? [source.id.trim()] : [])),
 		);
 		stored = await this.cleanupStaleSources(configuredSourceIds, stored);
+		if (this.unloading) {
+			return;
+		}
 		const configuredIds = new Set<string>();
 		const bootstrapTasks: Array<() => Promise<void>> = [];
 		for (const source of this.config.sources ?? []) {
+			if (this.unloading) {
+				return;
+			}
 			if (!source.enabled || !source.id?.trim()) {
 				continue;
 			}
@@ -170,6 +189,9 @@ class AnomalyDetection extends utils.Adapter {
 			}
 			configuredIds.add(id);
 			const object = await this.getForeignObjectAsync(id);
+			if (this.unloading) {
+				return;
+			}
 			if (!object) {
 				this.log.warn(`Configured source state does not exist yet: ${id}`);
 			} else if (object.type !== "state" || object.common.type !== "number") {
@@ -230,6 +252,9 @@ class AnomalyDetection extends utils.Adapter {
 					continue;
 				}
 				const contextObject = await this.getForeignObjectAsync(contextId);
+				if (this.unloading) {
+					return;
+				}
 				const name = contextObject?.common?.name;
 				if (typeof name === "string") {
 					this.contextNames.set(contextId, name);
@@ -242,7 +267,13 @@ class AnomalyDetection extends utils.Adapter {
 				}
 			}
 			await this.registerContexts(id, source);
+			if (this.unloading) {
+				return;
+			}
 			await this.ensureSourceObjects(safeId, source, object?.common.unit);
+			if (this.unloading) {
+				return;
+			}
 			this.subscribeForeignStates(id);
 			const predictiveModel = this.predictiveModels.get(safeId);
 			const anomalyBootstrap = this.shouldBootstrap(source, monitor);
@@ -297,7 +328,13 @@ class AnomalyDetection extends utils.Adapter {
 		// change event after a restart, but the dashboard must still receive the
 		// current evaluation (including the valid numeric value 0).
 		for (const [sourceId, safeId] of this.sourceIds) {
+			if (this.unloading) {
+				return;
+			}
 			const state = await this.getForeignStateAsync(sourceId);
+			if (this.unloading) {
+				return;
+			}
 			if (state) {
 				const monitor = this.monitors.get(sourceId);
 				if (monitor) {
@@ -353,19 +390,22 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private onMessage(message: ioBroker.Message): void {
-		if (!message.callback) {
+		if (this.unloading || !message.callback) {
 			return;
 		}
 		if (message.command === "getHistoryProviders") {
-			void this.replyWithHistoryProviders(message);
+			this.trackAdapterWork(this.replyWithHistoryProviders(message), "History-provider request");
 		} else if (message.command === "tab") {
 			void this.replyWithAnomalyTab(message);
 		} else if (message.command === "chartData") {
-			void this.replyWithChartData(message);
+			this.trackAdapterWork(this.replyWithChartData(message), "Chart history request");
 		}
 	}
 
 	private async replyWithChartData(message: ioBroker.Message): Promise<void> {
+		if (this.unloading) {
+			return;
+		}
 		const sourceId = typeof message.message?.sourceId === "string" ? message.message.sourceId.trim() : "";
 		const start = Number(message.message?.start) || Date.now() - 24 * 60 * 60 * 1000;
 		const end = Number(message.message?.end) || Date.now();
@@ -383,9 +423,17 @@ class AnomalyDetection extends utils.Adapter {
 			return;
 		}
 		try {
-			const historySource = await this.resolveConfiguredHistorySource(sourceId, source.historyInstance.trim());
+			const historySource = await this.withHistoryTimeout(
+				this.resolveConfiguredHistorySource(sourceId, source.historyInstance.trim()),
+			);
+			if (this.unloading) {
+				return;
+			}
 			const provider = new IoBrokerHistoryProvider(this, source.historyInstance.trim());
-			const raw = await provider.getHistory(historySource.sourceId, start, end, limit);
+			const raw = await this.withHistoryTimeout(provider.getHistory(historySource.sourceId, start, end, limit));
+			if (this.unloading) {
+				return;
+			}
 			const diagnostics = monitor.diagnosticSnapshots.filter(
 				diagnostic => diagnostic.timestamp >= start && diagnostic.timestamp <= end,
 			);
@@ -406,6 +454,9 @@ class AnomalyDetection extends utils.Adapter {
 				message.callback,
 			);
 		} catch {
+			if (this.unloading) {
+				return;
+			}
 			this.sendTo(
 				message.from,
 				message.command,
@@ -460,8 +511,22 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private async replyWithHistoryProviders(message: ioBroker.Message): Promise<void> {
+		if (this.unloading) {
+			return;
+		}
 		const sourceId = typeof message.message?.sourceId === "string" ? message.message.sourceId.trim() : "";
-		const sources = await this.historySourcesForAdmin(sourceId);
+		let sources: HistorySource[];
+		try {
+			sources = await this.withHistoryTimeout(this.historySourcesForAdmin(sourceId));
+		} catch {
+			if (this.unloading) {
+				return;
+			}
+			sources = [];
+		}
+		if (this.unloading) {
+			return;
+		}
 		this.sendTo(
 			message.from,
 			message.command,
@@ -488,6 +553,9 @@ class AnomalyDetection extends utils.Adapter {
 		monitor: SourceMonitor,
 		state: ioBroker.State,
 	): Promise<void> {
+		if (this.unloading) {
+			return;
+		}
 		try {
 			const sourceTimestamp = typeof state.ts === "number" && Number.isFinite(state.ts) ? state.ts : undefined;
 			const timestamp = sourceTimestamp ?? Date.now();
@@ -515,7 +583,7 @@ class AnomalyDetection extends utils.Adapter {
 			this.invalidValueWarnings.delete(id);
 			this.evaluations.set(id, result);
 			this.schedulePersistence();
-			await this.writeResult(safeId, result);
+			await enqueueSerializedWork(this.resultWriteQueues, safeId, () => this.writeResult(safeId, result));
 			if (isNewSample) {
 				await this.updatePredictive(safeId, state.val, timestamp);
 			}
@@ -927,6 +995,9 @@ class AnomalyDetection extends utils.Adapter {
 		monitor: SourceMonitor,
 		needs: { anomaly: boolean; predictive: boolean },
 	): Promise<void> {
+		if (this.unloading) {
+			return;
+		}
 		const providerName = source.historyInstance!.trim();
 		const end = Date.now();
 		const anomalyStart = end - Math.max(7, source.trainingDays ?? 30) * 24 * 60 * 60 * 1000;
@@ -935,6 +1006,9 @@ class AnomalyDetection extends utils.Adapter {
 			val: "Importing historical data",
 			ack: true,
 		});
+		if (this.unloading) {
+			return;
+		}
 		try {
 			const historySource = await this.resolveConfiguredHistorySource(sourceId, providerName);
 			if (this.unloading) {
@@ -1298,15 +1372,18 @@ class AnomalyDetection extends utils.Adapter {
 		source: ConfiguredSource,
 		monitor: SourceMonitor,
 	): Promise<void> {
+		if (this.unloading) {
+			return;
+		}
 		this.bootstrappingSources.add(sourceId);
 		try {
-			monitor.reset();
 			if (source.initialTraining === "history" && source.historyInstance?.trim()) {
 				await this.bootstrapSource(sourceId, safeId, source, monitor, {
 					anomaly: true,
 					predictive: this.shouldBootstrapPredictive(source, this.predictiveModels.get(safeId)),
 				});
 			} else {
+				monitor.reset();
 				await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: "learning", ack: true });
 				await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
 					val: "Model reset; learning live values",
@@ -1316,7 +1393,9 @@ class AnomalyDetection extends utils.Adapter {
 			}
 		} finally {
 			this.bootstrappingSources.delete(sourceId);
-			await this.setStateAsync(`sources.${safeId}.retrain`, { val: false, ack: true });
+			if (!this.unloading) {
+				await this.setStateAsync(`sources.${safeId}.retrain`, { val: false, ack: true });
+			}
 		}
 	}
 
@@ -1332,7 +1411,13 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private async withHistoryTimeout<T>(operation: Promise<T>): Promise<T> {
-		return withAbortableTimeout(operation, this.historyAbortController.signal, HISTORY_TIMEOUT_MS);
+		return withAbortableTimeout(
+			operation,
+			this.historyAbortController.signal,
+			HISTORY_TIMEOUT_MS,
+			this.setTimeout.bind(this),
+			this.clearTimeout.bind(this),
+		);
 	}
 
 	private bootstrapConfigKey(source: ConfiguredSource): string {

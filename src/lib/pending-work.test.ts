@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { drainPendingWork } from "./pending-work";
+import { drainPendingWork, enqueueSerializedWork } from "./pending-work";
 
 describe("pending adapter work", () => {
 	it("waits for work added while an earlier task is finishing", async () => {
@@ -32,5 +32,33 @@ describe("pending adapter work", () => {
 		finishFollowUp();
 		await drain;
 		expect(drained).to.equal(true);
+	});
+
+	it("serializes every result write for one source without blocking another source", async () => {
+		const queues = new Map<string, Promise<void>>();
+		const events: string[] = [];
+		let releaseFirst!: () => void;
+		const firstGate = new Promise<void>(resolve => {
+			releaseFirst = resolve;
+		});
+		const first = enqueueSerializedWork(queues, "source-a", async () => {
+			events.push("a1-start");
+			await firstGate;
+			events.push("a1-end");
+		});
+		const second = enqueueSerializedWork(queues, "source-a", () => {
+			events.push("a2");
+			return Promise.resolve();
+		});
+		const independent = enqueueSerializedWork(queues, "source-b", () => {
+			events.push("b1");
+			return Promise.resolve();
+		});
+
+		await independent;
+		expect(events).to.deep.equal(["a1-start", "b1"]);
+		releaseFirst();
+		await Promise.all([first, second]);
+		expect(events).to.deep.equal(["a1-start", "b1", "a1-end", "a2"]);
 	});
 });

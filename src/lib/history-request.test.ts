@@ -1,6 +1,9 @@
 import { expect } from "chai";
 import { withAbortableTimeout } from "./history-request";
 
+const withTestTimeout = <T>(operation: Promise<T>, signal: AbortSignal, timeoutMs: number): Promise<T> =>
+	withAbortableTimeout(operation, signal, timeoutMs, setTimeout, clearTimeout);
+
 describe("abortable history requests", () => {
 	it("stops waiting when shutdown aborts a segmented request", async () => {
 		const controller = new AbortController();
@@ -8,7 +11,7 @@ describe("abortable history requests", () => {
 		const request = new Promise<string[]>(resolve => {
 			resolveRequest = resolve;
 		});
-		const waiting = withAbortableTimeout(request, controller.signal, 1000);
+		const waiting = withTestTimeout(request, controller.signal, 1000);
 
 		controller.abort();
 
@@ -27,7 +30,7 @@ describe("abortable history requests", () => {
 		const request = new Promise<string[]>(() => {});
 		let error: Error | undefined;
 		try {
-			await withAbortableTimeout(request, new AbortController().signal, 1);
+			await withTestTimeout(request, new AbortController().signal, 1);
 		} catch (caught) {
 			error = caught as Error;
 		}
@@ -36,7 +39,7 @@ describe("abortable history requests", () => {
 
 	it("does not replace a completed response when shutdown happens later", async () => {
 		const controller = new AbortController();
-		const response = await withAbortableTimeout(Promise.resolve([1]), controller.signal, 1000);
+		const response = await withTestTimeout(Promise.resolve([1]), controller.signal, 1000);
 
 		controller.abort();
 
