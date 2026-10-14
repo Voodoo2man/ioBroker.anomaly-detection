@@ -255,6 +255,16 @@ Verarbeitung und Modellspeicherung erfolgen vollständig lokal in ioBroker. Kein
 
 ## Changelog
 
+### 0.4.5 (2026-10-14)
+
+- Ungültige und veraltete History-Werte verwerfen und verhindern, dass doppelte Messwerte erneut gelernt werden.
+- History-Importe beim Shutdown sauber beenden und die aktuelle React-Administrationsoberfläche beim Release mitbauen.
+- Admin-Abhängigkeiten auf React 19, MUI 9 und aktuelle ioBroker-GUI-Komponenten aktualisieren.
+
+### 0.4.4 (2026-10-07)
+
+- Alle Common-News-Übersetzungen vervollständigt und das alte Changelog dokumentiert.
+
 ### 0.4.3 (2026-10-07)
 
 - Die Sprache des Admin-Tabs folgt jetzt der in ioBroker eingestellten Systemsprache.

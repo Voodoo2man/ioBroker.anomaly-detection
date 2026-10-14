@@ -88,10 +88,9 @@ jobs:
       - uses: ioBroker/testing-action-deploy@v1
         with:
           node-version: '24.x'
-          # Uncomment the following line if your adapter cannot be installed using 'npm ci'
-          # install-command: 'npm install'
+          install-command: 'npm ci && npm ci --prefix src-admin'
           build: true
-          build-command: 'npm ci --prefix src-admin && npm run build:full'
+          build-command: 'npm run build:full'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 #
 #          # When using Sentry for error reporting, Sentry can be informed about new releases

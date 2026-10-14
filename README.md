@@ -338,6 +338,12 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 
 ## Changelog
 
+### 0.4.5 (2026-10-14)
+
+- Reject invalid and stale history samples and prevent duplicate samples from being learned again.
+- Stop history imports cleanly during shutdown and build the current React administration interface as part of release packaging.
+- Update the administration interface dependencies to React 19, MUI 9, and current ioBroker GUI components.
+
 ### 0.4.4 (2026-10-07)
 
 - Complete all common news translations and document the legacy changelog.

@@ -513,8 +513,12 @@ describe("restart sample deduplication", () => {
 
 		expect(first).to.exist;
 		expect(monitor.isNewTimestamp(0)).to.equal(false);
-		expect(monitor.observe(0, 0)).to.exist;
+		const repeated = monitor.observe(5, 0);
+		expect(repeated).to.exist;
+		expect(repeated?.actual).to.equal(5);
 		expect(monitor.diagnosticSnapshots).to.have.length(1);
+		expect(monitor.sampleCount).to.equal(initialSampleCount);
+		expect(monitor.toJSON().lastValue).to.equal(0);
 		expect(monitor.observe(5, 1)).to.exist;
 		expect(monitor.sampleCount).to.equal(initialSampleCount + 1);
 		expect(monitor.toJSON().lastValue).to.equal(5);

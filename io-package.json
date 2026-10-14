@@ -93,19 +93,6 @@
         "pl": "Dodano prognozowanie, trwałe bazy treningowe modeli, inicjalizację historii, adaptacyjną segmentację historii i objaśnialną diagnostykę",
         "uk": "Додано прогнозування, постійні навчальні бази моделей, початкове завантаження історії, адаптивну сегментацію історії та зрозумілу діагностику",
         "zh-cn": "新增预测、持久化模型训练基础、历史记录初始化、 自适应历史分段和可解释诊断"
-      },
-      "0.1.1": {
-        "en": "Improve configuration UI layout, translations, and detector guidance",
-        "de": "Konfigurationsoberfläche, Übersetzungen und Hinweise zu Detektoren verbessert",
-        "ru": "Улучшены интерфейс конфигурации, переводы и рекомендации по детекторам",
-        "pt": "Melhorias no layout, traduções e orientações dos detetores na configuração",
-        "nl": "Verbeterde configuratie-indeling, vertalingen en detectorbegeleiding",
-        "fr": "Amélioration de l’interface de configuration, des traductions et des conseils de détection",
-        "it": "Migliorati layout di configurazione, traduzioni e indicazioni sui rilevatori",
-        "es": "Mejoras en el diseño de configuración, traducciones y orientación de detectores",
-        "pl": "Ulepszono układ konfiguracji, tłumaczenia i wskazówki dotyczące detektorów",
-        "uk": "Покращено макет конфігурації, переклади та рекомендації щодо детекторів",
-        "zh-cn": "改进配置界面布局、翻译和检测器说明"
       }
     },
     "titleLang": {

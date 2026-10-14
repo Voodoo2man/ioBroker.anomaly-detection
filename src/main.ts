@@ -6,6 +6,7 @@ import { cleanupStaleSources } from "./lib/source-cleanup";
 import { SourceMonitor, parseStoredModel, type ObservationResult, type SourceSettings } from "./lib/source-monitor";
 import { createContextPart } from "./lib/context-value";
 import { drainPendingWork } from "./lib/pending-work";
+import { withAbortableTimeout } from "./lib/history-request";
 import { SOURCES_OBJECT_ID, sourcesObject } from "./lib/object-structure";
 import {
 	PredictiveModel,
@@ -1331,33 +1332,7 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private async withHistoryTimeout<T>(operation: Promise<T>): Promise<T> {
-		return new Promise<T>((resolve, reject) => {
-			let cancelTimeout = (): void => {};
-			let onAbort = (): void => {};
-			const finish = (callback: () => void): void => {
-				cancelTimeout();
-				this.historyAbortController.signal.removeEventListener("abort", onAbort);
-				callback();
-			};
-			onAbort = (): void => finish(() => reject(new Error("History request aborted during shutdown")));
-			this.historyAbortController.signal.addEventListener("abort", onAbort, { once: true });
-			const timer = this.setTimeout(
-				() => finish(() => reject(new Error("History request timed out"))),
-				HISTORY_TIMEOUT_MS,
-			);
-			cancelTimeout = (): void => this.clearTimeout(timer);
-			if (this.historyAbortController.signal.aborted) {
-				onAbort();
-			}
-			operation.then(
-				value => {
-					finish(() => resolve(value));
-				},
-				error => {
-					finish(() => reject(error instanceof Error ? error : new Error(String(error))));
-				},
-			);
-		});
+		return withAbortableTimeout(operation, this.historyAbortController.signal, HISTORY_TIMEOUT_MS);
 	}
 
 	private bootstrapConfigKey(source: ConfiguredSource): string {
