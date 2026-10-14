@@ -500,6 +500,7 @@ export class SourceMonitor {
 		if (typeof value !== "number" || !Number.isFinite(value) || !Number.isFinite(timestamp)) {
 			return undefined;
 		}
+		const isNewSample = this.isNewTimestamp(timestamp);
 		const minSamples = this.settings.minimumSamples ?? DEFAULTS.minimumSamples;
 		const sensitivity = this.settings.sensitivity ?? DEFAULTS.sensitivity;
 		const threshold = this.settings.anomalyThreshold ?? DEFAULTS.anomalyThreshold;
@@ -569,7 +570,9 @@ export class SourceMonitor {
 				results.push(result);
 			}
 		}
-		this.updateRepeated(value, timestamp);
+		if (isNewSample) {
+			this.updateRepeated(value, timestamp);
+		}
 		if (this.settings.enableStuck ?? false) {
 			const result = detectStuck(
 				this.repeatedSince,
@@ -580,26 +583,30 @@ export class SourceMonitor {
 				results.push(result);
 			}
 		}
-		const advanced = state.advanced.observe(
-			expected === undefined ? undefined : value - expected,
-			timestamp,
-			0,
-			baseline.series.mad(),
-			this.settings.enableChangePoint === true,
-			this.settings.enableTrend === true,
-			sensitivity,
-		);
-		if (advanced.changePoint) {
+		const advanced = isNewSample
+			? state.advanced.observe(
+					expected === undefined ? undefined : value - expected,
+					timestamp,
+					0,
+					baseline.series.mad(),
+					this.settings.enableChangePoint === true,
+					this.settings.enableTrend === true,
+					sensitivity,
+				)
+			: undefined;
+		if (advanced?.changePoint) {
 			results.push(advanced.changePoint);
 		}
-		if (advanced.trend) {
+		if (advanced?.trend) {
 			results.push(advanced.trend);
 		}
 		const scoring = scoreDetectors(results);
-		this.updatePersistentDetection(state, scoring.score, timestamp, threshold);
+		if (isNewSample) {
+			this.updatePersistentDetection(state, scoring.score, timestamp, threshold);
+		}
 		const isStrongAnomaly = scoring.score >= threshold;
 		const learningNewContext = contextIsLearning;
-		if (!isStrongAnomaly || advanced.adapt || learningNewContext) {
+		if (isNewSample && (!isStrongAnomaly || advanced?.adapt || learningNewContext)) {
 			this.valueModel.add(value, timestamp, timeContext, weekdayContext);
 			if (this.settings.enableContext) {
 				this.contextualModel.add(contextKey, value, timestamp, timeContext, weekdayContext);
@@ -608,12 +615,14 @@ export class SourceMonitor {
 				this.rateModel.add(rate, timestamp, timeContext, weekdayContext);
 			}
 		}
-		this.lastValue = value;
-		this.lastTimestamp = timestamp;
-		if (!isStrongAnomaly) {
-			this.lastNormal = timestamp;
+		if (isNewSample) {
+			this.lastValue = value;
+			this.lastTimestamp = timestamp;
+			if (!isStrongAnomaly) {
+				this.lastNormal = timestamp;
+			}
+			this.lastContextKey = this.settings.enableContext === true ? contextKey : undefined;
 		}
-		this.lastContextKey = this.settings.enableContext === true ? contextKey : undefined;
 		const sufficient = this.valueModel.sampleCount >= minSamples;
 		const contextSampleCount = hasActiveContext ? this.contextualModel.sampleCount(contextKey) : 0;
 		const relevantSampleScope: BaselineScope = hasActiveContext ? "context" : baselineScope;
@@ -727,6 +736,11 @@ export class SourceMonitor {
 	 */
 	public get hasSufficientData(): boolean {
 		return this.valueModel.sampleCount >= (this.settings.minimumSamples ?? DEFAULTS.minimumSamples);
+	}
+
+	/** Whether a timestamp is newer than the last learned sample. */
+	public isNewTimestamp(timestamp: number): boolean {
+		return Number.isFinite(timestamp) && (this.lastTimestamp === undefined || timestamp > this.lastTimestamp);
 	}
 
 	/** Number of retained global value-model samples, capped at the model capacity. */

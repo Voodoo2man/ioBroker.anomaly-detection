@@ -498,6 +498,7 @@ class AnomalyDetection extends utils.Adapter {
 					this.lastProcessedTimestamps.delete(this.lastProcessedTimestamps.keys().next().value as string);
 				}
 			}
+			const isNewSample = monitor.isNewTimestamp(timestamp);
 			const result = monitor.observe(state.val, timestamp, this.contextKey(id));
 			if (!result) {
 				if (!this.invalidValueWarnings.has(id)) {
@@ -510,7 +511,9 @@ class AnomalyDetection extends utils.Adapter {
 			this.evaluations.set(id, result);
 			this.schedulePersistence();
 			await this.writeResult(safeId, result);
-			await this.updatePredictive(safeId, state.val, state.ts ?? Date.now());
+			if (isNewSample) {
+				await this.updatePredictive(safeId, state.val, timestamp);
+			}
 		} catch (error) {
 			this.log.error(`Could not process source state ${id}: ${(error as Error).message}`);
 		}

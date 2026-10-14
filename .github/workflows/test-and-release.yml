@@ -34,6 +34,15 @@ jobs:
           type-checking: true
           lint: true
 
+      - name: Install admin dependencies
+        run: npm ci --prefix src-admin
+
+      - name: Test admin
+        run: npm run test:admin
+
+      - name: Build admin
+        run: npm run build:admin
+
   # Runs adapter tests on all supported node versions and OSes
   adapter-tests:
     needs: check-and-lint

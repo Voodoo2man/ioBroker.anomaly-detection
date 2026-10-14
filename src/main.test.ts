@@ -400,6 +400,39 @@ describe("scoring and learning lifecycle", () => {
 });
 
 describe("historical bootstrap", () => {
+	it("rejects invalid numeric values and timestamps while preserving valid zeros", () => {
+		const history = sanitizeHistory(
+			[
+				{ val: 0, ts: 1_000 },
+				{ val: "0", ts: "2000" },
+				{ val: -2.5, ts: 3_000 },
+				{ val: "12.5", ts: 4_000 },
+				{ val: null, ts: 5_000 },
+				{ val: undefined, ts: 6_000 },
+				{ val: "", ts: 7_000 },
+				{ val: "  ", ts: 8_000 },
+				{ val: false, ts: 9_000 },
+				{ val: true, ts: 10_000 },
+				{ val: Number.NaN, ts: 11_000 },
+				{ val: Number.POSITIVE_INFINITY, ts: 12_000 },
+				{ val: 1, ts: null },
+				{ val: 1, ts: "" },
+				{ val: 1, ts: false },
+				{ val: 1, ts: Number.NaN },
+				{ val: 1, ts: Number.POSITIVE_INFINITY },
+				{ val: 1, ts: 0 },
+			],
+			20,
+		);
+
+		expect(history).to.deep.equal([
+			{ value: 0, timestamp: 1_000 },
+			{ value: 0, timestamp: 2_000 },
+			{ value: -2.5, timestamp: 3_000 },
+			{ value: 12.5, timestamp: 4_000 },
+		]);
+	});
+
 	it("sanitizes, orders, deduplicates and range-samples history responses", () => {
 		const history = sanitizeHistory(
 			{
@@ -463,6 +496,44 @@ describe("historical bootstrap", () => {
 			300,
 		);
 		expect(monitor.sampleCount).to.equal(240);
+	});
+});
+
+describe("restart sample deduplication", () => {
+	it("evaluates repeated and stale samples without learning them again", () => {
+		const monitor = new SourceMonitor({
+			enabled: true,
+			id: "test.0.value",
+			minimumSamples: 1,
+			enableMad: false,
+			enableRate: false,
+		});
+		const first = monitor.observe(0, 0);
+		const initialSampleCount = monitor.sampleCount;
+
+		expect(first).to.exist;
+		expect(monitor.isNewTimestamp(0)).to.equal(false);
+		expect(monitor.observe(0, 0)).to.exist;
+		expect(monitor.observe(5, 1)).to.exist;
+		expect(monitor.sampleCount).to.equal(initialSampleCount + 1);
+		expect(monitor.toJSON().lastValue).to.equal(5);
+		expect(monitor.toJSON().lastTimestamp).to.equal(1);
+		expect(monitor.isNewTimestamp(1)).to.equal(false);
+		expect(monitor.isNewTimestamp(2)).to.equal(true);
+	});
+
+	it("does not relearn a persisted sample across repeated restarts", () => {
+		let persisted = new SourceMonitor({ enabled: true, id: "test.0.value" });
+		persisted.observe(10, 1_000);
+
+		for (let restart = 0; restart < 3; restart++) {
+			const restored = new SourceMonitor({ enabled: true, id: "test.0.value" }, persisted.toJSON());
+			const sampleCount = restored.sampleCount;
+			expect(restored.observe(10, 1_000)).to.exist;
+			expect(restored.sampleCount).to.equal(sampleCount);
+			expect(restored.toJSON().lastTimestamp).to.equal(1_000);
+			persisted = restored;
+		}
 	});
 });
 

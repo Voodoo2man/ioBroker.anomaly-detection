@@ -12,6 +12,17 @@ export interface HistoryProvider {
 	getHistory(sourceId: string, start: number, end: number, limit: number): Promise<unknown>;
 }
 
+function parseFiniteNumber(value: unknown): number | undefined {
+	if (typeof value === "number") {
+		return Number.isFinite(value) ? value : undefined;
+	}
+	if (typeof value !== "string" || value.trim() === "") {
+		return undefined;
+	}
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 /**
  * Normalizes the result shapes commonly returned by ioBroker history adapters.
  * Duplicate timestamps keep the final value; evenly spaced downsampling preserves whole-range coverage.
@@ -39,9 +50,9 @@ export function sanitizeHistory(
 			continue;
 		}
 		const candidate = entry as { val?: unknown; ts?: unknown };
-		const value = typeof candidate.val === "number" ? candidate.val : Number(candidate.val);
-		const timestamp = typeof candidate.ts === "number" ? candidate.ts : Number(candidate.ts);
-		if (Number.isFinite(value) && Number.isFinite(timestamp) && timestamp > 0) {
+		const value = parseFiniteNumber(candidate.val);
+		const timestamp = parseFiniteNumber(candidate.ts);
+		if (value !== undefined && timestamp !== undefined && timestamp > 0) {
 			byTimestamp.set(timestamp, { value, timestamp });
 		}
 	}
