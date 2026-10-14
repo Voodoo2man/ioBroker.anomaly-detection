@@ -3,6 +3,19 @@
     "name": "anomaly-detection",
     "version": "0.4.5",
     "news": {
+      "0.4.5": {
+        "en": "Reject invalid and stale history samples, stop history imports cleanly during shutdown, and update the administration interface and build pipeline",
+        "de": "Ungültige und veraltete History-Werte verwerfen, History-Importe beim Shutdown sauber beenden und Administrationsoberfläche sowie Build-Pipeline aktualisieren",
+        "ru": "Отклонение некорректных и устаревших значений истории, корректное завершение импорта истории при остановке, обновление интерфейса администрирования и сборки",
+        "pt": "Rejeitar valores históricos inválidos e desatualizados, interromper corretamente a importação no encerramento e atualizar a interface e o processo de compilação",
+        "nl": "Ongeldige en verouderde historische waarden afwijzen, geschiedenisimport netjes stoppen bij afsluiten en de beheerinterface en build-pipeline bijwerken",
+        "fr": "Rejeter les valeurs historiques invalides et obsolètes, interrompre proprement l’import à l’arrêt et mettre à jour l’interface d’administration et la compilation",
+        "it": "Rifiutare i valori storici non validi e obsoleti, interrompere correttamente l’importazione all’arresto e aggiornare l’interfaccia e la procedura di compilazione",
+        "es": "Rechazar valores históricos no válidos y obsoletos, detener correctamente la importación al apagar y actualizar la interfaz y el proceso de compilación",
+        "pl": "Odrzucanie nieprawidłowych i nieaktualnych wartości historycznych, bezpieczne zatrzymywanie importu przy zamykaniu oraz aktualizacja interfejsu i procesu budowania",
+        "uk": "Відхилення некоректних і застарілих значень історії, коректне завершення імпорту під час зупинки та оновлення інтерфейсу й процесу збирання",
+        "zh-cn": "拒绝无效和过期的历史数据，在关闭时安全停止历史导入，并更新管理界面和构建流程"
+      },
       "0.4.4": {
         "en": "Complete all common news translations and document the legacy changelog",
         "de": "Alle Common-News-Übersetzungen vervollständigt und das alte Changelog dokumentiert",
