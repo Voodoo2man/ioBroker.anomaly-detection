@@ -22,7 +22,24 @@ __export(state_write_exports, {
 });
 module.exports = __toCommonJS(state_write_exports);
 async function writeStateValues(values, alwaysWrite, write, writeChanged) {
-  await Promise.all(values.map(([id, value]) => alwaysWrite.has(id) ? write(id, value) : writeChanged(id, value)));
+  const results = await Promise.allSettled(
+    values.map(async ([id, value]) => {
+      try {
+        await (alwaysWrite.has(id) ? write(id, value) : writeChanged(id, value));
+      } catch (error) {
+        throw new Error(
+          `State write failed for ${id}: ${error instanceof Error ? error.message : String(error)}`,
+          {
+            cause: error
+          }
+        );
+      }
+    })
+  );
+  const failures = results.flatMap((result) => result.status === "rejected" ? [result.reason] : []);
+  if (failures.length > 0) {
+    throw new AggregateError(failures, failures.map((error) => error.message).join("; "));
+  }
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {

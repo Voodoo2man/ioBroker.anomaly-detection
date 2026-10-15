@@ -30,6 +30,7 @@ var import_source_monitor = require("./lib/source-monitor");
 var import_context_value = require("./lib/context-value");
 var import_pending_work = require("./lib/pending-work");
 var import_history_request = require("./lib/history-request");
+var import_history_budget = require("./lib/history-budget");
 var import_model_persistence = require("./lib/model-persistence");
 var import_timestamp_cache = require("./lib/timestamp-cache");
 var import_state_write = require("./lib/state-write");
@@ -1141,8 +1142,8 @@ class AnomalyDetection extends utils.Adapter {
     }
   }
   async loadSegmentedHistory(provider, sourceId, start, end, limit, maximumTrainingPoints) {
-    const collected = [];
-    let providerCalls = 0;
+    let collected = [];
+    const budget = new import_history_budget.HistoryLoadBudget();
     let segmentQueries = 0;
     let coverageProbes = 0;
     let segmentSplits = 0;
@@ -1168,7 +1169,7 @@ class AnomalyDetection extends utils.Adapter {
       if (this.unloading) {
         return;
       }
-      providerCalls++;
+      budget.consumeCall();
       segmentQueries++;
       const raw = await this.withHistoryTimeout(provider.getHistory(sourceId, segmentStart, segmentEnd, limit));
       const entries = Array.isArray(raw) ? raw.length : raw && typeof raw === "object" && Array.isArray(raw.result) ? raw.result.length : 0;
@@ -1213,7 +1214,7 @@ class AnomalyDetection extends utils.Adapter {
         }
       } else if (oldest !== void 0 && newest !== void 0 && newest < segmentEnd - 60 * 6e4) {
         const probeStart = Math.floor((segmentStart + segmentEnd) / 2);
-        providerCalls++;
+        budget.consumeCall();
         coverageProbes++;
         const probeRaw = await this.withHistoryTimeout(
           provider.getHistory(sourceId, probeStart, segmentEnd, limit)
@@ -1258,7 +1259,8 @@ class AnomalyDetection extends utils.Adapter {
         return;
       }
       acceptedSegments++;
-      collected.push(...samples);
+      const retainedLimit = Math.max(1e3, Math.min(1e4, maximumTrainingPoints));
+      collected = (0, import_history_budget.retainEvenlySpacedHistory)(collected, samples, retainedLimit);
     };
     await load(start, end, 0);
     const byTimestamp = /* @__PURE__ */ new Map();
@@ -1268,7 +1270,7 @@ class AnomalyDetection extends utils.Adapter {
     const deduplicated = [...byTimestamp.values()].sort((a, b) => a.timestamp - b.timestamp);
     return {
       samples: deduplicated,
-      providerCalls,
+      providerCalls: budget.providerCalls,
       segmentQueries,
       coverageProbes,
       segmentSplits,
@@ -1330,6 +1332,7 @@ class AnomalyDetection extends utils.Adapter {
         });
       } else {
         monitor.reset();
+        await this.setStateAsync(`sources.${safeId}.analysis.sampleCount`, { val: 0, ack: true });
         await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: "learning", ack: true });
         await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
           val: "Model reset; learning live values",
@@ -1337,12 +1340,54 @@ class AnomalyDetection extends utils.Adapter {
         });
         await this.persistModels();
       }
+      await this.refreshEvaluationAfterRetrain(sourceId, safeId, monitor);
     } finally {
       release();
       if (!this.unloading) {
         await this.setStateChangedAsync(`sources.${safeId}.retrain`, { val: false, ack: true });
       }
     }
+  }
+  async refreshEvaluationAfterRetrain(sourceId, safeId, monitor) {
+    if (this.unloading) {
+      return;
+    }
+    const state = await this.getForeignStateAsync(sourceId);
+    if (this.unloading) {
+      return;
+    }
+    const sourceTimestamp = typeof (state == null ? void 0 : state.ts) === "number" && Number.isFinite(state.ts) ? state.ts : void 0;
+    const timestamp = sourceTimestamp != null ? sourceTimestamp : Date.now();
+    const result = state && !monitor.isStaleTimestamp(timestamp) ? monitor.evaluateCurrent(state.val, timestamp, this.contextKey(sourceId)) : void 0;
+    const evaluation = result != null ? result : this.unavailableEvaluation(sourceId, safeId, monitor, Date.now());
+    this.evaluations.set(sourceId, evaluation);
+    await (0, import_pending_work.enqueueSerializedWork)(this.resultWriteQueues, safeId, () => this.writeResult(safeId, evaluation));
+    await this.setStateAsync(`sources.${safeId}.analysis.sampleCount`, { val: monitor.sampleCount, ack: true });
+  }
+  unavailableEvaluation(sourceId, safeId, monitor, timestamp) {
+    var _a, _b, _c;
+    const previous = this.evaluations.get(sourceId);
+    return {
+      actual: (_a = previous == null ? void 0 : previous.actual) != null ? _a : 0,
+      score: 0,
+      detected: false,
+      status: "learning",
+      reason: "Current source value unavailable after model reset",
+      sampleCount: monitor.sampleCount,
+      baselineScope: "insufficient",
+      activeContext: "",
+      baselineSampleCount: 0,
+      contextSampleCount: 0,
+      relevantSampleCount: 0,
+      relevantSampleScope: "insufficient",
+      evaluationAvailable: false,
+      requiredSamples: (_c = (_b = this.sources.get(safeId)) == null ? void 0 : _b.minimumSamples) != null ? _c : 30,
+      statusCode: "unavailable",
+      severity: "normal",
+      reasonCode: "source_value_unavailable",
+      detectors: [],
+      lastEvaluated: timestamp
+    };
   }
   async runWithConcurrency(tasks, concurrency) {
     const queue = [...tasks];

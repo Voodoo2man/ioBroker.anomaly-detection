@@ -85,13 +85,14 @@ class SourceMonitor {
    * @param value
    * @param timestamp
    * @param contextKey
+   * @param learn Whether the observation updates training and timestamp state.
    */
-  observe(value, timestamp, contextKey) {
+  observe(value, timestamp, contextKey, learn = true) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
     if (typeof value !== "number" || !Number.isFinite(value) || !Number.isFinite(timestamp)) {
       return void 0;
     }
-    const isNewSample = this.isNewTimestamp(timestamp);
+    const isNewSample = learn && this.isNewTimestamp(timestamp);
     const minSamples = (_a = this.settings.minimumSamples) != null ? _a : DEFAULTS.minimumSamples;
     const sensitivity = (_b = this.settings.sensitivity) != null ? _b : DEFAULTS.sensitivity;
     const threshold = (_c = this.settings.anomalyThreshold) != null ? _c : DEFAULTS.anomalyThreshold;
@@ -301,6 +302,16 @@ class SourceMonitor {
     return this.valueModel.sampleCount;
   }
   /**
+   * Evaluates a current value against the model without treating it as a new training event.
+   *
+   * @param value Current value to evaluate.
+   * @param timestamp Timestamp associated with the current value.
+   * @param contextKey Optional context used to select the baseline.
+   */
+  evaluateCurrent(value, timestamp, contextKey) {
+    return this.observe(value, timestamp, contextKey, false);
+  }
+  /**
    *
    */
   get diagnosticSnapshots() {
@@ -408,6 +419,7 @@ class SourceMonitor {
     this.repeatedSince = void 0;
     this.lastNormal = void 0;
     this.bootstrap = void 0;
+    this.diagnostics = [];
   }
   /** @param configKey Import-relevant source configuration. */
   bootstrapMatches(configKey) {

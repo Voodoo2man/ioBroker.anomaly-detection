@@ -12,5 +12,22 @@ export async function writeStateValues<T>(
 	write: (id: string, value: T) => Promise<unknown>,
 	writeChanged: (id: string, value: T) => Promise<unknown>,
 ): Promise<void> {
-	await Promise.all(values.map(([id, value]) => (alwaysWrite.has(id) ? write(id, value) : writeChanged(id, value))));
+	const results = await Promise.allSettled(
+		values.map(async ([id, value]) => {
+			try {
+				await (alwaysWrite.has(id) ? write(id, value) : writeChanged(id, value));
+			} catch (error) {
+				throw new Error(
+					`State write failed for ${id}: ${error instanceof Error ? error.message : String(error)}`,
+					{
+						cause: error,
+					},
+				);
+			}
+		}),
+	);
+	const failures = results.flatMap(result => (result.status === "rejected" ? [result.reason as Error] : []));
+	if (failures.length > 0) {
+		throw new AggregateError(failures, failures.map(error => error.message).join("; "));
+	}
 }

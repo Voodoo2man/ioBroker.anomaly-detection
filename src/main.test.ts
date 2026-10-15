@@ -654,6 +654,33 @@ describe("historical bootstrap", () => {
 });
 
 describe("restart sample deduplication", () => {
+	it("evaluates the current value after reset without relearning it or retaining an alarm", () => {
+		const monitor = new SourceMonitor({
+			enabled: true,
+			id: "test.0.value",
+			minimumSamples: 5,
+			enableRate: false,
+			enableChangePoint: false,
+			enableTrend: false,
+			minimumAnomalyDurationMinutes: 0,
+		});
+		for (let index = 0; index < 6; index++) {
+			monitor.observe(10 + (index % 2), 10_000 + index);
+		}
+		const alarm = monitor.observe(100, 10_006);
+		expect(alarm?.detected).to.equal(true);
+
+		monitor.reset();
+		const current = monitor.evaluateCurrent(100, 10_006);
+
+		expect(current?.detected).to.equal(false);
+		expect(current?.statusCode).to.equal("insufficient_data");
+		expect(current?.evaluationAvailable).to.equal(false);
+		expect(monitor.sampleCount).to.equal(0);
+		expect(monitor.toJSON().lastTimestamp).to.equal(undefined);
+		expect(monitor.diagnosticSnapshots).to.have.length(0);
+	});
+
 	it("evaluates repeated and stale samples without learning them again", () => {
 		const monitor = new SourceMonitor({
 			enabled: true,
@@ -679,6 +706,17 @@ describe("restart sample deduplication", () => {
 		expect(monitor.toJSON().lastTimestamp).to.equal(1);
 		expect(monitor.isNewTimestamp(1)).to.equal(false);
 		expect(monitor.isNewTimestamp(2)).to.equal(true);
+	});
+
+	it("does not learn or advance deduplication when evaluating a repeated current value", () => {
+		const monitor = new SourceMonitor({ enabled: true, id: "test.0.value", minimumSamples: 10 });
+		monitor.observe(10, 1_000);
+		const result = monitor.evaluateCurrent(20, 2_000);
+
+		expect(result?.actual).to.equal(20);
+		expect(monitor.sampleCount).to.equal(1);
+		expect(monitor.toJSON().lastTimestamp).to.equal(1_000);
+		expect(monitor.isNewTimestamp(2_000)).to.equal(true);
 	});
 
 	it("does not cache an invalid value timestamp before a valid correction arrives", () => {

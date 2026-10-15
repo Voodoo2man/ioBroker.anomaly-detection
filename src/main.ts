@@ -18,6 +18,7 @@ import {
 import { createContextPart } from "./lib/context-value";
 import { acquireExclusiveWork, drainPendingWork, enqueueSerializedWork } from "./lib/pending-work";
 import { withAbortableTimeout } from "./lib/history-request";
+import { HistoryLoadBudget, retainEvenlySpacedHistory } from "./lib/history-budget";
 import { mergeStartupModels } from "./lib/model-persistence";
 import { observeWithTimestampCache } from "./lib/timestamp-cache";
 import { writeStateValues } from "./lib/state-write";
@@ -1281,8 +1282,8 @@ class AnomalyDetection extends utils.Adapter {
 		limit: number,
 		maximumTrainingPoints: number,
 	): Promise<SegmentedHistoryResult> {
-		const collected: HistorySample[] = [];
-		let providerCalls = 0;
+		let collected: HistorySample[] = [];
+		const budget = new HistoryLoadBudget();
 		let segmentQueries = 0;
 		let coverageProbes = 0;
 		let segmentSplits = 0;
@@ -1307,7 +1308,7 @@ class AnomalyDetection extends utils.Adapter {
 			if (this.unloading) {
 				return;
 			}
-			providerCalls++;
+			budget.consumeCall();
 			segmentQueries++;
 			const raw = await this.withHistoryTimeout(provider.getHistory(sourceId, segmentStart, segmentEnd, limit));
 			const entries = Array.isArray(raw)
@@ -1357,7 +1358,7 @@ class AnomalyDetection extends utils.Adapter {
 				}
 			} else if (oldest !== undefined && newest !== undefined && newest < segmentEnd - 60 * 60_000) {
 				const probeStart = Math.floor((segmentStart + segmentEnd) / 2);
-				providerCalls++;
+				budget.consumeCall();
 				coverageProbes++;
 				const probeRaw = await this.withHistoryTimeout(
 					provider.getHistory(sourceId, probeStart, segmentEnd, limit),
@@ -1412,7 +1413,8 @@ class AnomalyDetection extends utils.Adapter {
 				return;
 			}
 			acceptedSegments++;
-			collected.push(...samples);
+			const retainedLimit = Math.max(1000, Math.min(10_000, maximumTrainingPoints));
+			collected = retainEvenlySpacedHistory(collected, samples, retainedLimit);
 		};
 		await load(start, end, 0);
 		const byTimestamp = new Map<number, HistorySample>();
@@ -1422,7 +1424,7 @@ class AnomalyDetection extends utils.Adapter {
 		const deduplicated = [...byTimestamp.values()].sort((a, b) => a.timestamp - b.timestamp);
 		return {
 			samples: deduplicated,
-			providerCalls,
+			providerCalls: budget.providerCalls,
 			segmentQueries,
 			coverageProbes,
 			segmentSplits,
@@ -1492,6 +1494,7 @@ class AnomalyDetection extends utils.Adapter {
 				});
 			} else {
 				monitor.reset();
+				await this.setStateAsync(`sources.${safeId}.analysis.sampleCount`, { val: 0, ack: true });
 				await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: "learning", ack: true });
 				await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
 					val: "Model reset; learning live values",
@@ -1499,12 +1502,67 @@ class AnomalyDetection extends utils.Adapter {
 				});
 				await this.persistModels();
 			}
+			await this.refreshEvaluationAfterRetrain(sourceId, safeId, monitor);
 		} finally {
 			release();
 			if (!this.unloading) {
 				await this.setStateChangedAsync(`sources.${safeId}.retrain`, { val: false, ack: true });
 			}
 		}
+	}
+
+	private async refreshEvaluationAfterRetrain(
+		sourceId: string,
+		safeId: string,
+		monitor: SourceMonitor,
+	): Promise<void> {
+		if (this.unloading) {
+			return;
+		}
+		const state = await this.getForeignStateAsync(sourceId);
+		if (this.unloading) {
+			return;
+		}
+		const sourceTimestamp = typeof state?.ts === "number" && Number.isFinite(state.ts) ? state.ts : undefined;
+		const timestamp = sourceTimestamp ?? Date.now();
+		const result =
+			state && !monitor.isStaleTimestamp(timestamp)
+				? monitor.evaluateCurrent(state.val, timestamp, this.contextKey(sourceId))
+				: undefined;
+		const evaluation = result ?? this.unavailableEvaluation(sourceId, safeId, monitor, Date.now());
+		this.evaluations.set(sourceId, evaluation);
+		await enqueueSerializedWork(this.resultWriteQueues, safeId, () => this.writeResult(safeId, evaluation));
+		await this.setStateAsync(`sources.${safeId}.analysis.sampleCount`, { val: monitor.sampleCount, ack: true });
+	}
+
+	private unavailableEvaluation(
+		sourceId: string,
+		safeId: string,
+		monitor: SourceMonitor,
+		timestamp: number,
+	): ObservationResult {
+		const previous = this.evaluations.get(sourceId);
+		return {
+			actual: previous?.actual ?? 0,
+			score: 0,
+			detected: false,
+			status: "learning",
+			reason: "Current source value unavailable after model reset",
+			sampleCount: monitor.sampleCount,
+			baselineScope: "insufficient",
+			activeContext: "",
+			baselineSampleCount: 0,
+			contextSampleCount: 0,
+			relevantSampleCount: 0,
+			relevantSampleScope: "insufficient",
+			evaluationAvailable: false,
+			requiredSamples: this.sources.get(safeId)?.minimumSamples ?? 30,
+			statusCode: "unavailable",
+			severity: "normal",
+			reasonCode: "source_value_unavailable",
+			detectors: [],
+			lastEvaluated: timestamp,
+		};
 	}
 
 	private async runWithConcurrency(tasks: Array<() => Promise<void>>, concurrency: number): Promise<void> {
