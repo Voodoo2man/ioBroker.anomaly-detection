@@ -12,6 +12,10 @@
 			"lg": 12,
 			"xl": 12,
 			"titleAttr": "id",
+			"style": {
+				"minWidth": 0,
+				"overflowWrap": "anywhere"
+			},
 			"items": [
 				{
 					"type": "header",
@@ -673,7 +677,8 @@
 				},
 				{
 					"attr": "contextStates",
-					"type": "table",
+					"type": "accordion",
+					"titleAttr": "id",
 					"label": "Context states (maximum 3)",
 					"hidden": "data.enableContext !== true",
 					"xs": 12,
@@ -688,7 +693,8 @@
 							"type": "objectId",
 							"label": "Context state ID",
 							"types": "state",
-							"xs": 8
+							"xs": 12,
+							"newLine": true
 						},
 						{
 							"attr": "bucketWidth",
@@ -701,7 +707,9 @@
 							"min": 0.0001,
 							"max": 1000000,
 							"default": 5,
-							"xs": 4
+							"xs": 12,
+							"sm": 6,
+							"newLine": true
 						}
 					]
 				},

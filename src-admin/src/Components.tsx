@@ -1,9 +1,24 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { I18n } from "@iobroker/gui-components";
-import { Alert, Box, Button, Card, CardContent, Chip, Collapse, Divider, Grid, Stack, Typography } from "@mui/material";
+import {
+	Alert,
+	Box,
+	Button,
+	Card,
+	CardContent,
+	Chip,
+	CircularProgress,
+	Collapse,
+	Divider,
+	Grid,
+	Stack,
+	Typography,
+} from "@mui/material";
 import { Refresh, ExpandMore, ExpandLess } from "@mui/icons-material";
 import { chartYDomain } from "./chart-domain";
-import { formatForecastTick, prepareForecastChartData } from "./forecast-chart";
+import { formatForecastAxisTimeLabel, formatForecastTick, prepareForecastChartData } from "./forecast-chart";
+import { LatestRequest } from "./latest-request";
+import { DashboardRefresh } from "./dashboard-refresh";
 import { localizedTranslations } from "./translations";
 
 type Detector = { name: string; score: number; reasonCode: string };
@@ -345,6 +360,8 @@ const translations: Record<string, Record<string, string>> = {
 		loadError: "The anomaly assessments could not be loaded.",
 		chart: "History & anomalies",
 		chartUnavailable: "No history data is available for this state.",
+		chartLoadError: "Could not load historical data for this state.",
+		chartLoading: "Loading historical data",
 		chartNoBounds: "Historical decision bounds are not available for this period.",
 		hour: "1 h",
 		sixHours: "6 h",
@@ -524,6 +541,8 @@ const translations: Record<string, Record<string, string>> = {
 		loadError: "Die Anomaliebewertungen konnten nicht geladen werden.",
 		chart: "Verlauf & Anomalien",
 		chartUnavailable: "Für diesen Datenpunkt sind keine Verlaufsdaten verfügbar.",
+		chartLoadError: "Verlaufsdaten für diesen Datenpunkt konnten nicht geladen werden.",
+		chartLoading: "Verlaufsdaten werden geladen",
 		chartNoBounds: "Für diesen Zeitraum sind keine historischen Bewertungsgrenzen verfügbar.",
 		hour: "1 h",
 		sixHours: "6 h",
@@ -686,8 +705,12 @@ function HistoryChart({
 	const [open, setOpen] = useState(false);
 	const [hours, setHours] = useState(24);
 	const [data, setData] = useState<ChartResponse["data"]>();
+	const [loading, setLoading] = useState(false);
+	const [loadError, setLoadError] = useState(false);
+	const [retryKey, setRetryKey] = useState(0);
 	const [chartWidth, setChartWidth] = useState(600);
 	const cache = useRef(new Map<number, ChartResponse["data"]>());
+	const latestRequest = useRef(new LatestRequest());
 	const chartContainer = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		if (!open || !chartContainer.current || typeof ResizeObserver === "undefined") {
@@ -709,7 +732,7 @@ function HistoryChart({
 		if (open) {
 			setData(undefined);
 		}
-	}, [refreshKey]);
+	}, [refreshKey, socket, source.id, target]);
 	useEffect(() => {
 		if (!open || !socket?.sendTo) {
 			return;
@@ -717,20 +740,32 @@ function HistoryChart({
 		const cached = cache.current.get(hours);
 		if (cached) {
 			setData(cached);
+			setLoadError(false);
+			setLoading(false);
 			return;
 		}
-		void socket
-			.sendTo<ChartResponse>(target, "chartData", {
-				sourceId: source.id,
-				start: Date.now() - hours * 3600000,
-				end: Date.now(),
-				limit: 500,
-			})
-			.then(response => {
-				cache.current.set(hours, response.data);
-				setData(response.data);
-			});
-	}, [hours, open, refreshKey, socket, source.id, target]);
+		setData(undefined);
+		setLoadError(false);
+		setLoading(true);
+		void latestRequest.current.run(
+			() =>
+				socket.sendTo!<ChartResponse>(target, "chartData", {
+					sourceId: source.id,
+					start: Date.now() - hours * 3600000,
+					end: Date.now(),
+					limit: 500,
+				}),
+			{
+				onSuccess: response => {
+					cache.current.set(hours, response.data);
+					setData(response.data);
+				},
+				onError: () => setLoadError(true),
+				onSettled: () => setLoading(false),
+			},
+		);
+		return () => latestRequest.current.invalidate();
+	}, [hours, open, refreshKey, retryKey, socket, source.id, target]);
 	const samples = data?.samples || [];
 	const diagnostics = data?.diagnostics || [];
 	const values = samples.map(sample => sample.value);
@@ -743,6 +778,41 @@ function HistoryChart({
 			>
 				{t("chart")}
 			</Button>
+		);
+	}
+	if (loading) {
+		return (
+			<Box sx={{ mt: 1 }}>
+				<Button
+					size="small"
+					onClick={() => setOpen(false)}
+				>
+					{t("chart")}
+				</Button>
+				<CircularProgress
+					size={20}
+					sx={{ ml: 1, verticalAlign: "middle" }}
+					aria-label={t("chartLoading")}
+				/>
+			</Box>
+		);
+	}
+	if (loadError) {
+		return (
+			<Box sx={{ mt: 1 }}>
+				<Button
+					size="small"
+					onClick={() => setRetryKey(value => value + 1)}
+				>
+					{t("chart")}
+				</Button>
+				<Alert
+					severity="error"
+					sx={{ mt: 1 }}
+				>
+					{t("chartLoadError")}
+				</Alert>
+			</Box>
 		);
 	}
 	if (!data?.available) {
@@ -858,7 +928,7 @@ function HistoryChart({
 			<Stack
 				direction="row"
 				spacing={0.5}
-				alignItems="center"
+				sx={{ alignItems: "center" }}
 			>
 				<Button
 					size="small"
@@ -1224,11 +1294,7 @@ function AnomalyCard({
 					sx={{ mt: 0.5 }}
 				>
 					{evaluation.actual !== undefined && (
-						<Grid
-							item
-							xs={12}
-							sm={6}
-						>
+						<Grid size={{ xs: 12, sm: 6 }}>
 							<Typography
 								variant="body2"
 								color="text.secondary"
@@ -1242,11 +1308,7 @@ function AnomalyCard({
 						</Grid>
 					)}
 					{range && (
-						<Grid
-							item
-							xs={12}
-							sm={6}
-						>
+						<Grid size={{ xs: 12, sm: 6 }}>
 							<Typography
 								variant="body2"
 								color="text.secondary"
@@ -1390,14 +1452,7 @@ function forecastExpectedLabel(minutes: number): string {
 }
 
 function forecastAxisTimeLabel(offsetMs: number): string {
-	if (offsetMs === 0) {
-		return t("forecastNow");
-	}
-	const minutes = Math.round(offsetMs / 60_000);
-	if (minutes >= 60 && minutes % 60 === 0) {
-		return `+${minutes / 60} h`;
-	}
-	return `+${minutes} min`;
+	return formatForecastAxisTimeLabel(offsetMs, (key, value) => (value === undefined ? t(key) : t(key, value)));
 }
 
 function predictiveModelLabel(model?: "levelTrend" | "seasonal" | "timeOfDay"): string {
@@ -2027,33 +2082,33 @@ export function AnomalyDashboard(props: Props): React.JSX.Element {
 	const [error, setError] = useState<string>();
 	const [refreshKey, setRefreshKey] = useState(0);
 	const [view, setView] = useState<"current" | "forecast">("current");
+	const dashboardRefresh = useRef(new DashboardRefresh<Source>());
 	const socket = props.socket || props.oContext?.socket;
 	const target = useMemo(() => {
 		const adapter = props.adapterName || props.oContext?.adapterName || "anomaly-detection";
 		const instance = props.instance ?? props.oContext?.instance ?? 0;
 		return String(instance).includes(".") ? String(instance) : `${adapter}.${instance}`;
 	}, [props.adapterName, props.instance, props.oContext?.adapterName, props.oContext?.instance]);
-	const refresh = useCallback(async () => {
-		if (!socket?.sendTo) {
-			setSources(props.data?.sources || []);
-			return;
-		}
-		try {
+	useLayoutEffect(() => {
+		dashboardRefresh.current.setIdentity(socket, target);
+		return () => dashboardRefresh.current.invalidate();
+	}, [socket, target]);
+	const refresh = useCallback(() => {
+		dashboardRefresh.current.setIdentity(socket, target);
+		if (socket?.sendTo) {
 			setRefreshKey(value => value + 1);
-			const response = await socket.sendTo(target, "tab", {});
-			const next = response?.data?.sources;
-			if (Array.isArray(next)) {
+		}
+		return dashboardRefresh.current.refresh(props.data?.sources || [], {
+			onSources: next => {
 				setSources(next);
 				setError(undefined);
-			} else {
-				setError(t("loadError"));
-			}
-		} catch {
-			setError(t("loadError"));
-		}
+			},
+			onError: () => setError(t("loadError")),
+		});
 	}, [socket, props.data, target]);
 	useEffect(() => {
 		void refresh();
+		return () => dashboardRefresh.current.invalidate();
 	}, [refresh]);
 	return (
 		<Box sx={{ p: 2 }}>
@@ -2118,10 +2173,7 @@ export function AnomalyDashboard(props: Props): React.JSX.Element {
 						}))
 						.map(source => (
 							<Grid
-								item
-								xs={12}
-								md={6}
-								xl={4}
+								size={{ xs: 12, md: 6, xl: 4 }}
 								key={source.id}
 							>
 								<ForecastCard source={source} />
@@ -2137,10 +2189,7 @@ export function AnomalyDashboard(props: Props): React.JSX.Element {
 				>
 					{sources.map(source => (
 						<Grid
-							item
-							xs={12}
-							md={6}
-							xl={4}
+							size={{ xs: 12, md: 6, xl: 4 }}
 							key={source.id}
 						>
 							<AnomalyCard

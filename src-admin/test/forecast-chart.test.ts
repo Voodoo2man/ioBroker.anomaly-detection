@@ -1,5 +1,6 @@
 import { expect } from "chai";
-import { formatForecastTick, prepareForecastChartData } from "../src/forecast-chart";
+import { formatForecastAxisTimeLabel, formatForecastTick, prepareForecastChartData } from "../src/forecast-chart.ts";
+import { localizedTranslations } from "../src/translations.ts";
 
 describe("forecast chart data", () => {
 	it("keeps the live value separate from the forecast series", () => {
@@ -37,7 +38,7 @@ describe("forecast chart data", () => {
 		expect(missing.actualPoint).to.deep.equal({ timestamp: 1_000, value: 12 });
 		expect(missing.forecastPoints).to.deep.equal([]);
 		expect(missing.yDomain.max - missing.yDomain.min).to.be.greaterThan(0);
-		expect(missing.xTicks).to.deep.equal([0, 720000, 1440000, 2160000, 2880000, 3600000]);
+		expect(missing.xTicks).to.deep.equal([0, 900000, 1800000, 2700000, 3600000]);
 		expect(prepareForecastChartData(undefined, 1_000, 60, [{ timestamp: 2_000, value: Number.NaN }])).to.deep.equal(
 			{
 				startTimestamp: 1_000,
@@ -46,9 +47,19 @@ describe("forecast chart data", () => {
 				forecastPoints: [],
 				yDomain: { min: -0.08, max: 1.08 },
 				yTicks: [0, 0.5, 1],
-				yTickDecimals: 0,
-				xTicks: [0, 720000, 1440000, 2160000, 2880000, 3600000],
+				yTickDecimals: 1,
+				xTicks: [0, 900000, 1800000, 2700000, 3600000],
 			},
 		);
+	});
+
+	it("uses translated units for forecast axis labels", () => {
+		const polish = (key: string, value?: number): string => {
+			const text = localizedTranslations.pl[key];
+			return value === undefined ? text : text.replace("%s", String(value));
+		};
+		expect(formatForecastAxisTimeLabel(0, polish)).to.equal("Teraz");
+		expect(formatForecastAxisTimeLabel(2 * 60 * 60_000, polish)).to.equal("+2 godz.");
+		expect(formatForecastAxisTimeLabel(15 * 60_000, polish)).to.equal("+15 min");
 	});
 });

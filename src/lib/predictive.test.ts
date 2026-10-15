@@ -52,6 +52,27 @@ describe("predictive forecasting", () => {
 		expect(result.selectedModelType).to.equal("timeOfDay");
 	});
 
+	it("backtests time-of-day profiles without an unrelated first-sample offset", () => {
+		const intervalMs = 60 * 60_000;
+		const model = new PredictiveModel(
+			normalizePredictiveSettings({
+				enabled: true,
+				minimumTrainingSamples: 30,
+				seasonalityMode: "off",
+			}),
+		);
+		for (let index = 0; index < 120; index++) {
+			const value = index === 0 ? 100 : index % 24;
+			model.add(value, index * intervalMs, "history");
+		}
+
+		const result = model.train(120 * intervalMs, "history");
+		const timeOfDay = result.diagnostics?.quality.timeOfDay;
+		expect(timeOfDay?.available).to.equal(true);
+		expect(timeOfDay?.firstComparison?.actual).to.equal(0);
+		expect(timeOfDay?.firstComparison?.predicted).to.be.closeTo(25, 0.01);
+	});
+
 	it("runs predictive tasks serially and isolates task errors", async () => {
 		const queue = new PredictiveTrainingQueue();
 		const events: string[] = [];
@@ -833,6 +854,219 @@ describe("predictive forecasting", () => {
 		expect(levelTrend?.holdoutSamples).to.equal(6);
 		expect(levelTrend?.firstComparison?.timestamp).to.equal(levelTrend?.holdoutStart);
 		expect(levelTrend?.lastComparison?.timestamp).to.equal(levelTrend?.holdoutEnd);
+	});
+
+	it("backtests a linear trend from the end of its training window", () => {
+		const model = new PredictiveModel(
+			normalizePredictiveSettings({ enabled: true, minimumTrainingSamples: 20, seasonalityMode: "off" }),
+		);
+		for (let index = 0; index < 30; index++) {
+			model.add(index, index * 60_000, "history");
+		}
+
+		const result = model.train(29 * 60_000, "history");
+		const backtest = result.diagnostics?.quality.levelTrend;
+		expect(backtest?.firstComparison?.actual).to.equal(24);
+		expect(backtest?.firstComparison?.predicted).to.be.closeTo(24, 0.01);
+		expect(backtest?.mae).to.be.lessThan(0.01);
+	});
+
+	it("advances seasonal forecasts from the last training timestamp", () => {
+		const periodSteps = 24;
+		const intervalMs = 60 * 60_000;
+		const model = new PredictiveModel(
+			normalizePredictiveSettings({
+				enabled: true,
+				minimumTrainingSamples: 30,
+				seasonalityMode: "manual",
+				seasonalPeriodMinutes: periodSteps * 60,
+				horizonMinutes: 3 * 60,
+			}),
+		);
+		for (let index = 0; index < 72; index++) {
+			model.add(100 + 10 * Math.sin((2 * Math.PI * index) / periodSteps), index * intervalMs, "history");
+		}
+		const trained = model.train(71 * intervalMs, "history");
+		const forecast = model.forecast(72 * intervalMs);
+		const fractionalForecast = model.forecast(72.5 * intervalMs);
+
+		expect(trained.selectedModelType).to.equal("seasonal");
+		expect(forecast.baseForecastAtNow).to.be.closeTo(100, 0.01);
+		expect(forecast.points[0].timestamp).to.equal(73 * intervalMs);
+		expect(forecast.points[0].value).to.be.closeTo(100 + 10 * Math.sin((2 * Math.PI) / periodSteps), 0.01);
+		expect(fractionalForecast.baseForecastAtNow).to.be.closeTo(
+			100 + (10 * Math.sin((2 * Math.PI) / periodSteps)) / 2,
+			0.01,
+		);
+		expect(fractionalForecast.points[0].timestamp).to.equal(73.5 * intervalMs);
+		expect(fractionalForecast.points[0].value).to.be.closeTo(
+			100 + (10 * Math.sin((2 * Math.PI) / periodSteps) + 10 * Math.sin((4 * Math.PI) / periodSteps)) / 2,
+			0.01,
+		);
+	});
+
+	it("advances level and trend by fractional elapsed model steps", () => {
+		const intervalMs = 60_000;
+		const model = new PredictiveModel(
+			normalizePredictiveSettings({ enabled: true, minimumTrainingSamples: 20, seasonalityMode: "off" }),
+		);
+		for (let index = 0; index < 60; index++) {
+			model.add(index, index * intervalMs, "history");
+		}
+		model.train(59 * intervalMs, "history");
+
+		const forecast = model.forecast(59.5 * intervalMs);
+		expect(forecast.baseForecastAtNow).to.be.closeTo(59.5, 0.01);
+		expect(forecast.points[0].timestamp).to.equal(60.5 * intervalMs);
+		expect(forecast.points[0].value).to.be.closeTo(60.5, 0.01);
+	});
+
+	it("trains from a persisted live-learning basis without collecting another minimum batch", () => {
+		const settings = normalizePredictiveSettings({
+			enabled: true,
+			minimumTrainingSamples: 10,
+			seasonalityMode: "off",
+		});
+		const original = new PredictiveModel(settings);
+		for (let index = 0; index < 10; index++) {
+			original.add(10 + index, index * 60_000);
+		}
+		const snapshot = original.toPersistenceJSON();
+		const restored = new PredictiveModel(settings, snapshot);
+
+		const result = restored.train(10 * 60_000);
+		expect(result.lastTrainingAt).to.equal(10 * 60_000);
+		expect(result.trainingSampleCount).to.equal(10);
+		expect(result.diagnostics?.model.algorithmVersion).to.equal(PREDICTIVE_ALGORITHM_VERSION);
+		expect(result.trainingSource).to.equal("live");
+	});
+
+	it("counts distinct live timestamps before replacing a persisted history model", () => {
+		const settings = normalizePredictiveSettings({
+			enabled: true,
+			minimumTrainingSamples: 10,
+			seasonalityMode: "off",
+		});
+		const original = new PredictiveModel(settings);
+		for (let index = 0; index < 20; index++) {
+			original.add(index, index * 60_000, "history");
+		}
+		const trained = original.train(19 * 60_000, "history");
+		const restored = new PredictiveModel(settings, original.toJSON());
+		for (let index = 0; index < settings.minimumTrainingSamples; index++) {
+			restored.add(99, 20 * 60_000);
+		}
+		for (let index = 0; index < settings.minimumTrainingSamples; index++) {
+			restored.add(99, index * 60_000);
+		}
+
+		const result = restored.train(20 * 60_000);
+		expect(result.trainingSource).to.equal("history");
+		expect(result.lastTrainingAt).to.equal(trained.lastTrainingAt);
+		expect(result.trainingSampleCount).to.equal(trained.trainingSampleCount);
+	});
+
+	it("keeps the live anchor on the newest timestamp when samples arrive out of order", () => {
+		const model = new PredictiveModel(
+			normalizePredictiveSettings({ enabled: true, minimumTrainingSamples: 10, seasonalityMode: "off" }),
+		);
+		for (let index = 0; index < 20; index++) {
+			model.add(10, index * 60_000);
+		}
+		model.train(20 * 60_000);
+		model.add(20, 20 * 60_000);
+		model.add(999, 19 * 60_000);
+
+		const result = model.forecast(20 * 60_000);
+		expect(result.currentValue).to.equal(20);
+		expect(result.currentValueTimestamp).to.equal(20 * 60_000);
+	});
+
+	it("waits for a recent contiguous segment after a long data gap", () => {
+		const intervalMs = 60_000;
+		const gapStart = 24 * 60 * intervalMs;
+		const model = new PredictiveModel(
+			normalizePredictiveSettings({
+				enabled: true,
+				minimumTrainingSamples: 10,
+				maximumTrainingPoints: 20,
+				seasonalityMode: "off",
+			}),
+		);
+		for (let index = 0; index < 12; index++) {
+			model.add(100, index * intervalMs, "history");
+		}
+		for (let index = 0; index < 5; index++) {
+			model.add(200, gapStart + index * intervalMs, "history");
+		}
+
+		const waiting = model.train(gapStart + 5 * intervalMs, "history");
+		expect(waiting.status).to.equal("learning");
+		expect(waiting.learningReason).to.equal("waitingForTraining");
+		expect(waiting.trainingSampleCount).to.equal(5);
+
+		for (let index = 5; index < 10; index++) {
+			model.add(200, gapStart + index * intervalMs);
+		}
+		const trained = model.train(gapStart + 10 * intervalMs);
+		expect(trained.trainingSampleCount).to.equal(10);
+		expect(trained.rawSampleCount).to.equal(10);
+		expect(model.toJSON()?.trainingBasis?.[0].timestamp).to.equal(gapStart);
+	});
+
+	it("keeps zero-crossing linear trends from being clipped to zero", () => {
+		for (const direction of [1, -1]) {
+			const model = new PredictiveModel(
+				normalizePredictiveSettings({
+					enabled: true,
+					minimumTrainingSamples: 20,
+					seasonalityMode: "off",
+					horizonMinutes: 10,
+				}),
+			);
+			for (let index = 0; index < 30; index++) {
+				model.add(direction * (index - 29), index * 60_000, "history");
+			}
+			model.train(29 * 60_000, "history");
+			const forecast = model.forecast(29 * 60_000);
+			expect(forecast.points[0].value).to.be.closeTo(direction, 0.01);
+		}
+	});
+
+	it("never places forecast points beyond a horizon shorter than the model interval", () => {
+		for (const horizonMinutes of [10, 150]) {
+			const intervalMs = 120 * 60_000;
+			const model = new PredictiveModel(
+				normalizePredictiveSettings({
+					enabled: true,
+					minimumTrainingSamples: 20,
+					seasonalityMode: "off",
+					horizonMinutes,
+				}),
+			);
+			for (let index = 0; index < 30; index++) {
+				model.add(50, index * intervalMs, "history");
+			}
+			const now = 29 * intervalMs;
+			model.train(now, "history");
+			const forecast = model.forecast(now);
+			expect(forecast.points.length).to.be.greaterThan(0);
+			expect(forecast.points.at(-1)?.timestamp).to.be.at.most(now + horizonMinutes * 60_000);
+			expect(forecast.points.at(-1)?.timestamp).to.equal(now + horizonMinutes * 60_000);
+		}
+	});
+
+	it("returns an empty error forecast when finite inputs overflow model arithmetic", () => {
+		const model = new PredictiveModel(
+			normalizePredictiveSettings({ enabled: true, minimumTrainingSamples: 20, seasonalityMode: "off" }),
+		);
+		for (let index = 0; index < 30; index++) {
+			model.add(Number.MAX_VALUE, index * 60_000, "history");
+		}
+
+		const result = model.train(29 * 60_000, "history");
+		expect(result.status).to.equal("error");
+		expect(result.points).to.deep.equal([]);
 	});
 
 	it("flags zero and small IQR quality scales without changing the metric", () => {

@@ -24,11 +24,17 @@ Der Adapter kombiniert folgende deterministische Detektoren:
 
 `score` ist ein deterministischer Schweregrad von 0 bis 100. Er ist weder eine statistische Wahrscheinlichkeit noch eine Diagnose der physischen Ursache.
 
-| Score | Bedeutung |
-| --- | --- |
-| 0–49 | normal |
-| 50–69 | ungewöhnlich |
-| 70–84 | Anomalie |
+## Voraussetzungen
+
+- Node.js 22 oder neuer (laut `package.json`).
+- ioBroker js-controller 6.0.11 oder neuer (laut `io-package.json`).
+- ioBroker Admin 8.0.0 oder neuer für den Custom-Administrations-Tab. Die föderierte Admin-Oberfläche verwendet React 19 und MUI 9; die Kompatibilität mit jeder Admin-8.x-Hostversion wurde nicht separat praktisch bestätigt. Verwende daher eine aktuelle unterstützte Admin-Version.
+
+| Score  | Bedeutung       |
+| ------ | --------------- |
+| 0–49   | normal          |
+| 50–69  | ungewöhnlich    |
+| 70–84  | Anomalie        |
 | 85–100 | starke Anomalie |
 
 ## Mathematische Grundlagen
@@ -143,31 +149,31 @@ Der Adapter erkennt statistische Ungewöhnlichkeit, diagnostiziert aber keinen G
 
 ## Optionen im Überblick
 
-| Option | Zweck und Anwendung | Beispiel |
-| --- | --- | --- |
-| **Aktiviert** | Startet oder stoppt die Überwachung dieser Zeile. Deaktivierte Zeilen bleiben konfiguriert. | Während einer Wartung deaktivieren. |
-| **Quellstatus-ID** | Numerischer ioBroker-Zustand, der bewertet wird. Über den Objekt-Picker auswählen. | `alias.0.pumpe.leistung` |
-| **Name** | Lesbarer Name für das generierte Quellgerät; ändert nicht die Quell-ID. | `Gartenpumpe Leistung` |
-| **Initiales Training** | Nur Live-Werte lernen oder vorhandene History importieren. | Für einen Power-Meter mit InfluxDB-History: History importieren. |
-| **History-Quelle** | Kompatible, aktivierte History-Adapterinstanz für den Import. | `influxdb.0` |
-| **Zeitraum des History-Trainings (Tage)** | Wie weit der Import zurückreicht. Nur repräsentative Normalzeiten auswählen. | `30` Tage |
-| **Maximal importierte Proben** | Begrenzung des Imports zum Schutz von Speicher und Raspberry Pi. | `1000` |
-| **Überwachung nach History-Import starten** | Startet nach ausreichendem Import direkt den Status `monitoring`. | Für eine etablierte Messreihe aktivieren. |
-| **Mindestens gelernte Proben** | Mindestgröße einer vertrauenswürdigen Baseline. | `30` für häufige Leistungswerte. |
-| **Zeit-Bucket-Größe (Minuten)** | Größe der Tageszeitbereiche. Kleinere Bereiche sind genauer, lernen aber langsamer. | `60` Minuten |
-| **Sensitivität (robuster z-Score)** | Niedriger ist empfindlicher, höher toleranter. | Auf `5` erhöhen, wenn normale Schwankungen zu viele Meldungen erzeugen. |
-| **Anomalie-Schwellenwert** | Score, ab dem eine Anomalie gespeichert und nicht mehr gelernt wird. | `70` |
-| **Mindestdauer einer Anomalie (Minuten)** | Zeit, die die Schwelle überschritten sein muss, bevor `detected` dauerhaft gesetzt wird. | `5` Minuten |
-| **Detektor für Wertabweichungen (MAD)** | Erkennt ungewöhnliche absolute Werte gegenüber dem gelernten Bereich. | Für Temperatur, Druck, Verbrauch und Leistung aktivieren. |
-| **Detektor für Änderungsrate** | Erkennt ungewöhnlich schnelle Änderungen. | Für Durchfluss oder Füllstand aktivieren; bei normalen Lastsprüngen deaktiviert lassen. |
-| **Detektor für festhängende Werte** | Erkennt wiederholt empfangene identische Werte über die konfigurierte Dauer. | Für regelmäßig wechselnde Sensoren aktivieren, nicht für lange konstante Setpoints. |
-| **Dauer eines festhängenden Wertes** | Wird nur bei aktiviertem Festhängend-Detektor angezeigt; legt dessen Mindestdauer fest. | `120` Minuten |
-| **Tageszeit-Kontext verwenden** | Trennt Baselines nach Tageszeit. | `60`-Minuten-Buckets für Haushaltsverbrauch. |
-| **Wochentags-Kontext verwenden** | Trennt zusätzlich nach Wochentag; funktioniert zusammen mit dem Tageszeit-Kontext. | Büroverbrauch werktags gegenüber Wochenende. |
-| **Kontextbezogene Erkennung aktivieren** | Lernt abhängig von bis zu drei weiteren Zuständen. | `pumpe.ein`, `modus`, Außentemperatur. |
-| **Kontextzustände** | Die Zustände, die den Betriebszustand beschreiben. Boolesche und Enum-Werte benötigen keine Breite; numerische Werte verwenden Buckets. | `pumpe.ein=true`, Temperatur-Breite `5`. |
-| **Dauerhafte Erkennung von Pegelverschiebungen** | Erkennt ein anhaltend verändertes Betriebsniveau. | Standby-Leistung dauerhaft von 5 W auf 12 W gestiegen. |
-| **Trenderkennung aktivieren** | Erkennt langsame Aufwärts- oder Abwärtsentwicklung über Residuen. | Heizdauer steigt über mehrere Tage. |
+| Option                                           | Zweck und Anwendung                                                                                                                     | Beispiel                                                                                |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| **Aktiviert**                                    | Startet oder stoppt die Überwachung dieser Zeile. Deaktivierte Zeilen bleiben konfiguriert.                                             | Während einer Wartung deaktivieren.                                                     |
+| **Quellstatus-ID**                               | Numerischer ioBroker-Zustand, der bewertet wird. Über den Objekt-Picker auswählen.                                                      | `alias.0.pumpe.leistung`                                                                |
+| **Name**                                         | Lesbarer Name für das generierte Quellgerät; ändert nicht die Quell-ID.                                                                 | `Gartenpumpe Leistung`                                                                  |
+| **Initiales Training**                           | Nur Live-Werte lernen oder vorhandene History importieren.                                                                              | Für einen Power-Meter mit InfluxDB-History: History importieren.                        |
+| **History-Quelle**                               | Kompatible, aktivierte History-Adapterinstanz für den Import.                                                                           | `influxdb.0`                                                                            |
+| **Zeitraum des History-Trainings (Tage)**        | Wie weit der Import zurückreicht. Nur repräsentative Normalzeiten auswählen.                                                            | `30` Tage                                                                               |
+| **Maximal importierte Proben**                   | Begrenzung des Imports zum Schutz von Speicher und Raspberry Pi.                                                                        | `1000`                                                                                  |
+| **Überwachung nach History-Import starten**      | Startet nach ausreichendem Import direkt den Status `monitoring`.                                                                       | Für eine etablierte Messreihe aktivieren.                                               |
+| **Mindestens gelernte Proben**                   | Mindestgröße einer vertrauenswürdigen Baseline.                                                                                         | `30` für häufige Leistungswerte.                                                        |
+| **Zeit-Bucket-Größe (Minuten)**                  | Größe der Tageszeitbereiche. Kleinere Bereiche sind genauer, lernen aber langsamer.                                                     | `60` Minuten                                                                            |
+| **Sensitivität (robuster z-Score)**              | Niedriger ist empfindlicher, höher toleranter.                                                                                          | Auf `5` erhöhen, wenn normale Schwankungen zu viele Meldungen erzeugen.                 |
+| **Anomalie-Schwellenwert**                       | Score, ab dem eine Anomalie gespeichert und nicht mehr gelernt wird.                                                                    | `70`                                                                                    |
+| **Mindestdauer einer Anomalie (Minuten)**        | Zeit, die die Schwelle überschritten sein muss, bevor `detected` dauerhaft gesetzt wird.                                                | `5` Minuten                                                                             |
+| **Detektor für Wertabweichungen (MAD)**          | Erkennt ungewöhnliche absolute Werte gegenüber dem gelernten Bereich.                                                                   | Für Temperatur, Druck, Verbrauch und Leistung aktivieren.                               |
+| **Detektor für Änderungsrate**                   | Erkennt ungewöhnlich schnelle Änderungen.                                                                                               | Für Durchfluss oder Füllstand aktivieren; bei normalen Lastsprüngen deaktiviert lassen. |
+| **Detektor für festhängende Werte**              | Erkennt wiederholt empfangene identische Werte über die konfigurierte Dauer.                                                            | Für regelmäßig wechselnde Sensoren aktivieren, nicht für lange konstante Setpoints.     |
+| **Dauer eines festhängenden Wertes**             | Wird nur bei aktiviertem Festhängend-Detektor angezeigt; legt dessen Mindestdauer fest.                                                 | `120` Minuten                                                                           |
+| **Tageszeit-Kontext verwenden**                  | Trennt Baselines nach Tageszeit.                                                                                                        | `60`-Minuten-Buckets für Haushaltsverbrauch.                                            |
+| **Wochentags-Kontext verwenden**                 | Trennt zusätzlich nach Wochentag; funktioniert zusammen mit dem Tageszeit-Kontext.                                                      | Büroverbrauch werktags gegenüber Wochenende.                                            |
+| **Kontextbezogene Erkennung aktivieren**         | Lernt abhängig von bis zu drei weiteren Zuständen.                                                                                      | `pumpe.ein`, `modus`, Außentemperatur.                                                  |
+| **Kontextzustände**                              | Die Zustände, die den Betriebszustand beschreiben. Boolesche und Enum-Werte benötigen keine Breite; numerische Werte verwenden Buckets. | `pumpe.ein=true`, Temperatur-Breite `5`.                                                |
+| **Dauerhafte Erkennung von Pegelverschiebungen** | Erkennt ein anhaltend verändertes Betriebsniveau.                                                                                       | Standby-Leistung dauerhaft von 5 W auf 12 W gestiegen.                                  |
+| **Trenderkennung aktivieren**                    | Erkennt langsame Aufwärts- oder Abwärtsentwicklung über Residuen.                                                                       | Heizdauer steigt über mehrere Tage.                                                     |
 
 ### Konfigurationsgrundsätze
 
@@ -209,7 +215,7 @@ Für eine Quelle **Vorhandene History importieren** auswählen und danach eine *
 
 Standardmäßig werden 30 Tage und höchstens 1.000 Samples importiert. Ungültige Werte und Zeitstempel werden verworfen, doppelte Zeitstempel zusammengeführt und übergroße Ergebnismengen gleichmäßig über den gesamten Zeitraum verteilt. Offensichtliche historische Extremwerte werden vor dem Lernen robust ausgeschlossen. Große Zeitlücken erzeugen niemals eine Festhängend-Anomalie.
 
-Ein importiertes Modell wird nach einem Neustart wiederverwendet. Eine Änderung von History-Quelle, Zeitraum oder Sample-Limit startet einen neuen Import. Bei fehlgeschlagenem oder zu kleinem Import bleibt die Quelle nutzbar und lernt live weiter. Über `sources.<sanitized-source-id>.retrain = true` kann ein Modell ausdrücklich verworfen und neu trainiert werden; der Adapter setzt den Wert anschließend mit `ack=true` auf `false` zurück.
+Ein importiertes Modell wird nach einem Neustart wiederverwendet. Eine Änderung von History-Quelle, Zeitraum oder Sample-Limit startet einen neuen Import. Bei fehlgeschlagenem oder zu kleinem Import bleibt die Quelle nutzbar und lernt live weiter. Über `sources.<sanitized-source-id>.retrain = true` wird ausdrücklich das Anomaliemodell verworfen und neu trainiert; ein vollständiges Predictive-Modell bleibt dabei erhalten und wird nur bei erforderlichem History-Bootstrap neu aufgebaut. Der Adapter setzt den Wert anschließend mit `ack=true` auf `false` zurück.
 
 ## Erzeugte Objekte
 
@@ -217,23 +223,23 @@ Für jede Quelle legt der Adapter unter folgendem Pfad eine sichere, determinist
 
 `anomaly-detection.0.sources.<sanitized-source-id>.analysis`
 
-| State | Typ/Rolle | Bedeutung |
-| --- | --- | --- |
-| `actual` | number / `value` | zuletzt akzeptierter Quellwert |
-| `expected` | number / `value` | Median der verwendeten Baseline |
-| `deviation` | number / `value` | `actual - expected` |
-| `score` | number / `value` | normierter Anomalie-Score 0–100 |
-| `detected` | boolean / `indicator` | persistente Anomalieanzeige |
-| `status` | string / `info.status` | `insufficientData`, `learning` oder `monitoring` |
-| `reason` | string / `text` | deterministische Erklärung der aktuellen Bewertung |
-| `lastAnomaly` | string / `date` | Zeitpunkt der letzten hohen Bewertung |
-| `sampleCount` | number / `value` | gespeicherte globale Samples, maximal 240 |
-| `baselineScope` | string / `info.status` | verwendete Baseline: `context`, `time`, `global` oder `insufficient` |
-| `activeContext` | string / `text` | aktueller normalisierter Kontext |
-| `baselineSampleCount` | number / `value` | Samples der tatsächlich verwendeten Baseline |
-| `contextSampleCount` | number / `value` | Samples im passenden Kontextmodell |
-| `bootstrapStatus` | string / `info.status` | Ergebnis des optionalen History-Imports |
-| `retrain` | boolean / `button` | `true` schreiben, um Quelle und Modell zurückzusetzen |
+| State                 | Typ/Rolle              | Bedeutung                                                                                                                         |
+| --------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `actual`              | number / `value`       | zuletzt akzeptierter Quellwert                                                                                                    |
+| `expected`            | number / `value`       | Median der verwendeten Baseline                                                                                                   |
+| `deviation`           | number / `value`       | `actual - expected`                                                                                                               |
+| `score`               | number / `value`       | normierter Anomalie-Score 0–100                                                                                                   |
+| `detected`            | boolean / `indicator`  | persistente Anomalieanzeige                                                                                                       |
+| `status`              | string / `info.status` | `insufficientData`, `learning` oder `monitoring`                                                                                  |
+| `reason`              | string / `text`        | deterministische Erklärung der aktuellen Bewertung                                                                                |
+| `lastAnomaly`         | string / `date`        | Zeitpunkt der letzten hohen Bewertung                                                                                             |
+| `sampleCount`         | number / `value`       | gespeicherte globale Samples, maximal 240                                                                                         |
+| `baselineScope`       | string / `info.status` | verwendete Baseline: `context`, `time`, `global` oder `insufficient`                                                              |
+| `activeContext`       | string / `text`        | aktueller normalisierter Kontext                                                                                                  |
+| `baselineSampleCount` | number / `value`       | Samples der tatsächlich verwendeten Baseline                                                                                      |
+| `contextSampleCount`  | number / `value`       | Samples im passenden Kontextmodell                                                                                                |
+| `bootstrapStatus`     | string / `info.status` | Ergebnis des optionalen History-Imports                                                                                           |
+| `retrain`             | boolean / `button`     | `true` schreiben, um das Anomaliemodell zurückzusetzen und neu zu trainieren; ein vollständiges Predictive-Modell bleibt erhalten |
 
 Alle vom Adapter geschriebenen Ergebnis-States verwenden `ack=true`. `retrain` ist der einzige Befehls-State und wird nach der Verarbeitung zurückgesetzt.
 
@@ -241,11 +247,15 @@ Alle vom Adapter geschriebenen Ergebnis-States verwenden `ack=true`. `retrain` i
 
 Die optionale Predictive-Funktion erzeugt für jede überwachte numerische Quelle eine begrenzte lokale Prognose. Die Prognose verwendet die persistierte Trainingsbasis und keine Cloud-Dienste oder KI-APIs. Unterstützt werden Level/Trend-, saisonale und Tageszeitmodelle; das konfigurierte Modell wird durch deterministisches Backtesting ausgewählt.
 
-Die Prognosepunkte behalten ihre echten Zeitstempel und das Modellintervall. Der aktuelle Live-Wert wird als separater Ist-Marker dargestellt; er wird weder in die gestrichelte Forecast-Serie eingefügt noch mit ihr verbunden. So bleibt eine Abweichung zwischen Messwert und modellierter Erwartung am Prognoseursprung sichtbar, ohne eine künstliche Rampe zu erzeugen.
+Die Prognosepunkte behalten ihre echten Zeitstempel und das Modellintervall; der letzte Punkt wird bei Bedarf auf den eingestellten Horizont begrenzt. Trend und saisonale Phase werden vom letzten Trainingswert bis zur aktuellen Prognosezeit fortgeschrieben, auch zwischen zwei Modellintervallen. Der aktuelle Live-Wert wird als separater Ist-Marker dargestellt; er wird weder in die gestrichelte Forecast-Serie eingefügt noch mit ihr verbunden. So bleibt eine Abweichung zwischen Messwert und modellierter Erwartung am Prognoseursprung sichtbar, ohne eine künstliche Rampe zu erzeugen.
 
 Die Prognosekarte zeigt Horizont, ausgewähltes Modell, Modellintervall, Trainingsquelle, Anzahl der Trainingswerte, letzten Trainingszeitpunkt, Saisonalität und Qualitätsklasse. Die Qualität basiert auf dem historischen mittleren absoluten Fehler (MAE). Die Zustände können `disabled`, `learning`, `ready`, `unreliable` oder `error` sein; eingeschränkte oder unzuverlässige Prognosen bleiben mit einem eindeutigen Status sichtbar.
 
 Die Predictive-Einstellungen werden pro Quelle festgelegt: Aktivierung, Prognosehorizont, Aktualisierungsintervall, minimale und maximale Trainingspunktzahl sowie der Saisonalitätsmodus (aus, automatisch oder manuell). Das Initialtraining kann Live-Werte oder einen kompatiblen History-Provider verwenden. Persistierte Modelle und ihre begrenzten Trainingsbasen bleiben über Neustarts erhalten; fehlende oder inkompatible Trainingsdaten ersetzen ein History-Modell nicht durch ein reines Live-Training.
+
+Die Predictive-Algorithmusversion ist jetzt 8. Modelle älterer Algorithmen werden verworfen und aus der konfigurierten History-Quelle oder neuen Live-Trainingswerten neu aufgebaut. Dadurch werden alte Modellkoeffizienten nicht mit den korrigierten Prognoseformeln interpretiert.
+
+Prognose-Interpolation endet an Lücken, die sowohl sechs Stunden als auch sechs typische Quellintervalle überschreiten. Das Training verwendet dann den jüngsten zusammenhängenden Abschnitt. Bei zu wenigen Werten wartet es auf weitere Daten und behält ein vorhandenes trainiertes Modell bei. Mehrfachmeldungen desselben Zeitstempels zählen nicht als neue Trainingswerte. Nicht endliche Zwischenergebnisse führen zu einem ausdrücklichen Fehlerstatus ohne Prognosepunkte.
 
 ## Einschränkungen und Datenschutz
 
@@ -254,6 +264,23 @@ Eine Anomalie bedeutet, dass ein Wert oder Verhalten relativ zu den gelernten Be
 Verarbeitung und Modellspeicherung erfolgen vollständig lokal in ioBroker. Kein Messwert wird an einen externen KI-, Analyse- oder Cloud-Dienst gesendet.
 
 ## Changelog
+
+### 0.4.5 (2026-10-14)
+
+- Lange Datenpunkt-IDs und Kontextfelder bei Zoom und auf schmalen Bildschirmen lesbar darstellen.
+- Dünn verteilte History-Werte bis zum konfigurierten Limit erhalten und veraltete Dashboard-Antworten ignorieren.
+- Trend-Backtesting, verstrichene Prognosezeit, saisonale Phase, Trends am Nulldurchgang und Prognosehorizont korrigiert.
+- Änderungsraten pro Kontext getrennt lernen, begrenzte Kontext-Detektorzustände über Neustarts erhalten und beschädigte persistierte Modelle sicher verwerfen.
+- Unbestätigte Sollwerte beim Start und Retraining ignorieren und nicht verfügbare Bewertungen nach einem Reset zurücksetzen.
+- Saubere Admin-Installation repariert, fehlgeschlagene oder veraltete Diagramm-Anfragen behandelt und Prognose-Zeitachsen übersetzt.
+- Echte ioBroker-Regressionstests für Lernen, Ausreißer, Persistenz, Neustart und Retraining ergänzt.
+- Ungültige und veraltete History-Werte verwerfen und verhindern, dass doppelte Messwerte erneut gelernt werden.
+- History-Importe beim Shutdown sauber beenden und die aktuelle React-Administrationsoberfläche beim Release mitbauen.
+- Admin-Abhängigkeiten auf React 19, MUI 9 und aktuelle ioBroker-GUI-Komponenten aktualisieren.
+
+### 0.4.4 (2026-10-07)
+
+- Alle Common-News-Übersetzungen vervollständigt und das alte Changelog dokumentiert.
 
 ### 0.4.3 (2026-10-07)
 

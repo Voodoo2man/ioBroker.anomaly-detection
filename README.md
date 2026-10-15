@@ -24,6 +24,12 @@ The adapter combines these deterministic detectors:
 
 `score` is a deterministic severity/confidence value from 0 to 100, not a statistical probability and not a diagnosis of the physical cause.
 
+## Requirements
+
+- Node.js 22 or newer (as declared in `package.json`).
+- ioBroker js-controller 6.0.11 or newer (as declared in `io-package.json`).
+- ioBroker Admin 8.0.0 or newer for the custom administration tab. React 19 and MUI 9 are used by the federated Admin UI; compatibility with every Admin 8.x host build has not been independently verified, so use a current supported Admin release.
+
 | Score  | Interpretation |
 | ------ | -------------- |
 | 0–49   | normal         |
@@ -286,7 +292,7 @@ Aliases remain the configured live source. For historical bootstrap, the adapter
 
 The default training period is 30 days (minimum 7) with at most 1,000 imported samples. Invalid values and timestamps are discarded, duplicate timestamps are merged, and oversized result sets are evenly sampled over the whole time range. A robust MAD pass excludes obvious extreme historical values before learning. Rate baselines are calculated only between chronologically adjacent samples with no more than six hours between them. Historical gaps never create a stuck-state finding.
 
-An imported, compatible model is reused after restart. Changing the history provider, training period or sample limit triggers a new import. The runtime validates the selected provider and its enabled history configuration again before every import. Invalid legacy values such as `0` are rejected immediately and are never sent a `getHistory` request. To explicitly discard a model and start again, set `sources.<sanitized-source-id>.retrain` to `true`; the adapter resets it to `false` with `ack=true`. If history import fails or returns too little usable data, the source remains usable and continues with live learning. The states `analysis.bootstrapStatus`, `analysis.status`, and `analysis.sampleCount` show the import outcome.
+An imported, compatible model is reused after restart. Changing the history provider, training period or sample limit triggers a new import. The runtime validates the selected provider and its enabled history configuration again before every import. Invalid legacy values such as `0` are rejected immediately and are never sent a `getHistory` request. To explicitly discard and retrain the anomaly model, set `sources.<sanitized-source-id>.retrain` to `true`; the adapter resets it to `false` with `ack=true`. A complete predictive model is intentionally retained by this command and is rebuilt only when its history model or training basis needs bootstrap. If history import fails or returns too little usable data, the source remains usable and continues with live learning. The states `analysis.bootstrapStatus`, `analysis.status`, and `analysis.sampleCount` show the import outcome.
 
 ## Resulting objects
 
@@ -310,7 +316,7 @@ For each source, the adapter creates a safe deterministic object ID under:
 | `baselineSampleCount` | number / `value`       | retained samples in the baseline actually used; `0` for `insufficient`                                       |
 | `contextSampleCount`  | number / `value`       | retained samples in the matching context model after the current accepted observation; `0` when none matches |
 | `bootstrapStatus`     | string / `info.status` | outcome of optional historical initial training                                                              |
-| `retrain`             | boolean / `button`     | write `true` to reset and retrain this source                                                                |
+| `retrain`             | boolean / `button`     | write `true` to reset and retrain the anomaly model; a complete predictive model is retained                 |
 
 All adapter-written result states use `ack=true`. `retrain` is the only command state and is reset with `ack=true` after handling.
 
@@ -322,11 +328,15 @@ For example, with `activeContext=alias.0.tv.relay=false`, `actual=0 W`, `baselin
 
 Optional predictive forecasting produces a bounded, local forecast for each monitored numerical state. The forecast is generated from the persisted training basis and does not use cloud services or AI APIs. The model supports level/trend, seasonal, and time-of-day profiles and selects the configured model using deterministic backtesting.
 
-Forecast points retain their real timestamps and model interval. The current live value is displayed separately as an actual marker; it is not inserted into or connected to the dashed forecast series. This makes a difference between the current measurement and the model expectation at the forecast origin visible without creating an artificial ramp.
+Forecast points retain their real timestamps and model interval; the final point is shortened where necessary to stay within the configured horizon. Trend and seasonal phase advance from the last training observation to the current forecast time, including fractions of a model interval. The current live value is displayed separately as an actual marker; it is not inserted into or connected to the dashed forecast series. This makes a difference between the current measurement and the model expectation at the forecast origin visible without creating an artificial ramp.
 
 The forecast card reports the horizon, selected model, model interval, training source, training sample count, last training time, seasonality, and quality classification. Quality is based on historical mean absolute error (MAE). Forecast states can be `disabled`, `learning`, `ready`, `unreliable`, or `error`; limited or unreliable forecasts remain visible with an explicit status.
 
 Predictive settings are configured per source: enablement, forecast horizon, update interval, minimum and maximum training points, and seasonality mode (off, automatic, or manual). Initial training can use live values or a compatible history provider. Persisted models and their bounded training bases survive adapter restarts; missing or incompatible training data is handled without replacing a history-based model with live-only training.
+
+The predictive algorithm version is now 8. Models fitted by an older algorithm are invalidated and rebuilt from the configured history source or new live training data. This prevents old fitted coefficients from being interpreted with the corrected forecast formulas.
+
+Predictive interpolation stops at gaps longer than both six hours and six median source intervals. Training then uses the newest continuous section; a section below the minimum training sample count waits for more data and retains an existing fitted model when available. Repeated observations at one timestamp do not count as fresh training samples. Non-finite intermediate calculations produce an explicit error with no forecast points.
 
 ## Limitations
 
@@ -337,6 +347,19 @@ An anomaly means that a value or behaviour is unusual relative to the observatio
 Processing and model storage are completely local to ioBroker. No monitored value is sent to an external AI service, analytics service, or cloud API.
 
 ## Changelog
+
+### 0.4.5 (2026-10-14)
+
+- Improve wrapping of long state IDs and context settings on narrow screens and at high zoom.
+- Preserve sparse history samples up to the configured limit and ignore stale dashboard responses.
+- Correct trend backtesting, elapsed forecast time, seasonal phase, zero-crossing trends, and forecast horizon bounds.
+- Isolate context-specific rate learning and preserve bounded context detector state across restarts; discard malformed persisted models safely.
+- Ignore unacknowledged source commands during startup and retraining, and clear unavailable evaluations after a reset.
+- Repair clean admin installation, handle failed or stale chart requests, and localize forecast time-axis labels.
+- Add real ioBroker learning, outlier, persistence, restart, and retraining regression tests.
+- Reject invalid and stale history samples and prevent duplicate samples from being learned again.
+- Stop history imports cleanly during shutdown and build the current React administration interface as part of release packaging.
+- Update the administration interface dependencies to React 19, MUI 9, and current ioBroker GUI components.
 
 ### 0.4.4 (2026-10-07)
 

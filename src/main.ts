@@ -1,22 +1,50 @@
 /* Created with @iobroker/create-adapter v3.1.5 */
 import * as utils from "@iobroker/adapter-core";
-import { sanitizeHistory, type HistoryProvider, type HistorySample } from "./lib/history-provider";
-import { HistorySourceResolver, selectHistorySource, type HistorySource } from "./lib/history-source-resolver";
-import { cleanupStaleSources } from "./lib/source-cleanup";
-import { SourceMonitor, parseStoredModel, type ObservationResult, type SourceSettings } from "./lib/source-monitor";
-import { createContextPart } from "./lib/context-value";
-import { drainPendingWork } from "./lib/pending-work";
-import { SOURCES_OBJECT_ID, sourcesObject } from "./lib/object-structure";
 import {
+	anomalyBootstrapStateUpdate,
+	manualRetrainBootstrapNeeds,
+	shouldBootstrapPredictiveHistory,
+} from "./lib/bootstrap-policy";
+import { createContextPart } from "./lib/context-value";
+import { HistoryLoadBudget, HistorySampleSampler } from "./lib/history-budget";
+import {
+	sanitizeHistory,
+	sanitizeHistoryWithDiagnostics,
+	type HistoryProvider,
+	type HistorySample,
+} from "./lib/history-provider";
+import { withAbortableTimeout } from "./lib/history-request";
+import { HistorySourceResolver, selectHistorySource, type HistorySource } from "./lib/history-source-resolver";
+import { mergeStartupModels } from "./lib/model-persistence";
+import { objectName } from "./lib/object-names";
+import { SOURCES_OBJECT_ID, ensureStateUnit, sourcesObject } from "./lib/object-structure";
+import {
+	acquireExclusiveWork,
+	drainPendingWork,
+	enqueueSerializedWork,
+	settleIndependentTasks,
+} from "./lib/pending-work";
+import {
+	PREDICTIVE_ALGORITHM_VERSION,
+	PREDICTIVE_HISTORY_RAW_LIMIT,
 	PredictiveModel,
 	PredictiveTrainingQueue,
-	PREDICTIVE_ALGORITHM_VERSION,
 	normalizePredictiveSettings,
 	predictiveHistorySpanMinutes,
-	PREDICTIVE_HISTORY_RAW_LIMIT,
 	type PredictiveModelData,
 	type PredictiveResult,
 } from "./lib/predictive";
+import { cleanupStaleSources } from "./lib/source-cleanup";
+import {
+	SourceMonitor,
+	evaluateCurrentSourceValue,
+	parseStoredModel,
+	type ObservationResult,
+	type SourceModelData,
+	type SourceSettings,
+} from "./lib/source-monitor";
+import { writeStateValues } from "./lib/state-write";
+import { observeWithTimestampCache } from "./lib/timestamp-cache";
 
 const MODEL_STATE_ID = "models";
 const PREDICTIVE_MODEL_STATE_ID = "predictiveModels";
@@ -76,6 +104,7 @@ class IoBrokerHistoryProvider implements HistoryProvider {
 
 interface SegmentedHistoryResult {
 	samples: HistorySample[];
+	anomalySamples: HistorySample[];
 	providerCalls: number;
 	segmentQueries: number;
 	coverageProbes: number;
@@ -124,6 +153,13 @@ class AnomalyDetection extends utils.Adapter {
 	private readonly lastProcessedTimestamps = new Map<string, number>();
 	/** Startup, retrain, and state processing that must finish before shutdown persistence. */
 	private readonly pendingAdapterWork = new Set<Promise<void>>();
+	private readonly resultWriteQueues = new Map<string, Promise<void>>();
+	private readonly persistenceQueues = new Map<string, Promise<void>>();
+	private readonly historyAbortController = new AbortController();
+	private restoredModels: Record<string, SourceModelData> = {};
+	private restoredPredictiveModels: Record<string, PredictiveModelData> = {};
+	private startupModelsLoaded = false;
+	private startupComplete = false;
 	private unloading = false;
 	private persistTimer: ioBroker.Timeout | undefined;
 
@@ -137,11 +173,23 @@ class AnomalyDetection extends utils.Adapter {
 
 	private async onReady(): Promise<void> {
 		await this.ensureModelState();
+		if (this.unloading) {
+			return;
+		}
 		// The source container is a real parent of every generated source device.
 		// Creating it on every startup also repairs existing installations.
 		await this.setObjectNotExistsAsync(SOURCES_OBJECT_ID, sourcesObject);
+		if (this.unloading) {
+			return;
+		}
 		const predictiveStored = parsePredictiveModels((await this.getStateAsync(PREDICTIVE_MODEL_STATE_ID))?.val);
+		if (this.unloading) {
+			return;
+		}
 		const persistedValue = (await this.getStateAsync(MODEL_STATE_ID))?.val;
+		if (this.unloading) {
+			return;
+		}
 		let stored = parseStoredModel(persistedValue);
 		if (
 			typeof persistedValue === "string" &&
@@ -155,9 +203,18 @@ class AnomalyDetection extends utils.Adapter {
 			(this.config.sources ?? []).flatMap(source => (source.id?.trim() ? [source.id.trim()] : [])),
 		);
 		stored = await this.cleanupStaleSources(configuredSourceIds, stored);
+		if (this.unloading) {
+			return;
+		}
+		this.restoredModels = stored;
+		this.restoredPredictiveModels = predictiveStored;
+		this.startupModelsLoaded = true;
 		const configuredIds = new Set<string>();
 		const bootstrapTasks: Array<() => Promise<void>> = [];
 		for (const source of this.config.sources ?? []) {
+			if (this.unloading) {
+				return;
+			}
 			if (!source.enabled || !source.id?.trim()) {
 				continue;
 			}
@@ -168,6 +225,9 @@ class AnomalyDetection extends utils.Adapter {
 			}
 			configuredIds.add(id);
 			const object = await this.getForeignObjectAsync(id);
+			if (this.unloading) {
+				return;
+			}
 			if (!object) {
 				this.log.warn(`Configured source state does not exist yet: ${id}`);
 			} else if (object.type !== "state" || object.common.type !== "number") {
@@ -228,6 +288,9 @@ class AnomalyDetection extends utils.Adapter {
 					continue;
 				}
 				const contextObject = await this.getForeignObjectAsync(contextId);
+				if (this.unloading) {
+					return;
+				}
 				const name = contextObject?.common?.name;
 				if (typeof name === "string") {
 					this.contextNames.set(contextId, name);
@@ -240,7 +303,13 @@ class AnomalyDetection extends utils.Adapter {
 				}
 			}
 			await this.registerContexts(id, source);
+			if (this.unloading) {
+				return;
+			}
 			await this.ensureSourceObjects(safeId, source, object?.common.unit);
+			if (this.unloading) {
+				return;
+			}
 			this.subscribeForeignStates(id);
 			const predictiveModel = this.predictiveModels.get(safeId);
 			const anomalyBootstrap = this.shouldBootstrap(source, monitor);
@@ -277,14 +346,20 @@ class AnomalyDetection extends utils.Adapter {
 					this.log.debug(`Predictive bootstrap scheduled from history for ${id}`);
 				}
 				bootstrapTasks.push(async () => {
-					this.bootstrappingSources.add(id);
+					const release = acquireExclusiveWork(this.bootstrappingSources, id);
+					if (!release) {
+						return;
+					}
 					try {
 						await this.bootstrapSource(id, safeId, source, monitor, {
 							anomaly: anomalyBootstrap,
 							predictive: predictiveBootstrap,
 						});
 					} finally {
-						this.bootstrappingSources.delete(id);
+						release();
+						if (!this.unloading) {
+							await this.setStateChangedAsync(`sources.${safeId}.retrain`, { val: false, ack: true });
+						}
 					}
 				});
 			}
@@ -295,7 +370,13 @@ class AnomalyDetection extends utils.Adapter {
 		// change event after a restart, but the dashboard must still receive the
 		// current evaluation (including the valid numeric value 0).
 		for (const [sourceId, safeId] of this.sourceIds) {
+			if (this.unloading) {
+				return;
+			}
 			const state = await this.getForeignStateAsync(sourceId);
+			if (this.unloading) {
+				return;
+			}
 			if (state) {
 				const monitor = this.monitors.get(sourceId);
 				if (monitor) {
@@ -304,6 +385,7 @@ class AnomalyDetection extends utils.Adapter {
 			}
 		}
 		this.log.info(`Monitoring ${this.monitors.size} numerical state${this.monitors.size === 1 ? "" : "s"}`);
+		this.startupComplete = true;
 	}
 
 	private onStateChange(id: string, state: ioBroker.State | null | undefined): void {
@@ -351,19 +433,22 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private onMessage(message: ioBroker.Message): void {
-		if (!message.callback) {
+		if (this.unloading || !message.callback) {
 			return;
 		}
 		if (message.command === "getHistoryProviders") {
-			void this.replyWithHistoryProviders(message);
+			this.trackAdapterWork(this.replyWithHistoryProviders(message), "History-provider request");
 		} else if (message.command === "tab") {
 			void this.replyWithAnomalyTab(message);
 		} else if (message.command === "chartData") {
-			void this.replyWithChartData(message);
+			this.trackAdapterWork(this.replyWithChartData(message), "Chart history request");
 		}
 	}
 
 	private async replyWithChartData(message: ioBroker.Message): Promise<void> {
+		if (this.unloading) {
+			return;
+		}
 		const sourceId = typeof message.message?.sourceId === "string" ? message.message.sourceId.trim() : "";
 		const start = Number(message.message?.start) || Date.now() - 24 * 60 * 60 * 1000;
 		const end = Number(message.message?.end) || Date.now();
@@ -381,9 +466,17 @@ class AnomalyDetection extends utils.Adapter {
 			return;
 		}
 		try {
-			const historySource = await this.resolveConfiguredHistorySource(sourceId, source.historyInstance.trim());
+			const historySource = await this.withHistoryTimeout(
+				this.resolveConfiguredHistorySource(sourceId, source.historyInstance.trim()),
+			);
+			if (this.unloading) {
+				return;
+			}
 			const provider = new IoBrokerHistoryProvider(this, source.historyInstance.trim());
-			const raw = await provider.getHistory(historySource.sourceId, start, end, limit);
+			const raw = await this.withHistoryTimeout(provider.getHistory(historySource.sourceId, start, end, limit));
+			if (this.unloading) {
+				return;
+			}
 			const diagnostics = monitor.diagnosticSnapshots.filter(
 				diagnostic => diagnostic.timestamp >= start && diagnostic.timestamp <= end,
 			);
@@ -404,6 +497,9 @@ class AnomalyDetection extends utils.Adapter {
 				message.callback,
 			);
 		} catch {
+			if (this.unloading) {
+				return;
+			}
 			this.sendTo(
 				message.from,
 				message.command,
@@ -458,8 +554,22 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private async replyWithHistoryProviders(message: ioBroker.Message): Promise<void> {
+		if (this.unloading) {
+			return;
+		}
 		const sourceId = typeof message.message?.sourceId === "string" ? message.message.sourceId.trim() : "";
-		const sources = await this.historySourcesForAdmin(sourceId);
+		let sources: HistorySource[];
+		try {
+			sources = await this.withHistoryTimeout(this.historySourcesForAdmin(sourceId));
+		} catch {
+			if (this.unloading) {
+				return;
+			}
+			sources = [];
+		}
+		if (this.unloading) {
+			return;
+		}
 		this.sendTo(
 			message.from,
 			message.command,
@@ -486,19 +596,27 @@ class AnomalyDetection extends utils.Adapter {
 		monitor: SourceMonitor,
 		state: ioBroker.State,
 	): Promise<void> {
+		if (this.unloading || state.ack !== true) {
+			return;
+		}
 		try {
 			const sourceTimestamp = typeof state.ts === "number" && Number.isFinite(state.ts) ? state.ts : undefined;
 			const timestamp = sourceTimestamp ?? Date.now();
-			if (sourceTimestamp !== undefined) {
-				if (this.lastProcessedTimestamps.get(id) === sourceTimestamp) {
-					return;
-				}
-				this.lastProcessedTimestamps.set(id, sourceTimestamp);
-				if (this.lastProcessedTimestamps.size > MAX_PROCESSED_TIMESTAMP_ENTRIES) {
-					this.lastProcessedTimestamps.delete(this.lastProcessedTimestamps.keys().next().value as string);
-				}
+			if (monitor.isStaleTimestamp(timestamp)) {
+				return;
 			}
-			const result = monitor.observe(state.val, timestamp, this.contextKey(id));
+			const isNewSample = monitor.isNewTimestamp(timestamp);
+			const observation = observeWithTimestampCache(
+				this.lastProcessedTimestamps,
+				id,
+				sourceTimestamp,
+				() => monitor.observe(state.val, timestamp, this.contextKey(id)),
+				MAX_PROCESSED_TIMESTAMP_ENTRIES,
+			);
+			if (observation.duplicate) {
+				return;
+			}
+			const result = observation.result;
 			if (!result) {
 				if (!this.invalidValueWarnings.has(id)) {
 					this.invalidValueWarnings.add(id);
@@ -509,8 +627,16 @@ class AnomalyDetection extends utils.Adapter {
 			this.invalidValueWarnings.delete(id);
 			this.evaluations.set(id, result);
 			this.schedulePersistence();
-			await this.writeResult(safeId, result);
-			await this.updatePredictive(safeId, state.val, state.ts ?? Date.now());
+			const independentTasks = [
+				enqueueSerializedWork(this.resultWriteQueues, safeId, () => this.writeResult(safeId, result)),
+				isNewSample ? this.updatePredictive(safeId, state.val, timestamp) : Promise.resolve(),
+			];
+			const outcomes = await settleIndependentTasks(independentTasks);
+			for (const outcome of outcomes) {
+				if (outcome.status === "rejected") {
+					this.log.error(`Could not process source state ${id}: ${(outcome.reason as Error).message}`);
+				}
+			}
 		} catch (error) {
 			this.log.error(`Could not process source state ${id}: ${(error as Error).message}`);
 		}
@@ -621,13 +747,20 @@ class AnomalyDetection extends utils.Adapter {
 	private async ensureModelState(): Promise<void> {
 		await this.setObjectNotExistsAsync(MODEL_STATE_ID, {
 			type: "state",
-			common: { name: "Persisted models", type: "string", role: "json", read: true, write: false, def: "" },
+			common: {
+				name: objectName("Persisted models"),
+				type: "string",
+				role: "json",
+				read: true,
+				write: false,
+				def: "",
+			},
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(PREDICTIVE_MODEL_STATE_ID, {
 			type: "state",
 			common: {
-				name: "Persisted predictive models",
+				name: objectName("Persisted predictive models"),
 				type: "string",
 				role: "json",
 				read: true,
@@ -681,28 +814,34 @@ class AnomalyDetection extends utils.Adapter {
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis`, {
 			type: "channel",
-			common: { name: "Anomaly analysis" },
+			common: { name: objectName("Anomaly analysis") },
 			native: {},
 		});
 		if (predictiveSettingsFor(source)?.enabled === true) {
 			await this.setObjectNotExistsAsync(`${base}.predictive`, {
 				type: "channel",
-				common: { name: "Predictive forecast" },
+				common: { name: objectName("Predictive forecast") },
 				native: {},
 			});
 			await this.setObjectNotExistsAsync(`${base}.predictive.result`, {
 				type: "state",
-				common: { name: "Forecast result", type: "string", role: "json", read: true, write: false },
+				common: { name: objectName("Forecast result"), type: "string", role: "json", read: true, write: false },
 				native: {},
 			});
 			await this.setObjectNotExistsAsync(`${base}.predictive.status`, {
 				type: "state",
-				common: { name: "Forecast status", type: "string", role: "info.status", read: true, write: false },
+				common: {
+					name: objectName("Forecast status"),
+					type: "string",
+					role: "info.status",
+					read: true,
+					write: false,
+				},
 				native: {},
 			});
 		}
 		const numberState = (
-			name: string,
+			name: ioBroker.StringOrTranslated,
 			role: string,
 			extra: Partial<ioBroker.StateCommon> = {},
 		): ioBroker.SettableObject => ({
@@ -712,60 +851,78 @@ class AnomalyDetection extends utils.Adapter {
 		});
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.actual`,
-			numberState("Actual value", "value", unit ? { unit } : {}),
+			numberState(objectName("Actual value"), "value", unit ? { unit } : {}),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.expected`,
-			numberState("Expected value", "value", unit ? { unit } : {}),
+			numberState(objectName("Expected value"), "value", unit ? { unit } : {}),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.deviation`,
-			numberState("Deviation", "value", unit ? { unit } : {}),
+			numberState(objectName("Deviation"), "value", unit ? { unit } : {}),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.score`,
-			numberState("Anomaly score", "value", { min: 0, max: 100, unit: "%" }),
+			numberState(objectName("Anomaly score"), "value", { min: 0, max: 100, unit: "%" }),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.sampleCount`,
-			numberState("Learned sample count", "value"),
+			numberState(objectName("Learned sample count"), "value"),
 		);
 		await this.setObjectNotExistsAsync(`${base}.analysis.baselineScope`, {
 			type: "state",
-			common: { name: "Active baseline scope", type: "string", role: "info.status", read: true, write: false },
+			common: {
+				name: objectName("Active baseline scope"),
+				type: "string",
+				role: "info.status",
+				read: true,
+				write: false,
+			},
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis.activeContext`, {
 			type: "state",
-			common: { name: "Active context", type: "string", role: "text", read: true, write: false },
+			common: { name: objectName("Active context"), type: "string", role: "text", read: true, write: false },
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.baselineSampleCount`,
-			numberState("Active baseline sample count", "value"),
+			numberState(objectName("Active baseline sample count"), "value"),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.contextSampleCount`,
-			numberState("Active context sample count", "value"),
+			numberState(objectName("Active context sample count"), "value"),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.analysis.relevantSampleCount`,
-			numberState("Relevant baseline sample count", "value"),
+			numberState(objectName("Relevant baseline sample count"), "value"),
 		);
 		await this.setObjectNotExistsAsync(`${base}.analysis.relevantSampleScope`, {
 			type: "state",
-			common: { name: "Relevant baseline scope", type: "string", role: "info.status", read: true, write: false },
+			common: {
+				name: objectName("Relevant baseline scope"),
+				type: "string",
+				role: "info.status",
+				read: true,
+				write: false,
+			},
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis.evaluationAvailable`, {
 			type: "state",
-			common: { name: "Evaluation available", type: "boolean", role: "indicator", read: true, write: false },
+			common: {
+				name: objectName("Evaluation available"),
+				type: "boolean",
+				role: "indicator",
+				read: true,
+				write: false,
+			},
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis.detected`, {
 			type: "state",
 			common: {
-				name: "Persistent anomaly detected",
+				name: objectName("Persistent anomaly detected"),
 				type: "boolean",
 				role: "indicator",
 				read: true,
@@ -776,28 +933,41 @@ class AnomalyDetection extends utils.Adapter {
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis.status`, {
 			type: "state",
-			common: { name: "Model status", type: "string", role: "info.status", read: true, write: false },
+			common: { name: objectName("Model status"), type: "string", role: "info.status", read: true, write: false },
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis.reason`, {
 			type: "state",
-			common: { name: "Anomaly reason", type: "string", role: "text", read: true, write: false },
+			common: { name: objectName("Anomaly reason"), type: "string", role: "text", read: true, write: false },
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis.lastAnomaly`, {
 			type: "state",
-			common: { name: "Last high-score anomaly", type: "string", role: "date", read: true, write: false },
+			common: {
+				name: objectName("Last high-score anomaly"),
+				type: "string",
+				role: "date",
+				read: true,
+				write: false,
+			},
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.retrain`, {
 			type: "state",
-			common: { name: "Retrain model", type: "boolean", role: "button", read: false, write: true, def: false },
+			common: {
+				name: objectName("Retrain model"),
+				type: "boolean",
+				role: "button",
+				read: false,
+				write: true,
+				def: false,
+			},
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.analysis.bootstrapStatus`, {
 			type: "state",
 			common: {
-				name: "Historical bootstrap status",
+				name: objectName("Historical bootstrap status"),
 				type: "string",
 				role: "info.status",
 				read: true,
@@ -805,37 +975,42 @@ class AnomalyDetection extends utils.Adapter {
 			},
 			native: {},
 		});
-		await this.ensureExplainabilityObjects(base, numberState);
+		await this.ensureExplainabilityObjects(base, numberState, unit);
 	}
 
 	private async ensureExplainabilityObjects(
 		base: string,
-		numberState: (name: string, role: string, extra?: Partial<ioBroker.StateCommon>) => ioBroker.SettableObject,
+		numberState: (
+			name: ioBroker.StringOrTranslated,
+			role: string,
+			extra?: Partial<ioBroker.StateCommon>,
+		) => ioBroker.SettableObject,
+		unit?: string,
 	): Promise<void> {
 		await this.setObjectNotExistsAsync(`${base}.anomaly`, {
 			type: "channel",
-			common: { name: "Current anomaly assessment" },
+			common: { name: objectName("Current anomaly assessment") },
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.evaluation`, {
 			type: "channel",
-			common: { name: "Evaluation details" },
+			common: { name: objectName("Evaluation details") },
 			native: {},
 		});
 		await this.setObjectNotExistsAsync(`${base}.detectors`, {
 			type: "channel",
-			common: { name: "Detector scores" },
+			common: { name: objectName("Detector scores") },
 			native: {},
 		});
-		const textState = (name: string, role = "text"): ioBroker.SettableObject => ({
+		const textState = (name: Parameters<typeof objectName>[0], role = "text"): ioBroker.SettableObject => ({
 			type: "state",
-			common: { name, type: "string", role, read: true, write: false },
+			common: { name: objectName(name), type: "string", role, read: true, write: false },
 			native: {},
 		});
 		const booleanState: ioBroker.SettableObject = {
 			type: "state",
 			common: {
-				name: "Anomaly active",
+				name: objectName("Anomaly active"),
 				type: "boolean",
 				role: "indicator",
 				read: true,
@@ -847,7 +1022,7 @@ class AnomalyDetection extends utils.Adapter {
 		await this.setObjectNotExistsAsync(`${base}.anomaly.active`, booleanState);
 		await this.setObjectNotExistsAsync(
 			`${base}.anomaly.score`,
-			numberState("Overall anomaly score", "value", { min: 0, max: 100, unit: "%" }),
+			numberState(objectName("Overall anomaly score"), "value", { min: 0, max: 100, unit: "%" }),
 		);
 		await this.setObjectNotExistsAsync(`${base}.anomaly.severity`, textState("Severity", "info.status"));
 		await this.setObjectNotExistsAsync(`${base}.anomaly.reasonCode`, textState("Reason code"));
@@ -855,27 +1030,39 @@ class AnomalyDetection extends utils.Adapter {
 		await this.setObjectNotExistsAsync(`${base}.anomaly.since`, textState("Anomaly since", "date"));
 		await this.setObjectNotExistsAsync(`${base}.anomaly.lastNormal`, textState("Last normal evaluation", "date"));
 		await this.setObjectNotExistsAsync(`${base}.evaluation.status`, textState("Evaluation status", "info.status"));
-		await this.setObjectNotExistsAsync(`${base}.evaluation.currentValue`, numberState("Current value", "value"));
+		await this.setObjectNotExistsAsync(
+			`${base}.evaluation.currentValue`,
+			numberState(objectName("Current value"), "value", unit ? { unit } : {}),
+		);
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.expectedLow`,
-			numberState("Expected range lower bound", "value"),
+			numberState(objectName("Expected range lower bound"), "value", unit ? { unit } : {}),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.expectedHigh`,
-			numberState("Expected range upper bound", "value"),
+			numberState(objectName("Expected range upper bound"), "value", unit ? { unit } : {}),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.decisionLow`,
-			numberState("Decision range lower bound", "value"),
+			numberState(objectName("Decision range lower bound"), "value", unit ? { unit } : {}),
 		);
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.decisionHigh`,
-			numberState("Decision range upper bound", "value"),
+			numberState(objectName("Decision range upper bound"), "value", unit ? { unit } : {}),
 		);
+		for (const id of [
+			`${base}.evaluation.currentValue`,
+			`${base}.evaluation.expectedLow`,
+			`${base}.evaluation.expectedHigh`,
+			`${base}.evaluation.decisionLow`,
+			`${base}.evaluation.decisionHigh`,
+		]) {
+			await ensureStateUnit(this, id, unit);
+		}
 		await this.setObjectNotExistsAsync(`${base}.evaluation.baselineType`, textState("Baseline type"));
 		await this.setObjectNotExistsAsync(
 			`${base}.evaluation.baselineSamples`,
-			numberState("Baseline samples", "value"),
+			numberState(objectName("Baseline samples"), "value"),
 		);
 		await this.setObjectNotExistsAsync(`${base}.evaluation.context`, textState("Used context"));
 		await this.setObjectNotExistsAsync(`${base}.evaluation.timeBucket`, textState("Time bucket"));
@@ -890,7 +1077,7 @@ class AnomalyDetection extends utils.Adapter {
 		] as const) {
 			await this.setObjectNotExistsAsync(
 				`${base}.detectors.${id}`,
-				numberState(label, "value", { min: 0, max: 100 }),
+				numberState(objectName(label), "value", { min: 0, max: 100 }),
 			);
 		}
 	}
@@ -904,11 +1091,11 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private shouldBootstrapPredictive(source: ConfiguredSource, model: PredictiveModel | undefined): boolean {
-		return (
-			source.initialTraining === "history" &&
-			!!source.historyInstance?.trim() &&
-			!!model &&
-			(model.needsHistoryBootstrap || model.needsTrainingBasisBootstrap)
+		return shouldBootstrapPredictiveHistory(
+			source.initialTraining === "history",
+			!!source.historyInstance?.trim(),
+			!!model,
+			!!model && (model.needsHistoryBootstrap || model.needsTrainingBasisBootstrap),
 		);
 	}
 
@@ -919,29 +1106,41 @@ class AnomalyDetection extends utils.Adapter {
 		monitor: SourceMonitor,
 		needs: { anomaly: boolean; predictive: boolean },
 	): Promise<void> {
+		if (this.unloading) {
+			return;
+		}
 		const providerName = source.historyInstance!.trim();
 		const end = Date.now();
 		const anomalyStart = end - Math.max(7, source.trainingDays ?? 30) * 24 * 60 * 60 * 1000;
-		await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: "importingHistory", ack: true });
-		await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
-			val: "Importing historical data",
-			ack: true,
-		});
-		try {
-			const historySource = await this.resolveConfiguredHistorySource(sourceId, providerName);
+		const startedState = anomalyBootstrapStateUpdate(needs, "started", monitor.hasSufficientData);
+		if (startedState) {
+			await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: startedState.status, ack: true });
 			await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
-				val: `Importing history from ${historySource.sourceId} via ${providerName}`,
+				val: startedState.bootstrapStatus,
 				ack: true,
 			});
+		}
+		if (this.unloading) {
+			return;
+		}
+		try {
+			const historySource = await this.resolveConfiguredHistorySource(sourceId, providerName);
+			if (this.unloading) {
+				return;
+			}
+			if (needs.anomaly) {
+				await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
+					val: `Importing history from ${historySource.sourceId} via ${providerName}`,
+					ack: true,
+				});
+			}
 			const provider = new IoBrokerHistoryProvider(this, providerName);
 			const predictiveSettings = needs.predictive ? normalizePredictiveSettings(source.predictive) : undefined;
 			const predictiveStart = needs.predictive
 				? end - predictiveHistorySpanMinutes(predictiveSettings, source.trainingDays ?? 30) * 60_000
 				: anomalyStart;
 			const start = Math.min(anomalyStart, predictiveStart);
-			const historyLimit = needs.predictive
-				? PREDICTIVE_HISTORY_RAW_LIMIT
-				: Math.min(PREDICTIVE_HISTORY_RAW_LIMIT, source.maxHistorySamples ?? 1000);
+			const historyLimit = PREDICTIVE_HISTORY_RAW_LIMIT;
 			const memoryBefore = process.memoryUsage();
 			const historyResult = await this.loadSegmentedHistory(
 				provider,
@@ -949,15 +1148,20 @@ class AnomalyDetection extends utils.Adapter {
 				start,
 				end,
 				historyLimit,
-				predictiveSettings?.maximumTrainingPoints ?? source.maxHistorySamples ?? 2000,
+				anomalyStart,
+				Math.min(10_000, Math.max(30, source.maxHistorySamples ?? 1000)),
+				needs.predictive ? (predictiveSettings?.maximumTrainingPoints ?? 2000) : undefined,
 			);
+			if (this.unloading) {
+				return;
+			}
 			const samples = historyResult.samples;
 			const memoryAfter = process.memoryUsage();
 			const mb = (value: number): string => (value / 1024 / 1024).toFixed(1);
 			// `samples` is already normalized to HistorySample by the segmented
 			// loader; do not pass it through sanitizeHistory again (that function
 			// expects provider entries with `val`/`ts`).
-			const anomalySamples = samples.filter(sample => sample.timestamp >= anomalyStart);
+			const anomalySamples = historyResult.anomalySamples;
 			this.log.debug(
 				`History load summary: source=${sourceId} mode=${needs.predictive ? "history" : "anomaly-only"} ` +
 					`requestedDuration=${Math.round((end - start) / 60_000)}min ` +
@@ -985,7 +1189,7 @@ class AnomalyDetection extends utils.Adapter {
 			);
 			this.log.debug(
 				`Predictive history loaded for ${sourceId}: raw=${historyResult.finalRawSamples}, ` +
-					`deduplicated=${samples.length}, ` +
+					`unique=${historyResult.deduplicatedSamples}, retained=${samples.length}, ` +
 					`oldest=${samples[0]?.timestamp ?? "none"}, newest=${samples.at(-1)?.timestamp ?? "none"}, ` +
 					`source=${needs.predictive ? "history" : "anomaly-only"} ` +
 					`requestedStart=${start} requestedEnd=${end} requestedDuration=${Math.round((end - start) / 60_000)}min ` +
@@ -994,11 +1198,8 @@ class AnomalyDetection extends utils.Adapter {
 			if (samples.length === 0) {
 				throw new Error("History provider returned no valid samples");
 			}
-			if (needs.anomaly) {
-				monitor.reset();
-			}
 			const imported = needs.anomaly
-				? monitor.bootstrapFromHistory(
+				? monitor.replaceFromHistory(
 						anomalySamples,
 						providerName,
 						historySource.sourceId,
@@ -1057,30 +1258,37 @@ class AnomalyDetection extends utils.Adapter {
 					ack: true,
 				});
 			}
-			const status =
-				monitor.hasSufficientData && (source.autoStartMonitoringAfterImport ?? true)
-					? "monitoring"
-					: "learning";
-			if (needs.anomaly) {
-				await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: status, ack: true });
-			}
-			if (needs.anomaly) {
+			const completedState = anomalyBootstrapStateUpdate(
+				needs,
+				"completed",
+				monitor.hasSufficientData,
+				source.autoStartMonitoringAfterImport ?? true,
+				imported,
+			);
+			if (completedState) {
+				await this.setStateAsync(`sources.${safeId}.analysis.status`, {
+					val: completedState.status,
+					ack: true,
+				});
 				await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
-					val: `Historical training completed (${imported} samples)`,
+					val: completedState.bootstrapStatus,
 					ack: true,
 				});
 			}
 		} catch (error) {
+			if (this.unloading) {
+				return;
+			}
 			this.log.warn(`Historical bootstrap failed for ${sourceId}: ${(error as Error).message}`);
 			await this.persistModels();
-			await this.setStateAsync(`sources.${safeId}.analysis.status`, {
-				val: monitor.hasSufficientData ? "monitoring" : "learning",
-				ack: true,
-			});
-			await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
-				val: "Insufficient historical data, continuing live learning",
-				ack: true,
-			});
+			const failedState = anomalyBootstrapStateUpdate(needs, "failed", monitor.hasSufficientData);
+			if (failedState) {
+				await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: failedState.status, ack: true });
+				await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
+					val: failedState.bootstrapStatus,
+					ack: true,
+				});
+			}
 		}
 	}
 
@@ -1090,10 +1298,15 @@ class AnomalyDetection extends utils.Adapter {
 		start: number,
 		end: number,
 		limit: number,
-		maximumTrainingPoints: number,
+		anomalyStart: number,
+		maximumAnomalySamples: number,
+		maximumPredictiveSamples?: number,
 	): Promise<SegmentedHistoryResult> {
-		const collected: HistorySample[] = [];
-		let providerCalls = 0;
+		const predictiveSampler = maximumPredictiveSamples
+			? new HistorySampleSampler(start, end, maximumPredictiveSamples)
+			: undefined;
+		const anomalySampler = new HistorySampleSampler(anomalyStart, end, maximumAnomalySamples);
+		const budget = new HistoryLoadBudget();
 		let segmentQueries = 0;
 		let coverageProbes = 0;
 		let segmentSplits = 0;
@@ -1114,8 +1327,14 @@ class AnomalyDetection extends utils.Adapter {
 		let adaptiveDurationHint: number | undefined;
 		let finalAdaptiveSegmentDuration: number | undefined;
 		let adaptiveLimitHits = 0;
+		let finalRawSamples = 0;
+		let deduplicatedSamples = 0;
+		let duplicateSamplesRemoved = 0;
 		const load = async (segmentStart: number, segmentEnd: number, depth: number): Promise<void> => {
-			providerCalls++;
+			if (this.unloading) {
+				return;
+			}
+			budget.consumeCall();
 			segmentQueries++;
 			const raw = await this.withHistoryTimeout(provider.getHistory(sourceId, segmentStart, segmentEnd, limit));
 			const entries = Array.isArray(raw)
@@ -1125,7 +1344,11 @@ class AnomalyDetection extends utils.Adapter {
 					: 0;
 			providerSamplesTotal += entries;
 			maxProviderResponse = Math.max(maxProviderResponse, entries);
-			const samples = sanitizeHistory(raw, Math.max(1000, Math.min(limit, maximumTrainingPoints)));
+			const normalized = sanitizeHistoryWithDiagnostics(raw, limit, [], {
+				start: segmentStart,
+				end: segmentEnd,
+			});
+			const samples = normalized.samples;
 			const oldest = samples[0]?.timestamp;
 			const newest = samples.at(-1)?.timestamp;
 			let splitReason: string | undefined;
@@ -1165,7 +1388,7 @@ class AnomalyDetection extends utils.Adapter {
 				}
 			} else if (oldest !== undefined && newest !== undefined && newest < segmentEnd - 60 * 60_000) {
 				const probeStart = Math.floor((segmentStart + segmentEnd) / 2);
-				providerCalls++;
+				budget.consumeCall();
 				coverageProbes++;
 				const probeRaw = await this.withHistoryTimeout(
 					provider.getHistory(sourceId, probeStart, segmentEnd, limit),
@@ -1220,17 +1443,19 @@ class AnomalyDetection extends utils.Adapter {
 				return;
 			}
 			acceptedSegments++;
-			collected.push(...samples);
+			finalRawSamples += normalized.validSamples;
+			deduplicatedSamples += normalized.validSamples - normalized.duplicateSamplesRemoved;
+			duplicateSamplesRemoved += normalized.duplicateSamplesRemoved;
+			predictiveSampler?.add(samples);
+			anomalySampler.add(samples.filter(sample => sample.timestamp >= anomalyStart));
 		};
 		await load(start, end, 0);
-		const byTimestamp = new Map<number, HistorySample>();
-		for (const sample of collected) {
-			byTimestamp.set(sample.timestamp, sample);
-		}
-		const deduplicated = [...byTimestamp.values()].sort((a, b) => a.timestamp - b.timestamp);
+		const samples = predictiveSampler?.getSamples() ?? anomalySampler.getSamples();
+		const anomalySamples = anomalySampler.getSamples();
 		return {
-			samples: deduplicated,
-			providerCalls,
+			samples,
+			anomalySamples,
+			providerCalls: budget.providerCalls,
 			segmentQueries,
 			coverageProbes,
 			segmentSplits,
@@ -1250,9 +1475,9 @@ class AnomalyDetection extends utils.Adapter {
 			initialAdaptiveSegmentDuration,
 			finalAdaptiveSegmentDuration,
 			adaptiveLimitHits,
-			finalRawSamples: collected.length,
-			deduplicatedSamples: deduplicated.length,
-			duplicateSamplesRemoved: collected.length - deduplicated.length,
+			finalRawSamples,
+			deduplicatedSamples,
+			duplicateSamplesRemoved,
 		};
 	}
 
@@ -1278,15 +1503,29 @@ class AnomalyDetection extends utils.Adapter {
 		source: ConfiguredSource,
 		monitor: SourceMonitor,
 	): Promise<void> {
-		this.bootstrappingSources.add(sourceId);
+		if (this.unloading) {
+			return;
+		}
+		const release = acquireExclusiveWork(this.bootstrappingSources, sourceId);
+		if (!release) {
+			this.log.debug(`Ignoring retrain request while source is already training: ${sourceId}`);
+			return;
+		}
 		try {
-			monitor.reset();
 			if (source.initialTraining === "history" && source.historyInstance?.trim()) {
+				const predictiveModel = this.predictiveModels.get(safeId);
 				await this.bootstrapSource(sourceId, safeId, source, monitor, {
-					anomaly: true,
-					predictive: this.shouldBootstrapPredictive(source, this.predictiveModels.get(safeId)),
+					...manualRetrainBootstrapNeeds(
+						source.initialTraining === "history",
+						!!source.historyInstance?.trim(),
+						!!predictiveModel,
+						!!predictiveModel &&
+							(predictiveModel.needsHistoryBootstrap || predictiveModel.needsTrainingBasisBootstrap),
+					),
 				});
 			} else {
+				monitor.reset();
+				await this.setStateAsync(`sources.${safeId}.analysis.sampleCount`, { val: 0, ack: true });
 				await this.setStateAsync(`sources.${safeId}.analysis.status`, { val: "learning", ack: true });
 				await this.setStateAsync(`sources.${safeId}.analysis.bootstrapStatus`, {
 					val: "Model reset; learning live values",
@@ -1294,10 +1533,43 @@ class AnomalyDetection extends utils.Adapter {
 				});
 				await this.persistModels();
 			}
+			await this.refreshEvaluationAfterRetrain(sourceId, safeId, monitor);
 		} finally {
-			this.bootstrappingSources.delete(sourceId);
-			await this.setStateAsync(`sources.${safeId}.retrain`, { val: false, ack: true });
+			release();
+			if (!this.unloading) {
+				await this.setStateChangedAsync(`sources.${safeId}.retrain`, { val: false, ack: true });
+			}
 		}
+	}
+
+	private async refreshEvaluationAfterRetrain(
+		sourceId: string,
+		safeId: string,
+		monitor: SourceMonitor,
+	): Promise<void> {
+		if (this.unloading) {
+			return;
+		}
+		const state = await this.getForeignStateAsync(sourceId);
+		if (this.unloading) {
+			return;
+		}
+		const acknowledgedState = state?.ack === true ? state : undefined;
+		const sourceTimestamp =
+			typeof acknowledgedState?.ts === "number" && Number.isFinite(acknowledgedState.ts)
+				? acknowledgedState.ts
+				: undefined;
+		const evaluation = evaluateCurrentSourceValue(
+			monitor,
+			acknowledgedState?.val,
+			sourceTimestamp,
+			this.contextKey(sourceId),
+			this.sources.get(safeId)?.minimumSamples ?? 30,
+			Date.now(),
+		);
+		this.evaluations.set(sourceId, evaluation);
+		await enqueueSerializedWork(this.resultWriteQueues, safeId, () => this.writeResult(safeId, evaluation));
+		await this.setStateAsync(`sources.${safeId}.analysis.sampleCount`, { val: monitor.sampleCount, ack: true });
 	}
 
 	private async runWithConcurrency(tasks: Array<() => Promise<void>>, concurrency: number): Promise<void> {
@@ -1312,19 +1584,13 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private async withHistoryTimeout<T>(operation: Promise<T>): Promise<T> {
-		return new Promise<T>((resolve, reject) => {
-			const timer = this.setTimeout(() => reject(new Error("History request timed out")), HISTORY_TIMEOUT_MS);
-			operation.then(
-				value => {
-					this.clearTimeout(timer);
-					resolve(value);
-				},
-				error => {
-					this.clearTimeout(timer);
-					reject(error instanceof Error ? error : new Error(String(error)));
-				},
-			);
-		});
+		return withAbortableTimeout(
+			operation,
+			this.historyAbortController.signal,
+			HISTORY_TIMEOUT_MS,
+			this.setTimeout.bind(this),
+			this.clearTimeout.bind(this),
+		);
 	}
 
 	private bootstrapConfigKey(source: ConfiguredSource): string {
@@ -1338,7 +1604,7 @@ class AnomalyDetection extends utils.Adapter {
 	private async writeResult(safeId: string, result: ObservationResult): Promise<void> {
 		const base = `sources.${safeId}.analysis`;
 		const values: Record<string, ioBroker.StateValue> = {
-			actual: result.actual,
+			actual: result.actual ?? null,
 			score: result.score,
 			detected: result.detected,
 			status: result.status,
@@ -1366,7 +1632,7 @@ class AnomalyDetection extends utils.Adapter {
 			"anomaly.since": result.anomalySince ? new Date(result.anomalySince).toISOString() : null,
 			"anomaly.lastNormal": result.lastNormal ? new Date(result.lastNormal).toISOString() : null,
 			"evaluation.status": result.statusCode,
-			"evaluation.currentValue": result.actual,
+			"evaluation.currentValue": result.actual ?? null,
 			"evaluation.expectedLow": result.expectedLow ?? null,
 			"evaluation.expectedHigh": result.expectedHigh ?? null,
 			"evaluation.decisionLow": result.decisionLow ?? null,
@@ -1394,13 +1660,20 @@ class AnomalyDetection extends utils.Adapter {
 		for (const detector of result.detectors) {
 			explainability[`detectors.${detectorIds[detector.name]}`] = detector.score;
 		}
-		await Promise.all(
-			[...Object.entries(values), ...Object.entries(explainability)].map(([key, value]) =>
-				this.setStateAsync(`${key.includes(".") ? `sources.${safeId}` : base}.${key}`, {
-					val: value,
-					ack: true,
-				}),
-			),
+		const stateValues: Array<readonly [string, ioBroker.StateValue]> = [
+			...Object.entries(values),
+			...Object.entries(explainability),
+		].map(([key, value]) => [`${key.includes(".") ? `sources.${safeId}` : base}.${key}`, value]);
+		const alwaysWrite = new Set([
+			`${base}.actual`,
+			`sources.${safeId}.evaluation.currentValue`,
+			`sources.${safeId}.evaluation.lastEvaluated`,
+		]);
+		await writeStateValues(
+			stateValues,
+			alwaysWrite,
+			(id, value) => this.setStateAsync(id, { val: value, ack: true }),
+			(id, value) => this.setStateChangedAsync(id, { val: value, ack: true }),
 		);
 	}
 
@@ -1419,31 +1692,43 @@ class AnomalyDetection extends utils.Adapter {
 	}
 
 	private async persistModels(): Promise<void> {
-		try {
-			const models = Object.fromEntries(
-				[...this.monitors].map(([sourceId, monitor]) => [
-					this.sourceIds.get(sourceId)!,
-					{ ...monitor.toJSON(), configuredSourceId: sourceId },
-				]),
-			);
-			await this.setStateAsync(MODEL_STATE_ID, { val: JSON.stringify(models), ack: true });
-		} catch (error) {
-			this.log.error(`Could not persist anomaly models: ${(error as Error).message}`);
+		if (!this.startupModelsLoaded) {
+			return;
 		}
+		await enqueueSerializedWork(this.persistenceQueues, MODEL_STATE_ID, async () => {
+			try {
+				const current = Object.fromEntries(
+					[...this.monitors].map(([sourceId, monitor]) => [
+						this.sourceIds.get(sourceId)!,
+						{ ...monitor.toJSON(), configuredSourceId: sourceId },
+					]),
+				);
+				const models = mergeStartupModels<SourceModelData>(this.restoredModels, current, this.startupComplete);
+				await this.setStateAsync(MODEL_STATE_ID, { val: JSON.stringify(models), ack: true });
+			} catch (error) {
+				this.log.error(`Could not persist anomaly models: ${(error as Error).message}`);
+			}
+		});
 	}
 
 	private async persistPredictiveModels(): Promise<void> {
-		try {
-			const models = Object.fromEntries(
-				[...this.predictiveModels].flatMap(([safeId, model]) => {
-					const data = model.toPersistenceJSON();
-					return data ? [[safeId, data]] : [];
-				}),
-			);
-			await this.setStateAsync(PREDICTIVE_MODEL_STATE_ID, { val: JSON.stringify(models), ack: true });
-		} catch (error) {
-			this.log.warn(`Could not persist predictive models: ${(error as Error).message}`);
+		if (!this.startupModelsLoaded) {
+			return;
 		}
+		await enqueueSerializedWork(this.persistenceQueues, PREDICTIVE_MODEL_STATE_ID, async () => {
+			try {
+				const current = Object.fromEntries(
+					[...this.predictiveModels].flatMap(([safeId, model]) => {
+						const data = model.toPersistenceJSON();
+						return data ? [[safeId, data]] : [];
+					}),
+				);
+				const models = mergeStartupModels(this.restoredPredictiveModels, current, this.startupComplete);
+				await this.setStateAsync(PREDICTIVE_MODEL_STATE_ID, { val: JSON.stringify(models), ack: true });
+			} catch (error) {
+				this.log.warn(`Could not persist predictive models: ${(error as Error).message}`);
+			}
+		});
 	}
 
 	private createSourceId(sourceId: string): string {
@@ -1460,6 +1745,7 @@ class AnomalyDetection extends utils.Adapter {
 
 	private onUnload(callback: () => void): void {
 		this.unloading = true;
+		this.historyAbortController.abort();
 		if (this.persistTimer) {
 			this.clearTimeout(this.persistTimer);
 			this.persistTimer = undefined;

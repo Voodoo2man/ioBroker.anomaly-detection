@@ -19,18 +19,30 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var object_structure_exports = {};
 __export(object_structure_exports, {
   SOURCES_OBJECT_ID: () => SOURCES_OBJECT_ID,
+  ensureStateUnit: () => ensureStateUnit,
   generatedSourceParentIds: () => generatedSourceParentIds,
   sourcesObject: () => sourcesObject
 });
 module.exports = __toCommonJS(object_structure_exports);
+var import_object_names = require("./object-names");
 const SOURCES_OBJECT_ID = "sources";
 const sourcesObject = {
   // The children are generated source devices; a folder is the appropriate
   // generic container for devices and their channel trees.
   type: "folder",
-  common: { name: "Monitored sources" },
+  common: { name: (0, import_object_names.objectName)("Monitored sources") },
   native: {}
 };
+async function ensureStateUnit(store, id, unit) {
+  var _a;
+  if (!unit) {
+    return;
+  }
+  const object = await store.getObjectAsync(id);
+  if (object && ((_a = object.common) == null ? void 0 : _a.unit) === void 0) {
+    await store.extendObjectAsync(id, { common: { unit } });
+  }
+}
 function generatedSourceParentIds(safeId) {
   const base = `${SOURCES_OBJECT_ID}.${safeId}`;
   return [SOURCES_OBJECT_ID, base, `${base}.analysis`, `${base}.anomaly`, `${base}.detectors`, `${base}.evaluation`];
@@ -38,6 +50,7 @@ function generatedSourceParentIds(safeId) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   SOURCES_OBJECT_ID,
+  ensureStateUnit,
   generatedSourceParentIds,
   sourcesObject
 });

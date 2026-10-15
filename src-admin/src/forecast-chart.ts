@@ -78,6 +78,25 @@ export function formatForecastTick(value: number, decimals: number, locale?: str
 }
 
 /**
+ * Formats a forecast x-axis offset using the active interface translations.
+ *
+ * @param offsetMs Time since the forecast origin in milliseconds.
+ * @param translate Active interface translation function.
+ */
+export function formatForecastAxisTimeLabel(
+	offsetMs: number,
+	translate: (key: string, value?: number) => string,
+): string {
+	if (offsetMs === 0) {
+		return translate("forecastNow");
+	}
+	const minutes = Math.round(offsetMs / 60_000);
+	return minutes >= 60 && minutes % 60 === 0
+		? translate("forecastHoursShort", minutes / 60)
+		: translate("forecastMinutesShort", minutes);
+}
+
+/**
  * Prepares forecast data for the admin chart without mixing the live value
  * into the model forecast series.
  *
