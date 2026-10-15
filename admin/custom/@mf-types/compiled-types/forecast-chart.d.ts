@@ -36,6 +36,13 @@ export interface ForecastChartData {
  */
 export declare function formatForecastTick(value: number, decimals: number, locale?: string): string;
 /**
+ * Formats a forecast x-axis offset using the active interface translations.
+ *
+ * @param offsetMs Time since the forecast origin in milliseconds.
+ * @param translate Active interface translation function.
+ */
+export declare function formatForecastAxisTimeLabel(offsetMs: number, translate: (key: string, value?: number) => string): string;
+/**
  * Prepares forecast data for the admin chart without mixing the live value
  * into the model forecast series.
  *

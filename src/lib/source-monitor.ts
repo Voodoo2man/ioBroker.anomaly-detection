@@ -252,6 +252,12 @@ export interface SourceModelData {
 	 *
 	 */
 	context?: ContextualModelData;
+	/** Context-specific rates. Older persisted models may not have this field. */
+	contextualRate?: ContextualModelData;
+	/** Bounded detector/latch state for active and recently used scopes. */
+	scopedStates?: Record<string, PersistedScopedDetectorState>;
+	/** Scope whose state was active when the model was saved. */
+	activeStateScope?: string;
 	/**
 	 *
 	 */
@@ -268,6 +274,13 @@ export interface SourceModelData {
 
 interface ScopedDetectorState {
 	advanced: AdvancedDetectors;
+	lastUsed: number;
+	anomalySince?: number;
+	detected: boolean;
+}
+
+interface PersistedScopedDetectorState {
+	advanced: { changePoint: ChangePointData; trend: TrendData };
 	lastUsed: number;
 	anomalySince?: number;
 	detected: boolean;
@@ -518,6 +531,7 @@ export function evaluateCurrentSourceValue(
 export class SourceMonitor {
 	private valueModel: TemporalModel;
 	private rateModel: TemporalModel;
+	private contextualRateModel: ContextualModel;
 	private contextualModel: ContextualModel;
 	private readonly scopedStates = new Map<string, ScopedDetectorState>();
 	private activeStateScope = "global";
@@ -541,13 +555,36 @@ export class SourceMonitor {
 		const bucketMinutes = settings.bucketMinutes ?? DEFAULTS.bucketMinutes;
 		this.valueModel = new TemporalModel(bucketMinutes, undefined, data?.value);
 		this.rateModel = new TemporalModel(bucketMinutes, undefined, data?.rate);
+		this.contextualRateModel = new ContextualModel(
+			bucketMinutes,
+			DEFAULTS.maxContextModels,
+			undefined,
+			data?.contextualRate,
+		);
 		this.contextualModel = new ContextualModel(bucketMinutes, DEFAULTS.maxContextModels, undefined, data?.context);
+		for (const [scope, saved] of Object.entries(data?.scopedStates ?? {})) {
+			if (scope === "global") {
+				continue;
+			}
+			this.scopedStates.set(scope, {
+				advanced: new AdvancedDetectors(saved.advanced.changePoint, saved.advanced.trend),
+				lastUsed: saved.lastUsed,
+				anomalySince: saved.anomalySince,
+				detected: saved.detected,
+			});
+		}
+		const savedGlobal = data?.scopedStates?.global;
 		this.scopedStates.set("global", {
-			advanced: new AdvancedDetectors(data?.changePoint, data?.trend),
-			lastUsed: 0,
-			anomalySince: data?.anomalySince,
-			detected: data?.detected ?? false,
+			advanced: new AdvancedDetectors(
+				savedGlobal?.advanced.changePoint ?? data?.changePoint,
+				savedGlobal?.advanced.trend ?? data?.trend,
+			),
+			lastUsed: savedGlobal?.lastUsed ?? 0,
+			anomalySince: savedGlobal?.anomalySince ?? data?.anomalySince,
+			detected: savedGlobal?.detected ?? data?.detected ?? false,
 		});
+		this.activeStateScope =
+			data?.activeStateScope && this.scopedStates.has(data.activeStateScope) ? data.activeStateScope : "global";
 		this.lastValue = data?.lastValue;
 		this.lastTimestamp = data?.lastTimestamp;
 		this.lastContextKey = data?.lastContextKey;
@@ -640,11 +677,14 @@ export class SourceMonitor {
 				);
 			}
 		}
-		// A new context has no reliable rate baseline yet. Comparing it with the
-		// context-agnostic rate model would leak assumptions across contexts.
+		// A context must be mature before its separately learned rate baseline is used.
 		if ((this.settings.enableRate ?? true) && !contextIsLearning) {
-			const rateBaseline = this.rateModel.baseline(timestamp, minSamples, timeContext, weekdayContext);
-			const result = detectRateDeviation(rate, rateBaseline.series, minSamples, sensitivity);
+			const rateBaseline = hasActiveContext
+				? this.contextualRateModel.baseline(contextKey, timestamp, minSamples, timeContext, weekdayContext)
+				: this.rateModel.baseline(timestamp, minSamples, timeContext, weekdayContext);
+			const result = rateBaseline
+				? detectRateDeviation(rate, rateBaseline.series, minSamples, sensitivity)
+				: undefined;
 			if (result) {
 				results.push(result);
 			}
@@ -690,8 +730,12 @@ export class SourceMonitor {
 			if (this.settings.enableContext) {
 				this.contextualModel.add(contextKey, value, timestamp, timeContext, weekdayContext);
 			}
-			if (rate !== undefined && !contextIsLearning) {
-				this.rateModel.add(rate, timestamp, timeContext, weekdayContext);
+			if (rate !== undefined) {
+				if (hasActiveContext) {
+					this.contextualRateModel.add(contextKey, rate, timestamp, timeContext, weekdayContext);
+				} else {
+					this.rateModel.add(rate, timestamp, timeContext, weekdayContext);
+				}
 			}
 		}
 		if (isNewSample) {
@@ -718,7 +762,7 @@ export class SourceMonitor {
 		const observation: ObservationResult = {
 			actual: value,
 			expected,
-			deviation: expected === undefined ? undefined : value - expected,
+			deviation: expected === undefined ? undefined : finiteOrUndefined(value - expected),
 			score: scoring.score,
 			detected: state.detected,
 			status: contextIsLearning
@@ -797,13 +841,25 @@ export class SourceMonitor {
 			lastTimestamp: this.lastTimestamp,
 			lastContextKey: this.lastContextKey,
 			repeatedSince: this.repeatedSince,
-			// Keep legacy persistence global; scoped pending/latch state is intentionally
-			// not serialized into the global compatibility fields.
+			// Preserve legacy global fields while also persisting the bounded scoped state.
 			anomalySince: this.scopedStates.get("global")?.anomalySince,
 			lastNormal: this.lastNormal,
 			detected: this.scopedStates.get("global")?.detected ?? false,
 			bootstrap: this.bootstrap,
 			context: this.contextualModel.toJSON(),
+			contextualRate: this.contextualRateModel.toJSON(),
+			scopedStates: Object.fromEntries(
+				[...this.scopedStates].map(([scope, state]) => [
+					scope,
+					{
+						advanced: state.advanced.toJSON(),
+						lastUsed: state.lastUsed,
+						anomalySince: state.anomalySince,
+						detected: state.detected,
+					},
+				]),
+			),
+			activeStateScope: this.activeStateScope,
 			...(this.scopedStates.get("global")?.advanced.toJSON() ?? {
 				changePoint: { recent: [], candidateCount: 0 },
 				trend: { recent: [] },
@@ -957,6 +1013,10 @@ export class SourceMonitor {
 	public reset(): void {
 		this.valueModel = new TemporalModel(this.settings.bucketMinutes ?? DEFAULTS.bucketMinutes);
 		this.rateModel = new TemporalModel(this.settings.bucketMinutes ?? DEFAULTS.bucketMinutes);
+		this.contextualRateModel = new ContextualModel(
+			this.settings.bucketMinutes ?? DEFAULTS.bucketMinutes,
+			DEFAULTS.maxContextModels,
+		);
 		this.contextualModel = new ContextualModel(
 			this.settings.bucketMinutes ?? DEFAULTS.bucketMinutes,
 			DEFAULTS.maxContextModels,
@@ -1087,7 +1147,9 @@ function expectedRangeFor(
 		return undefined;
 	}
 	const halfWidth = (sensitivity * mad) / 0.6745;
-	return { low: medianValue - halfWidth, high: medianValue + halfWidth };
+	const low = medianValue - halfWidth;
+	const high = medianValue + halfWidth;
+	return Number.isFinite(low) && Number.isFinite(high) ? { low, high } : undefined;
 }
 
 /**
@@ -1108,7 +1170,13 @@ export function decisionRangeFor(
 		return undefined;
 	}
 	const halfWidth = (sensitivity * (threshold / 100) * mad) / 0.6745;
-	return { low: medianValue - halfWidth, high: medianValue + halfWidth };
+	const low = medianValue - halfWidth;
+	const high = medianValue + halfWidth;
+	return Number.isFinite(low) && Number.isFinite(high) ? { low, high } : undefined;
+}
+
+function finiteOrUndefined(value: number): number | undefined {
+	return Number.isFinite(value) ? value : undefined;
 }
 
 /**
@@ -1125,15 +1193,211 @@ export function parseStoredModel(value: unknown): Record<string, SourceModelData
 			return {};
 		}
 		return Object.fromEntries(
-			Object.entries(parsed as Record<string, unknown>).filter(
-				([, model]) =>
-					!!model &&
-					typeof model === "object" &&
-					((model as SourceModelData).schemaVersion === 1 ||
-						(model as SourceModelData).schemaVersion === MODEL_SCHEMA_VERSION),
-			),
+			Object.entries(parsed as Record<string, unknown>).filter(([, model]) => isSourceModelData(model)),
 		) as Record<string, SourceModelData>;
 	} catch {
 		return {};
 	}
+}
+
+function isSourceModelData(value: unknown): value is SourceModelData {
+	if (!isRecord(value) || (value.schemaVersion !== 1 && value.schemaVersion !== MODEL_SCHEMA_VERSION)) {
+		return false;
+	}
+	if (!isTemporalModelData(value.value) || !isTemporalModelData(value.rate)) {
+		return false;
+	}
+	if (
+		!isOptional(value, "context", isContextualModelData) ||
+		!isOptional(value, "contextualRate", isContextualModelData) ||
+		!isOptional(value, "changePoint", isChangePointData) ||
+		!isOptional(value, "trend", isTrendData) ||
+		!isOptional(value, "activeStateScope", isString)
+	) {
+		return false;
+	}
+	if (!isOptional(value, "scopedStates", isScopedStateRecord)) {
+		return false;
+	}
+	if (
+		isString(value.activeStateScope) &&
+		isRecord(value.scopedStates) &&
+		!Object.hasOwn(value.scopedStates, value.activeStateScope)
+	) {
+		return false;
+	}
+	if (
+		!isOptional(value, "lastValue", isFiniteNumber) ||
+		!isOptional(value, "lastTimestamp", isFiniteNumber) ||
+		!isOptional(value, "repeatedSince", isFiniteNumber) ||
+		!isOptional(value, "anomalySince", isFiniteNumber) ||
+		!isOptional(value, "lastNormal", isFiniteNumber) ||
+		!isOptional(value, "detected", isBoolean) ||
+		!isOptional(value, "lastContextKey", isString) ||
+		!isOptional(value, "configuredSourceId", isString) ||
+		!isOptional(value, "bootstrap", isBootstrapMetadata)
+	) {
+		return false;
+	}
+	return isOptional(value, "diagnostics", isDiagnosticSnapshotArray);
+}
+
+function isScopedStateRecord(value: unknown): boolean {
+	if (!isRecord(value)) {
+		return false;
+	}
+	const scopes = Object.entries(value);
+	return (
+		Object.hasOwn(value, "global") &&
+		scopes.length <= DEFAULTS.maxContextModels + 1 &&
+		scopes.every(([, state]) => isPersistedScopedState(state))
+	);
+}
+
+function isContextualModelData(value: unknown): value is ContextualModelData {
+	if (!isRecord(value) || !isRecord(value.contexts)) {
+		return false;
+	}
+	const entries = Object.values(value.contexts);
+	if (entries.length > DEFAULTS.maxContextModels) {
+		return false;
+	}
+	for (const entry of entries) {
+		if (!isRecord(entry) || !isFiniteNumber(entry.lastUsed) || !isTemporalModelData(entry.model)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function isTemporalModelData(value: unknown): value is TemporalModelData {
+	if (!isRecord(value) || !isSampleSeriesData(value.global)) {
+		return false;
+	}
+	if (!isOptional(value, "timeBuckets", isSampleSeriesRecord)) {
+		return false;
+	}
+	return isOptional(value, "contextBuckets", isSampleSeriesRecord);
+}
+
+function isSampleSeriesRecord(value: unknown): boolean {
+	if (!isRecord(value)) {
+		return false;
+	}
+	return Object.values(value).every(series => isSampleSeriesData(series));
+}
+
+function isSampleSeriesData(value: unknown): boolean {
+	return isRecord(value) && Array.isArray(value.values) && value.values.every(isFiniteNumber);
+}
+
+function isChangePointData(value: unknown): value is ChangePointData {
+	if (!isRecord(value) || !Array.isArray(value.recent) || !value.recent.every(isTimedResidual)) {
+		return false;
+	}
+	if (
+		value.candidateDirection !== undefined &&
+		value.candidateDirection !== "upward" &&
+		value.candidateDirection !== "downward"
+	) {
+		return false;
+	}
+	return isFiniteNumber(value.candidateCount) && Number.isInteger(value.candidateCount) && value.candidateCount >= 0;
+}
+
+function isTrendData(value: unknown): value is TrendData {
+	if (!isRecord(value) || !Array.isArray(value.recent)) {
+		return false;
+	}
+	return value.recent.every(isTimedResidual);
+}
+
+function isTimedResidual(value: unknown): boolean {
+	if (!isRecord(value)) {
+		return false;
+	}
+	return isFiniteNumber(value.value) && isFiniteNumber(value.timestamp);
+}
+
+function isPersistedScopedState(value: unknown): value is PersistedScopedDetectorState {
+	if (!isRecord(value) || !isRecord(value.advanced)) {
+		return false;
+	}
+	if (!isChangePointData(value.advanced.changePoint) || !isTrendData(value.advanced.trend)) {
+		return false;
+	}
+	return (
+		isFiniteNumber(value.lastUsed) && isBoolean(value.detected) && isOptional(value, "anomalySince", isFiniteNumber)
+	);
+}
+
+function isBootstrapMetadata(value: unknown): value is BootstrapMetadata {
+	if (!isRecord(value) || !isBoolean(value.completed) || !isFiniteNumber(value.importedSamples)) {
+		return false;
+	}
+	if (!isOptional(value, "provider", isString) || !isOptional(value, "historySourceId", isString)) {
+		return false;
+	}
+	if (!isOptional(value, "configKey", isString) || !isOptional(value, "start", isFiniteNumber)) {
+		return false;
+	}
+	return isOptional(value, "end", isFiniteNumber);
+}
+
+function isDiagnosticSnapshot(value: unknown): boolean {
+	if (!isRecord(value)) {
+		return false;
+	}
+	if (!isFiniteNumber(value.timestamp) || !isFiniteNumber(value.actual) || !isFiniteNumber(value.score)) {
+		return false;
+	}
+	if (!isOptional(value, "expected", isFiniteNumber) || !isOptional(value, "decisionLow", isFiniteNumber)) {
+		return false;
+	}
+	if (
+		!isOptional(value, "decisionHigh", isFiniteNumber) ||
+		!isBoolean(value.detected) ||
+		!isString(value.reasonCode)
+	) {
+		return false;
+	}
+	if (!isString(value.activeContext) || !isFiniteNumber(value.baselineSampleCount)) {
+		return false;
+	}
+	if (!["context", "time", "global", "insufficient"].includes(value.baselineScope as string)) {
+		return false;
+	}
+	return (
+		value.statusCode === undefined ||
+		["learning", "normal", "deviating", "anomaly", "insufficient_data", "unavailable"].includes(
+			value.statusCode as string,
+		)
+	);
+}
+
+function isDiagnosticSnapshotArray(value: unknown): boolean {
+	if (!Array.isArray(value)) {
+		return false;
+	}
+	return value.every(entry => isDiagnosticSnapshot(entry));
+}
+
+function isOptional(value: Record<string, unknown>, key: string, guard: (value: unknown) => boolean): boolean {
+	return value[key] === undefined || guard(value[key]);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isString(value: unknown): value is string {
+	return typeof value === "string";
+}
+
+function isBoolean(value: unknown): value is boolean {
+	return typeof value === "boolean";
+}
+
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === "number" && Number.isFinite(value);
 }

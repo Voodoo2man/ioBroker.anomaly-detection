@@ -140,6 +140,10 @@
 		"enabled": true,
 		"extIcon": "https://raw.githubusercontent.com/Voodoo2man/ioBroker.anomaly-detection/main/admin/anomaly-detection-icon.png",
 		"readme": "https://github.com/Voodoo2man/ioBroker.anomaly-detection/blob/main/README.md",
+		"docs": {
+			"en": "README.md",
+			"de": "README.de.md"
+		},
 		"loglevel": "info",
 		"tier": 3,
 		"mode": "daemon",

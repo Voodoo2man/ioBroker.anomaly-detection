@@ -1,9 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { I18n } from "@iobroker/gui-components";
-import { Alert, Box, Button, Card, CardContent, Chip, Collapse, Divider, Grid, Stack, Typography } from "@mui/material";
+import {
+	Alert,
+	Box,
+	Button,
+	Card,
+	CardContent,
+	Chip,
+	CircularProgress,
+	Collapse,
+	Divider,
+	Grid,
+	Stack,
+	Typography,
+} from "@mui/material";
 import { Refresh, ExpandMore, ExpandLess } from "@mui/icons-material";
 import { chartYDomain } from "./chart-domain";
-import { formatForecastTick, prepareForecastChartData } from "./forecast-chart";
+import { formatForecastAxisTimeLabel, formatForecastTick, prepareForecastChartData } from "./forecast-chart";
+import { LatestRequest } from "./latest-request";
 import { localizedTranslations } from "./translations";
 
 type Detector = { name: string; score: number; reasonCode: string };
@@ -345,6 +359,8 @@ const translations: Record<string, Record<string, string>> = {
 		loadError: "The anomaly assessments could not be loaded.",
 		chart: "History & anomalies",
 		chartUnavailable: "No history data is available for this state.",
+		chartLoadError: "Could not load historical data for this state.",
+		chartLoading: "Loading historical data",
 		chartNoBounds: "Historical decision bounds are not available for this period.",
 		hour: "1 h",
 		sixHours: "6 h",
@@ -524,6 +540,8 @@ const translations: Record<string, Record<string, string>> = {
 		loadError: "Die Anomaliebewertungen konnten nicht geladen werden.",
 		chart: "Verlauf & Anomalien",
 		chartUnavailable: "Für diesen Datenpunkt sind keine Verlaufsdaten verfügbar.",
+		chartLoadError: "Verlaufsdaten für diesen Datenpunkt konnten nicht geladen werden.",
+		chartLoading: "Verlaufsdaten werden geladen",
 		chartNoBounds: "Für diesen Zeitraum sind keine historischen Bewertungsgrenzen verfügbar.",
 		hour: "1 h",
 		sixHours: "6 h",
@@ -686,8 +704,12 @@ function HistoryChart({
 	const [open, setOpen] = useState(false);
 	const [hours, setHours] = useState(24);
 	const [data, setData] = useState<ChartResponse["data"]>();
+	const [loading, setLoading] = useState(false);
+	const [loadError, setLoadError] = useState(false);
+	const [retryKey, setRetryKey] = useState(0);
 	const [chartWidth, setChartWidth] = useState(600);
 	const cache = useRef(new Map<number, ChartResponse["data"]>());
+	const latestRequest = useRef(new LatestRequest());
 	const chartContainer = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		if (!open || !chartContainer.current || typeof ResizeObserver === "undefined") {
@@ -709,7 +731,7 @@ function HistoryChart({
 		if (open) {
 			setData(undefined);
 		}
-	}, [refreshKey]);
+	}, [refreshKey, socket, source.id, target]);
 	useEffect(() => {
 		if (!open || !socket?.sendTo) {
 			return;
@@ -717,20 +739,32 @@ function HistoryChart({
 		const cached = cache.current.get(hours);
 		if (cached) {
 			setData(cached);
+			setLoadError(false);
+			setLoading(false);
 			return;
 		}
-		void socket
-			.sendTo<ChartResponse>(target, "chartData", {
-				sourceId: source.id,
-				start: Date.now() - hours * 3600000,
-				end: Date.now(),
-				limit: 500,
-			})
-			.then(response => {
-				cache.current.set(hours, response.data);
-				setData(response.data);
-			});
-	}, [hours, open, refreshKey, socket, source.id, target]);
+		setData(undefined);
+		setLoadError(false);
+		setLoading(true);
+		void latestRequest.current.run(
+			() =>
+				socket.sendTo!<ChartResponse>(target, "chartData", {
+					sourceId: source.id,
+					start: Date.now() - hours * 3600000,
+					end: Date.now(),
+					limit: 500,
+				}),
+			{
+				onSuccess: response => {
+					cache.current.set(hours, response.data);
+					setData(response.data);
+				},
+				onError: () => setLoadError(true),
+				onSettled: () => setLoading(false),
+			},
+		);
+		return () => latestRequest.current.invalidate();
+	}, [hours, open, refreshKey, retryKey, socket, source.id, target]);
 	const samples = data?.samples || [];
 	const diagnostics = data?.diagnostics || [];
 	const values = samples.map(sample => sample.value);
@@ -743,6 +777,41 @@ function HistoryChart({
 			>
 				{t("chart")}
 			</Button>
+		);
+	}
+	if (loading) {
+		return (
+			<Box sx={{ mt: 1 }}>
+				<Button
+					size="small"
+					onClick={() => setOpen(false)}
+				>
+					{t("chart")}
+				</Button>
+				<CircularProgress
+					size={20}
+					sx={{ ml: 1, verticalAlign: "middle" }}
+					aria-label={t("chartLoading")}
+				/>
+			</Box>
+		);
+	}
+	if (loadError) {
+		return (
+			<Box sx={{ mt: 1 }}>
+				<Button
+					size="small"
+					onClick={() => setRetryKey(value => value + 1)}
+				>
+					{t("chart")}
+				</Button>
+				<Alert
+					severity="error"
+					sx={{ mt: 1 }}
+				>
+					{t("chartLoadError")}
+				</Alert>
+			</Box>
 		);
 	}
 	if (!data?.available) {
@@ -1382,14 +1451,7 @@ function forecastExpectedLabel(minutes: number): string {
 }
 
 function forecastAxisTimeLabel(offsetMs: number): string {
-	if (offsetMs === 0) {
-		return t("forecastNow");
-	}
-	const minutes = Math.round(offsetMs / 60_000);
-	if (minutes >= 60 && minutes % 60 === 0) {
-		return `+${minutes / 60} h`;
-	}
-	return `+${minutes} min`;
+	return formatForecastAxisTimeLabel(offsetMs, (key, value) => (value === undefined ? t(key) : t(key, value)));
 }
 
 function predictiveModelLabel(model?: "levelTrend" | "seasonal" | "timeOfDay"): string {

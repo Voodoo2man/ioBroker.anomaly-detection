@@ -18,7 +18,7 @@ export type PredictiveSelectionReason =
 export type PredictiveTrainingSource = "history" | "persisted" | "live" | "mixed";
 export type PredictiveBootstrapReason =
 	"initial" | "missing-model" | "config-changed" | "legacy-model" | "algorithm-changed" | "incomplete-model";
-export const PREDICTIVE_ALGORITHM_VERSION = 7;
+export const PREDICTIVE_ALGORITHM_VERSION = 8;
 export const PREDICTIVE_HISTORY_RAW_LIMIT = 100_000;
 
 /**
@@ -540,6 +540,8 @@ export interface PredictiveModelData {
 	 *
 	 */
 	trend: number;
+	/** Robust scale used to bound trend extrapolation around a near-zero level. */
+	trendScale?: number;
 	/**
 	 *
 	 */
@@ -576,6 +578,8 @@ export interface PredictiveModelData {
 	 *
 	 */
 	lastTrainingAt: number;
+	/** Timestamp of the last regularized training observation. */
+	trainingEndTimestamp?: number;
 	/**
 	 *
 	 */
@@ -712,6 +716,8 @@ type TrainingBasisRestoreReason =
 const MAX_HORIZON_MINUTES = 360;
 const MAX_POINTS = 10_000;
 const MAX_FORECAST_POINTS = 480;
+const MAX_CONTIGUOUS_GAP_MS = 6 * 60 * 60_000;
+const MAX_CONTIGUOUS_GAP_INTERVALS = 6;
 
 /**
  *
@@ -815,7 +821,7 @@ export class PredictiveModel {
 	private data?: PredictiveModelData;
 	private samples: ForecastPoint[] = [];
 	private trainingBasisSource: PredictiveTrainingSource | undefined;
-	private pendingLiveSamples = 0;
+	private pendingLiveTimestamps = new Set<number>();
 	private lastObservedValue?: number;
 	private lastObservedTimestamp?: number;
 	private historyBootstrapRequired: boolean;
@@ -838,6 +844,7 @@ export class PredictiveModel {
 			data?.version === 1 && algorithmMatches && data.configFingerprint === fingerprint ? data : undefined;
 		const persistedTrainingSamples = compatibleData?.trainingSampleCount;
 		const persistedModelIsComplete =
+			compatibleData?.persistedLearning !== true &&
 			typeof persistedTrainingSamples === "number" &&
 			Number.isFinite(persistedTrainingSamples) &&
 			persistedTrainingSamples >= settings.minimumTrainingSamples;
@@ -878,9 +885,14 @@ export class PredictiveModel {
 			return;
 		}
 		if (sampleSource === "live") {
-			this.pendingLiveSamples++;
-			this.lastObservedValue = value;
-			this.lastObservedTimestamp = timestamp;
+			const trainedThrough = this.data?.trainingEndTimestamp ?? this.data?.lastTrainingAt;
+			if (trainedThrough === undefined || timestamp > trainedThrough) {
+				this.pendingLiveTimestamps.add(timestamp);
+			}
+			if (this.lastObservedTimestamp === undefined || timestamp >= this.lastObservedTimestamp) {
+				this.lastObservedValue = value;
+				this.lastObservedTimestamp = timestamp;
+			}
 		}
 		const existingIndex = this.samples.findIndex(sample => sample.timestamp === timestamp);
 		if (existingIndex >= 0) {
@@ -905,20 +917,39 @@ export class PredictiveModel {
 		if (!this.settings.enabled) {
 			return this.result("disabled");
 		}
+		const originalSampleCount = this.samples.length;
+		this.samples = recentContiguousSegment(this.samples);
+		const recentTimestamps = new Set(this.samples.map(sample => sample.timestamp));
+		this.pendingLiveTimestamps = new Set(
+			[...this.pendingLiveTimestamps].filter(timestamp => recentTimestamps.has(timestamp)),
+		);
 		const insufficientSamples =
 			this.samples.length < this.settings.minimumTrainingSamples ||
 			(!!this.data &&
 				trainingSource !== "history" &&
-				this.pendingLiveSamples < this.settings.minimumTrainingSamples);
+				this.pendingLiveTimestamps.size < this.settings.minimumTrainingSamples);
 		if (insufficientSamples) {
 			// Keep a valid persisted model active while the fresh live buffer is
 			// still being collected for a future retraining.  In particular, do
 			// not downgrade the active model to "learning" merely because the
 			// non-persisted buffer starts empty after a restart.
 			if (this.data) {
-				return this.result(this.data.status ?? "unreliable", now);
+				return this.result(
+					this.data.status ?? "unreliable",
+					now,
+					originalSampleCount >= this.settings.minimumTrainingSamples &&
+						this.samples.length < this.settings.minimumTrainingSamples
+						? "waitingForTraining"
+						: undefined,
+				);
 			}
-			return this.result("learning", undefined, "insufficientSamples");
+			return this.result(
+				"learning",
+				undefined,
+				originalSampleCount >= this.settings.minimumTrainingSamples
+					? "waitingForTraining"
+					: "insufficientSamples",
+			);
 		}
 		const historyBasedModel = this.data?.trainingSource === "history" || this.data?.trainingSource === "mixed";
 		if (this.data && historyBasedModel && !this.trainingBasisRestored && trainingSource !== "history") {
@@ -927,6 +958,9 @@ export class PredictiveModel {
 		const rawIntervalMs = medianInterval(this.samples) || 60_000;
 		const intervalMs = selectModelInterval(this.samples, rawIntervalMs, this.settings);
 		const values = regularizeSamples(this.samples, intervalMs, this.settings.maximumTrainingPoints);
+		if (!values.every(Number.isFinite)) {
+			return this.result("error", now);
+		}
 		const basisStart = regularizedStartTimestamp(this.samples, intervalMs, values.length);
 		const trainingBasis = values.map((value, index) => ({
 			value,
@@ -936,7 +970,7 @@ export class PredictiveModel {
 			trainingSource === "history"
 				? "history"
 				: this.trainingBasisSource === "history" || this.trainingBasisSource === "mixed"
-					? this.pendingLiveSamples > 0
+					? this.pendingLiveTimestamps.size > 0
 						? "mixed"
 						: this.trainingBasisSource
 					: "live";
@@ -954,6 +988,14 @@ export class PredictiveModel {
 		const timeOfDayQuality = timeOfDayProfile
 			? backtest(values, 0, intervalMs, regularizedStart, timeOfDayProfile)
 			: undefined;
+		if (
+			!isFiniteBacktest(baselineQuality) ||
+			!isFiniteBacktest(seasonalQuality) ||
+			!isFiniteBacktest(timeOfDayQuality) ||
+			timeOfDayProfile?.buckets.some(value => !Number.isFinite(value))
+		) {
+			return this.result("error", now);
+		}
 		const completePeriods = candidatePeriod > 0 ? Math.floor(values.length / candidatePeriod) : 0;
 		let selectionReason: PredictiveSelectionReason;
 		const useSeasonal =
@@ -989,6 +1031,12 @@ export class PredictiveModel {
 				: useTimeOfDay && timeOfDayQuality
 					? timeOfDayQuality
 					: baselineQuality;
+		if (
+			![fitted.level, fitted.trend, fitted.trendScale, ...fitted.seasonal].every(Number.isFinite) ||
+			fitted.timeOfDay?.some(value => !Number.isFinite(value))
+		) {
+			return this.result("error", now);
+		}
 		const qualityClassification = classifyQuality(quality);
 		const status =
 			quality.mae !== undefined && quality.normalized !== undefined && quality.normalized <= 1.5
@@ -1002,6 +1050,7 @@ export class PredictiveModel {
 			bootstrapReason: this.initialBootstrapReason ?? (trainingSource === "history" ? "initial" : undefined),
 			level: fitted.level,
 			trend: fitted.trend,
+			trendScale: fitted.trendScale,
 			seasonal: fitted.seasonal,
 			timeOfDay: fitted.timeOfDay,
 			timeOfDayBucketMinutes: timeOfDayProfile?.bucketMinutes,
@@ -1012,6 +1061,7 @@ export class PredictiveModel {
 			trainingSampleCount: values.length,
 			trainingBasis,
 			lastTrainingAt: now,
+			trainingEndTimestamp: (basisStart ?? now) + (values.length - 1) * intervalMs,
 			qualityValue: quality.mae,
 			qualityNormalized: quality.normalized,
 			qualityClass: qualityClassification.class,
@@ -1082,7 +1132,7 @@ export class PredictiveModel {
 		this.trainingBasisSource = effectiveTrainingSource;
 		this.trainingBasisRestored = true;
 		this.trainingBasisRestoreReasonValue = "accepted";
-		this.pendingLiveSamples = 0;
+		this.pendingLiveTimestamps.clear();
 		this.historyBootstrapRequired = false;
 		return this.result(status, now);
 	}
@@ -1215,13 +1265,14 @@ export class PredictiveModel {
 		let unanchoredFirstForecastValue: number | undefined;
 		let anchoredFirstForecastValue: number | undefined;
 		if (data && (status === "ready" || status === "unreliable")) {
-			const baseCount = Math.max(1, Math.ceil((this.settings.horizonMinutes * 60_000) / data.intervalMs));
-			const step = Math.max(1, Math.ceil(baseCount / MAX_FORECAST_POINTS));
-			const count = Math.ceil(baseCount / step);
+			const horizonSteps = (this.settings.horizonMinutes * 60_000) / data.intervalMs;
+			const step = Math.max(1, Math.ceil(horizonSteps / MAX_FORECAST_POINTS));
+			const count = Math.max(1, Math.ceil(horizonSteps / step));
+			const trainingEnd = data.trainingEndTimestamp ?? data.lastTrainingAt;
+			const elapsedModelSteps = Number.isFinite(trainingEnd)
+				? Math.max(0, (forecastNow - trainingEnd) / data.intervalMs)
+				: 0;
 			const baseForecast = (modelStep: number, targetTimestamp: number): number => {
-				const seasonal = data.period
-					? (data.seasonal[(data.trainingSampleCount - 1 + modelStep) % data.period] ?? 0)
-					: 0;
 				return data.selectedModelType === "timeOfDay" && data.timeOfDay?.length
 					? timeOfDayPrediction(
 							{
@@ -1233,23 +1284,33 @@ export class PredictiveModel {
 							targetTimestamp,
 							0,
 						)
-					: data.level + boundedTrend(data.trend * modelStep, data) + seasonal;
+					: predictFittedModel(data, data.trainingSampleCount, modelStep);
 			};
-			baseForecastAtNow = baseForecast(0, forecastNow);
+			baseForecastAtNow = baseForecast(elapsedModelSteps, forecastNow);
+			if (!Number.isFinite(baseForecastAtNow)) {
+				return this.result("error", now);
+			}
 			initialForecastOffset = Number.isFinite(currentValue)
 				? (currentValue as number) - baseForecastAtNow
 				: undefined;
+			if (initialForecastOffset !== undefined && !Number.isFinite(initialForecastOffset)) {
+				return this.result("error", now);
+			}
 			const decayDurationMs = Math.max(
 				data.intervalMs,
 				data.period > 0 ? Math.min(horizonMs, data.period * data.intervalMs) : horizonMs / 4,
 			);
 			anchorDecayMinutes = decayDurationMs / 60_000;
 			for (let index = 1; index <= count; index++) {
-				const modelStep = index * step;
-				const targetTimestamp = forecastNow + modelStep * data.intervalMs;
+				const horizonStep = Math.min(horizonSteps, index * step);
+				const modelStep = elapsedModelSteps + horizonStep;
+				const targetTimestamp = forecastNow + horizonStep * data.intervalMs;
 				const unanchored = baseForecast(modelStep, targetTimestamp);
-				const decay = Math.exp(-(modelStep * data.intervalMs) / decayDurationMs);
+				const decay = Math.exp(-(horizonStep * data.intervalMs) / decayDurationMs);
 				const value = anchorApplied ? unanchored + (initialForecastOffset ?? 0) * decay : unanchored;
+				if (![targetTimestamp, unanchored, value].every(Number.isFinite)) {
+					return this.result("error", now);
+				}
 				if (index === 1) {
 					unanchoredFirstForecastValue = unanchored;
 					anchoredFirstForecastValue = value;
@@ -1342,6 +1403,28 @@ function historySpan(samples: readonly ForecastPoint[]): number {
 	}
 	const ordered = [...samples].sort((a, b) => a.timestamp - b.timestamp);
 	return ordered[ordered.length - 1].timestamp - ordered[0].timestamp;
+}
+
+/**
+ * Keeps the newest contiguous run of samples. Gaps larger than six hours and six median intervals
+ * break a run so regularization never invents a linear ramp across an outage.
+ *
+ * @param samples Observations to split at long gaps.
+ */
+function recentContiguousSegment(samples: readonly ForecastPoint[]): ForecastPoint[] {
+	const ordered = [...samples].sort((left, right) => left.timestamp - right.timestamp);
+	const rawIntervalMs = medianInterval(ordered);
+	if (ordered.length < 2 || rawIntervalMs === undefined) {
+		return ordered;
+	}
+	const maximumGapMs = Math.max(MAX_CONTIGUOUS_GAP_MS, rawIntervalMs * MAX_CONTIGUOUS_GAP_INTERVALS);
+	let segmentStart = 0;
+	for (let index = 1; index < ordered.length; index++) {
+		if (ordered[index].timestamp - ordered[index - 1].timestamp > maximumGapMs) {
+			segmentStart = index;
+		}
+	}
+	return ordered.slice(segmentStart);
 }
 
 function regularizedStartTimestamp(
@@ -1498,23 +1581,63 @@ function fitModel(
 ): {
 	level: number;
 	trend: number;
+	trendScale: number;
 	seasonal: number[];
 	timeOfDay?: number[];
 	period: number;
 } {
-	const levelValues = period > 0 ? values : values.slice(-Math.min(20, values.length));
-	const level = levelValues.reduce((sum, value) => sum + value, 0) / Math.max(1, levelValues.length);
-	const seasonal =
-		period > 0
-			? Array.from({ length: period }, (_, phase) => {
-					const phaseValues = values.filter((_, index) => index % period === phase);
-					return phaseValues.length
-						? phaseValues.reduce((sum, value) => sum + value, 0) / phaseValues.length - level
-						: 0;
-				})
-			: [];
 	const trend = regressionSlope(values, period);
-	return { level, trend: Number.isFinite(trend) ? trend : 0, seasonal, timeOfDay: timeOfDay?.buckets, period };
+	const mean = values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+	const meanIndex = (values.length - 1) / 2;
+	const intercept = mean - trend * meanIndex;
+	const level = intercept + trend * Math.max(0, values.length - 1);
+	const robustRange = Math.max(0, quantile(values, 0.95) - quantile(values, 0.05));
+	const trendScale = Math.max(Math.abs(level) * 0.5, robustRange * 0.5, 0.001);
+	const seasonalSums = period > 0 ? Array.from({ length: period }, () => 0) : [];
+	const seasonalCounts = period > 0 ? Array.from({ length: period }, () => 0) : [];
+	if (period > 0) {
+		for (let index = 0; index < values.length; index++) {
+			const phase = index % period;
+			seasonalSums[phase] += values[index] - trend * index;
+			seasonalCounts[phase]++;
+		}
+	}
+	const seasonal = seasonalSums.map((sum, phase) =>
+		seasonalCounts[phase] ? sum / seasonalCounts[phase] - intercept : 0,
+	);
+	return {
+		level,
+		trend: Number.isFinite(trend) ? trend : 0,
+		trendScale,
+		seasonal,
+		timeOfDay: timeOfDay?.buckets,
+		period,
+	};
+}
+
+/**
+ * Predicts `stepsAfterEnd` steps after the last sample used to fit a model.
+ *
+ * @param model Fitted endpoint, trend bounds and seasonal profile.
+ * @param trainingSampleCount Number of fitted observations defining the seasonal phase.
+ * @param stepsAfterEnd Fractional steps after the training endpoint.
+ */
+function predictFittedModel(
+	model: Pick<PredictiveModelData, "level" | "trend" | "trendScale" | "seasonal" | "period">,
+	trainingSampleCount: number,
+	stepsAfterEnd: number,
+): number {
+	let seasonal = 0;
+	if (model.period > 0) {
+		const phase = (((trainingSampleCount - 1 + stepsAfterEnd) % model.period) + model.period) % model.period;
+		const lowerIndex = Math.floor(phase);
+		const upperIndex = (lowerIndex + 1) % model.period;
+		const fraction = phase - lowerIndex;
+		const lower = model.seasonal[lowerIndex] ?? 0;
+		const upper = model.seasonal[upperIndex] ?? 0;
+		seasonal = lower + (upper - lower) * fraction;
+	}
+	return model.level + boundedTrend(model.trend * stepsAfterEnd, model) + seasonal;
 }
 
 interface TimeOfDayProfile {
@@ -1582,8 +1705,8 @@ function regressionSlope(values: readonly number[], period: number): number {
 	return period > 0 ? slopePerPoint / period : slopePerPoint;
 }
 
-function boundedTrend(trend: number, data: PredictiveModelData): number {
-	const scale = Math.max(0.001, Math.abs(data.level) * 0.5);
+function boundedTrend(trend: number, data: Pick<PredictiveModelData, "level" | "trendScale">): number {
+	const scale = Math.max(0.001, data.trendScale ?? Math.abs(data.level) * 0.5);
 	return Math.max(-scale, Math.min(scale, trend));
 }
 
@@ -1646,19 +1769,15 @@ function backtest(
 	const training = values.slice(0, start);
 	const fitted = fitModel(training, period > 0 && training.length >= period * 2 ? period : 0);
 	const profile = timeOfDay ? buildTimeOfDayProfile(training, intervalMs ?? 60_000, startTimestamp) : undefined;
-	const offset =
-		profile && startTimestamp !== undefined ? values[0] - timeOfDayPrediction(profile, startTimestamp, 0) : 0;
 	const comparisons: PredictiveComparison[] = [];
 	for (let index = start; index < values.length; index++) {
-		const seasonal = fitted.period ? (fitted.seasonal[index % fitted.period] ?? 0) : 0;
+		const stepsAfterTrainingEnd = index - (training.length - 1);
 		const timestamp =
 			startTimestamp !== undefined && intervalMs !== undefined ? startTimestamp + index * intervalMs : undefined;
 		const predicted =
 			profile && timestamp !== undefined
-				? timeOfDayPrediction(profile, timestamp, offset * 0.5)
-				: fitted.level +
-					boundedTrend(fitted.trend * index, { level: fitted.level } as PredictiveModelData) +
-					seasonal;
+				? timeOfDayPrediction(profile, timestamp, 0)
+				: predictFittedModel(fitted, training.length, stepsAfterTrainingEnd);
 		comparisons.push({
 			timestamp,
 			actual: values[index],
@@ -1730,6 +1849,32 @@ function backtest(
 		scaleNearZero: iqr < 0.01,
 		scaleSource: scaleInfo.source,
 	};
+}
+
+function isFiniteBacktest(result: ReturnType<typeof backtest> | undefined): boolean {
+	if (!result || !result.available) {
+		return true;
+	}
+	const metrics = [
+		result.mae,
+		result.normalized,
+		result.scale,
+		result.actualMin,
+		result.actualMax,
+		result.actualMean,
+		result.predictedMin,
+		result.predictedMax,
+		result.predictedMean,
+	].filter((value): value is number => value !== undefined);
+	const comparisons = [result.firstComparison, result.lastComparison, result.maxError].filter(
+		(value): value is PredictiveComparison => value !== undefined,
+	);
+	return (
+		metrics.every(Number.isFinite) &&
+		comparisons.every(comparison =>
+			[comparison.actual, comparison.predicted, comparison.absoluteError].every(Number.isFinite),
+		)
+	);
 }
 
 function quantile(values: readonly number[], fraction: number): number {

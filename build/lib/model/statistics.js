@@ -62,7 +62,12 @@ function median(values) {
     return void 0;
   }
   const middle = Math.floor(finite.length / 2);
-  return finite.length % 2 === 0 ? (finite[middle - 1] + finite[middle]) / 2 : finite[middle];
+  if (finite.length % 2 !== 0) {
+    return finite[middle];
+  }
+  const lower = finite[middle - 1];
+  const upper = finite[middle];
+  return lower < 0 && upper > 0 ? lower / 2 + upper / 2 : lower + (upper - lower) / 2;
 }
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));

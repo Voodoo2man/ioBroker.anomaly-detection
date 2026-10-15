@@ -1,5 +1,6 @@
 import { expect } from "chai";
-import { formatForecastTick, prepareForecastChartData } from "../src/forecast-chart.ts";
+import { formatForecastAxisTimeLabel, formatForecastTick, prepareForecastChartData } from "../src/forecast-chart.ts";
+import { localizedTranslations } from "../src/translations.ts";
 
 describe("forecast chart data", () => {
 	it("keeps the live value separate from the forecast series", () => {
@@ -50,5 +51,15 @@ describe("forecast chart data", () => {
 				xTicks: [0, 900000, 1800000, 2700000, 3600000],
 			},
 		);
+	});
+
+	it("uses translated units for forecast axis labels", () => {
+		const polish = (key: string, value?: number): string => {
+			const text = localizedTranslations.pl[key];
+			return value === undefined ? text : text.replace("%s", String(value));
+		};
+		expect(formatForecastAxisTimeLabel(0, polish)).to.equal("Teraz");
+		expect(formatForecastAxisTimeLabel(2 * 60 * 60_000, polish)).to.equal("+2 godz.");
+		expect(formatForecastAxisTimeLabel(15 * 60_000, polish)).to.equal("+15 min");
 	});
 });

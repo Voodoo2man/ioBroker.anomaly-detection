@@ -50,7 +50,14 @@ export function median(values: readonly number[]): number | undefined {
 		return undefined;
 	}
 	const middle = Math.floor(finite.length / 2);
-	return finite.length % 2 === 0 ? (finite[middle - 1] + finite[middle]) / 2 : finite[middle];
+	if (finite.length % 2 !== 0) {
+		return finite[middle];
+	}
+	const lower = finite[middle - 1];
+	const upper = finite[middle];
+	// Avoid overflowing when two large finite values have the same sign. For
+	// opposite signs, halve first so the subtraction cannot overflow.
+	return lower < 0 && upper > 0 ? lower / 2 + upper / 2 : lower + (upper - lower) / 2;
 }
 
 export function clamp(value: number, min: number, max: number): number {

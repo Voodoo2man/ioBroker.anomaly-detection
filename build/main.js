@@ -518,7 +518,7 @@ class AnomalyDetection extends utils.Adapter {
     }
   }
   async processState(id, safeId, monitor, state) {
-    if (this.unloading) {
+    if (this.unloading || state.ack !== true) {
       return;
     }
     try {
@@ -1375,10 +1375,11 @@ class AnomalyDetection extends utils.Adapter {
     if (this.unloading) {
       return;
     }
-    const sourceTimestamp = typeof (state == null ? void 0 : state.ts) === "number" && Number.isFinite(state.ts) ? state.ts : void 0;
+    const acknowledgedState = (state == null ? void 0 : state.ack) === true ? state : void 0;
+    const sourceTimestamp = typeof (acknowledgedState == null ? void 0 : acknowledgedState.ts) === "number" && Number.isFinite(acknowledgedState.ts) ? acknowledgedState.ts : void 0;
     const evaluation = (0, import_source_monitor.evaluateCurrentSourceValue)(
       monitor,
-      state == null ? void 0 : state.val,
+      acknowledgedState == null ? void 0 : acknowledgedState.val,
       sourceTimestamp,
       this.contextKey(sourceId),
       (_b = (_a = this.sources.get(safeId)) == null ? void 0 : _a.minimumSamples) != null ? _b : 30,

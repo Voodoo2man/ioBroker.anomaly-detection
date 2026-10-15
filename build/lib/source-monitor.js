@@ -82,27 +82,50 @@ class SourceMonitor {
    */
   constructor(settings, data) {
     this.settings = settings;
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
     const bucketMinutes = (_a = settings.bucketMinutes) != null ? _a : DEFAULTS.bucketMinutes;
     this.valueModel = new import_temporal_model.TemporalModel(bucketMinutes, void 0, data == null ? void 0 : data.value);
     this.rateModel = new import_temporal_model.TemporalModel(bucketMinutes, void 0, data == null ? void 0 : data.rate);
+    this.contextualRateModel = new import_contextual_model.ContextualModel(
+      bucketMinutes,
+      DEFAULTS.maxContextModels,
+      void 0,
+      data == null ? void 0 : data.contextualRate
+    );
     this.contextualModel = new import_contextual_model.ContextualModel(bucketMinutes, DEFAULTS.maxContextModels, void 0, data == null ? void 0 : data.context);
+    for (const [scope, saved] of Object.entries((_b = data == null ? void 0 : data.scopedStates) != null ? _b : {})) {
+      if (scope === "global") {
+        continue;
+      }
+      this.scopedStates.set(scope, {
+        advanced: new import_advanced_detectors.AdvancedDetectors(saved.advanced.changePoint, saved.advanced.trend),
+        lastUsed: saved.lastUsed,
+        anomalySince: saved.anomalySince,
+        detected: saved.detected
+      });
+    }
+    const savedGlobal = (_c = data == null ? void 0 : data.scopedStates) == null ? void 0 : _c.global;
     this.scopedStates.set("global", {
-      advanced: new import_advanced_detectors.AdvancedDetectors(data == null ? void 0 : data.changePoint, data == null ? void 0 : data.trend),
-      lastUsed: 0,
-      anomalySince: data == null ? void 0 : data.anomalySince,
-      detected: (_b = data == null ? void 0 : data.detected) != null ? _b : false
+      advanced: new import_advanced_detectors.AdvancedDetectors(
+        (_d = savedGlobal == null ? void 0 : savedGlobal.advanced.changePoint) != null ? _d : data == null ? void 0 : data.changePoint,
+        (_e = savedGlobal == null ? void 0 : savedGlobal.advanced.trend) != null ? _e : data == null ? void 0 : data.trend
+      ),
+      lastUsed: (_f = savedGlobal == null ? void 0 : savedGlobal.lastUsed) != null ? _f : 0,
+      anomalySince: (_g = savedGlobal == null ? void 0 : savedGlobal.anomalySince) != null ? _g : data == null ? void 0 : data.anomalySince,
+      detected: (_i = (_h = savedGlobal == null ? void 0 : savedGlobal.detected) != null ? _h : data == null ? void 0 : data.detected) != null ? _i : false
     });
+    this.activeStateScope = (data == null ? void 0 : data.activeStateScope) && this.scopedStates.has(data.activeStateScope) ? data.activeStateScope : "global";
     this.lastValue = data == null ? void 0 : data.lastValue;
     this.lastTimestamp = data == null ? void 0 : data.lastTimestamp;
     this.lastContextKey = data == null ? void 0 : data.lastContextKey;
     this.repeatedSince = data == null ? void 0 : data.repeatedSince;
     this.lastNormal = data == null ? void 0 : data.lastNormal;
     this.bootstrap = data == null ? void 0 : data.bootstrap;
-    this.diagnostics = ((_c = data == null ? void 0 : data.diagnostics) != null ? _c : []).slice(-500);
+    this.diagnostics = ((_j = data == null ? void 0 : data.diagnostics) != null ? _j : []).slice(-500);
   }
   valueModel;
   rateModel;
+  contextualRateModel;
   contextualModel;
   scopedStates = /* @__PURE__ */ new Map();
   activeStateScope = "global";
@@ -170,8 +193,8 @@ class SourceMonitor {
       }
     }
     if (((_h = this.settings.enableRate) != null ? _h : true) && !contextIsLearning) {
-      const rateBaseline = this.rateModel.baseline(timestamp, minSamples, timeContext, weekdayContext);
-      const result = (0, import_detectors.detectRateDeviation)(rate, rateBaseline.series, minSamples, sensitivity);
+      const rateBaseline = hasActiveContext ? this.contextualRateModel.baseline(contextKey, timestamp, minSamples, timeContext, weekdayContext) : this.rateModel.baseline(timestamp, minSamples, timeContext, weekdayContext);
+      const result = rateBaseline ? (0, import_detectors.detectRateDeviation)(rate, rateBaseline.series, minSamples, sensitivity) : void 0;
       if (result) {
         results.push(result);
       }
@@ -215,8 +238,12 @@ class SourceMonitor {
       if (this.settings.enableContext) {
         this.contextualModel.add(contextKey, value, timestamp, timeContext, weekdayContext);
       }
-      if (rate !== void 0 && !contextIsLearning) {
-        this.rateModel.add(rate, timestamp, timeContext, weekdayContext);
+      if (rate !== void 0) {
+        if (hasActiveContext) {
+          this.contextualRateModel.add(contextKey, rate, timestamp, timeContext, weekdayContext);
+        } else {
+          this.rateModel.add(rate, timestamp, timeContext, weekdayContext);
+        }
       }
     }
     if (isNewSample) {
@@ -235,7 +262,7 @@ class SourceMonitor {
     const observation = {
       actual: value,
       expected,
-      deviation: expected === void 0 ? void 0 : value - expected,
+      deviation: expected === void 0 ? void 0 : finiteOrUndefined(value - expected),
       score: scoring.score,
       detected: state.detected,
       status: contextIsLearning ? "learning" : sufficient ? "monitoring" : this.valueModel.sampleCount === 0 ? "insufficientData" : "learning",
@@ -301,13 +328,25 @@ class SourceMonitor {
       lastTimestamp: this.lastTimestamp,
       lastContextKey: this.lastContextKey,
       repeatedSince: this.repeatedSince,
-      // Keep legacy persistence global; scoped pending/latch state is intentionally
-      // not serialized into the global compatibility fields.
+      // Preserve legacy global fields while also persisting the bounded scoped state.
       anomalySince: (_a = this.scopedStates.get("global")) == null ? void 0 : _a.anomalySince,
       lastNormal: this.lastNormal,
       detected: (_c = (_b = this.scopedStates.get("global")) == null ? void 0 : _b.detected) != null ? _c : false,
       bootstrap: this.bootstrap,
       context: this.contextualModel.toJSON(),
+      contextualRate: this.contextualRateModel.toJSON(),
+      scopedStates: Object.fromEntries(
+        [...this.scopedStates].map(([scope, state]) => [
+          scope,
+          {
+            advanced: state.advanced.toJSON(),
+            lastUsed: state.lastUsed,
+            anomalySince: state.anomalySince,
+            detected: state.detected
+          }
+        ])
+      ),
+      activeStateScope: this.activeStateScope,
       ...(_e = (_d = this.scopedStates.get("global")) == null ? void 0 : _d.advanced.toJSON()) != null ? _e : {
         changePoint: { recent: [], candidateCount: 0 },
         trend: { recent: [] }
@@ -436,11 +475,15 @@ class SourceMonitor {
    *
    */
   reset() {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     this.valueModel = new import_temporal_model.TemporalModel((_a = this.settings.bucketMinutes) != null ? _a : DEFAULTS.bucketMinutes);
     this.rateModel = new import_temporal_model.TemporalModel((_b = this.settings.bucketMinutes) != null ? _b : DEFAULTS.bucketMinutes);
-    this.contextualModel = new import_contextual_model.ContextualModel(
+    this.contextualRateModel = new import_contextual_model.ContextualModel(
       (_c = this.settings.bucketMinutes) != null ? _c : DEFAULTS.bucketMinutes,
+      DEFAULTS.maxContextModels
+    );
+    this.contextualModel = new import_contextual_model.ContextualModel(
+      (_d = this.settings.bucketMinutes) != null ? _d : DEFAULTS.bucketMinutes,
       DEFAULTS.maxContextModels
     );
     this.scopedStates.clear();
@@ -538,14 +581,21 @@ function expectedRangeFor(medianValue, mad, sensitivity) {
     return void 0;
   }
   const halfWidth = sensitivity * mad / 0.6745;
-  return { low: medianValue - halfWidth, high: medianValue + halfWidth };
+  const low = medianValue - halfWidth;
+  const high = medianValue + halfWidth;
+  return Number.isFinite(low) && Number.isFinite(high) ? { low, high } : void 0;
 }
 function decisionRangeFor(medianValue, mad, sensitivity, threshold) {
   if (!Number.isFinite(medianValue) || !Number.isFinite(mad) || mad === void 0 || mad < 0 || sensitivity <= 0) {
     return void 0;
   }
   const halfWidth = sensitivity * (threshold / 100) * mad / 0.6745;
-  return { low: medianValue - halfWidth, high: medianValue + halfWidth };
+  const low = medianValue - halfWidth;
+  const high = medianValue + halfWidth;
+  return Number.isFinite(low) && Number.isFinite(high) ? { low, high } : void 0;
+}
+function finiteOrUndefined(value) {
+  return Number.isFinite(value) ? value : void 0;
 }
 function parseStoredModel(value) {
   if (typeof value !== "string") {
@@ -557,13 +607,158 @@ function parseStoredModel(value) {
       return {};
     }
     return Object.fromEntries(
-      Object.entries(parsed).filter(
-        ([, model]) => !!model && typeof model === "object" && (model.schemaVersion === 1 || model.schemaVersion === import_statistics.MODEL_SCHEMA_VERSION)
-      )
+      Object.entries(parsed).filter(([, model]) => isSourceModelData(model))
     );
   } catch {
     return {};
   }
+}
+function isSourceModelData(value) {
+  if (!isRecord(value) || value.schemaVersion !== 1 && value.schemaVersion !== import_statistics.MODEL_SCHEMA_VERSION) {
+    return false;
+  }
+  if (!isTemporalModelData(value.value) || !isTemporalModelData(value.rate)) {
+    return false;
+  }
+  if (!isOptional(value, "context", isContextualModelData) || !isOptional(value, "contextualRate", isContextualModelData) || !isOptional(value, "changePoint", isChangePointData) || !isOptional(value, "trend", isTrendData) || !isOptional(value, "activeStateScope", isString)) {
+    return false;
+  }
+  if (!isOptional(value, "scopedStates", isScopedStateRecord)) {
+    return false;
+  }
+  if (isString(value.activeStateScope) && isRecord(value.scopedStates) && !Object.hasOwn(value.scopedStates, value.activeStateScope)) {
+    return false;
+  }
+  if (!isOptional(value, "lastValue", isFiniteNumber) || !isOptional(value, "lastTimestamp", isFiniteNumber) || !isOptional(value, "repeatedSince", isFiniteNumber) || !isOptional(value, "anomalySince", isFiniteNumber) || !isOptional(value, "lastNormal", isFiniteNumber) || !isOptional(value, "detected", isBoolean) || !isOptional(value, "lastContextKey", isString) || !isOptional(value, "configuredSourceId", isString) || !isOptional(value, "bootstrap", isBootstrapMetadata)) {
+    return false;
+  }
+  return isOptional(value, "diagnostics", isDiagnosticSnapshotArray);
+}
+function isScopedStateRecord(value) {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const scopes = Object.entries(value);
+  return Object.hasOwn(value, "global") && scopes.length <= DEFAULTS.maxContextModels + 1 && scopes.every(([, state]) => isPersistedScopedState(state));
+}
+function isContextualModelData(value) {
+  if (!isRecord(value) || !isRecord(value.contexts)) {
+    return false;
+  }
+  const entries = Object.values(value.contexts);
+  if (entries.length > DEFAULTS.maxContextModels) {
+    return false;
+  }
+  for (const entry of entries) {
+    if (!isRecord(entry) || !isFiniteNumber(entry.lastUsed) || !isTemporalModelData(entry.model)) {
+      return false;
+    }
+  }
+  return true;
+}
+function isTemporalModelData(value) {
+  if (!isRecord(value) || !isSampleSeriesData(value.global)) {
+    return false;
+  }
+  if (!isOptional(value, "timeBuckets", isSampleSeriesRecord)) {
+    return false;
+  }
+  return isOptional(value, "contextBuckets", isSampleSeriesRecord);
+}
+function isSampleSeriesRecord(value) {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return Object.values(value).every((series) => isSampleSeriesData(series));
+}
+function isSampleSeriesData(value) {
+  return isRecord(value) && Array.isArray(value.values) && value.values.every(isFiniteNumber);
+}
+function isChangePointData(value) {
+  if (!isRecord(value) || !Array.isArray(value.recent) || !value.recent.every(isTimedResidual)) {
+    return false;
+  }
+  if (value.candidateDirection !== void 0 && value.candidateDirection !== "upward" && value.candidateDirection !== "downward") {
+    return false;
+  }
+  return isFiniteNumber(value.candidateCount) && Number.isInteger(value.candidateCount) && value.candidateCount >= 0;
+}
+function isTrendData(value) {
+  if (!isRecord(value) || !Array.isArray(value.recent)) {
+    return false;
+  }
+  return value.recent.every(isTimedResidual);
+}
+function isTimedResidual(value) {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return isFiniteNumber(value.value) && isFiniteNumber(value.timestamp);
+}
+function isPersistedScopedState(value) {
+  if (!isRecord(value) || !isRecord(value.advanced)) {
+    return false;
+  }
+  if (!isChangePointData(value.advanced.changePoint) || !isTrendData(value.advanced.trend)) {
+    return false;
+  }
+  return isFiniteNumber(value.lastUsed) && isBoolean(value.detected) && isOptional(value, "anomalySince", isFiniteNumber);
+}
+function isBootstrapMetadata(value) {
+  if (!isRecord(value) || !isBoolean(value.completed) || !isFiniteNumber(value.importedSamples)) {
+    return false;
+  }
+  if (!isOptional(value, "provider", isString) || !isOptional(value, "historySourceId", isString)) {
+    return false;
+  }
+  if (!isOptional(value, "configKey", isString) || !isOptional(value, "start", isFiniteNumber)) {
+    return false;
+  }
+  return isOptional(value, "end", isFiniteNumber);
+}
+function isDiagnosticSnapshot(value) {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (!isFiniteNumber(value.timestamp) || !isFiniteNumber(value.actual) || !isFiniteNumber(value.score)) {
+    return false;
+  }
+  if (!isOptional(value, "expected", isFiniteNumber) || !isOptional(value, "decisionLow", isFiniteNumber)) {
+    return false;
+  }
+  if (!isOptional(value, "decisionHigh", isFiniteNumber) || !isBoolean(value.detected) || !isString(value.reasonCode)) {
+    return false;
+  }
+  if (!isString(value.activeContext) || !isFiniteNumber(value.baselineSampleCount)) {
+    return false;
+  }
+  if (!["context", "time", "global", "insufficient"].includes(value.baselineScope)) {
+    return false;
+  }
+  return value.statusCode === void 0 || ["learning", "normal", "deviating", "anomaly", "insufficient_data", "unavailable"].includes(
+    value.statusCode
+  );
+}
+function isDiagnosticSnapshotArray(value) {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+  return value.every((entry) => isDiagnosticSnapshot(entry));
+}
+function isOptional(value, key, guard) {
+  return value[key] === void 0 || guard(value[key]);
+}
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isString(value) {
+  return typeof value === "string";
+}
+function isBoolean(value) {
+  return typeof value === "boolean";
+}
+function isFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value);
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {

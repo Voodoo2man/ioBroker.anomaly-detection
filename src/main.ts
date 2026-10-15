@@ -596,7 +596,7 @@ class AnomalyDetection extends utils.Adapter {
 		monitor: SourceMonitor,
 		state: ioBroker.State,
 	): Promise<void> {
-		if (this.unloading) {
+		if (this.unloading || state.ack !== true) {
 			return;
 		}
 		try {
@@ -1554,10 +1554,14 @@ class AnomalyDetection extends utils.Adapter {
 		if (this.unloading) {
 			return;
 		}
-		const sourceTimestamp = typeof state?.ts === "number" && Number.isFinite(state.ts) ? state.ts : undefined;
+		const acknowledgedState = state?.ack === true ? state : undefined;
+		const sourceTimestamp =
+			typeof acknowledgedState?.ts === "number" && Number.isFinite(acknowledgedState.ts)
+				? acknowledgedState.ts
+				: undefined;
 		const evaluation = evaluateCurrentSourceValue(
 			monitor,
-			state?.val,
+			acknowledgedState?.val,
 			sourceTimestamp,
 			this.contextKey(sourceId),
 			this.sources.get(safeId)?.minimumSamples ?? 30,
