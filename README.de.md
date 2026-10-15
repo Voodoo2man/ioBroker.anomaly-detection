@@ -267,6 +267,7 @@ Verarbeitung und Modellspeicherung erfolgen vollständig lokal in ioBroker. Kein
 
 ### 0.4.5 (2026-10-14)
 
+- Dünn verteilte History-Werte bis zum konfigurierten Limit erhalten und veraltete Dashboard-Antworten ignorieren.
 - Trend-Backtesting, verstrichene Prognosezeit, saisonale Phase, Trends am Nulldurchgang und Prognosehorizont korrigiert.
 - Änderungsraten pro Kontext getrennt lernen, begrenzte Kontext-Detektorzustände über Neustarts erhalten und beschädigte persistierte Modelle sicher verwerfen.
 - Unbestätigte Sollwerte beim Start und Retraining ignorieren und nicht verfügbare Bewertungen nach einem Reset zurücksetzen.
