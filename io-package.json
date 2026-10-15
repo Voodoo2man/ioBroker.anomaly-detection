@@ -158,17 +158,17 @@
 		"adminTab": {
 			"link": "jsonTab.json",
 			"name": {
-				"en": "Anomaly Detection – Anomalies",
-				"de": "Anomalieerkennung – Anomalien",
-				"ru": "Обнаружение аномалий – Аномалии",
-				"pt": "Deteção de anomalias – Anomalias",
-				"nl": "Anomaliedetectie – Anomalieën",
-				"fr": "Détection des anomalies – Anomalies",
-				"it": "Rilevamento anomalie – Anomalie",
-				"es": "Detección de anomalías – Anomalías",
-				"pl": "Wykrywanie anomalii – Anomalie",
-				"uk": "Виявлення аномалій – Аномалії",
-				"zh-cn": "异常检测 – 异常"
+				"en": "Anomaly Detection",
+				"de": "Anomalieerkennung",
+				"ru": "Обнаружение аномалий",
+				"pt": "Detecção de anomalias",
+				"nl": "Anomaliedetectie",
+				"fr": "Détection des anomalies",
+				"it": "Rilevamento anomalie",
+				"es": "Detección de anomalías",
+				"pl": "Wykrywanie anomalii",
+				"uk": "Виявлення аномалії",
+				"zh-cn": "异常检测"
 			}
 		},
 		"messagebox": true,
