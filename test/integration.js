@@ -29,6 +29,124 @@ tests.integration(path.join(__dirname, ".."), {
 		let savedSourceState;
 		let savedSourceObject;
 		let savedConfig;
+		for (const segmented of [false, true]) {
+			suite(segmented ? "Segmented history bootstrap" : "Sparse history bootstrap", getHarness => {
+				it("retains complete anomaly and predictive training data with only the necessary provider queries", async function () {
+					this.timeout(20_000);
+					const harness = getHarness();
+					const sourceId = "0_userdata.0.anomalyIntegration.history";
+					const day = 24 * 60 * 60_000;
+					const now = Date.now();
+					const recent = Array.from({ length: 60 }, (_, index) => ({
+						val: 100 + (index % 5),
+						ts: now - (60 - index) * 60_000,
+					}));
+					const older = segmented
+						? Array.from({ length: 60 }, (_, index) => ({
+								val: 100 + (index % 5),
+								ts: now - 25 * day + index * 60_000,
+							}))
+						: [];
+					const all = [...older, ...recent];
+					await harness.objects.setObjectAsync(sourceId, {
+						_id: sourceId,
+						type: "state",
+						native: {},
+						common: {
+							name: "History test power",
+							type: "number",
+							role: "value.power",
+							read: true,
+							write: false,
+							custom: { "history.0": { enabled: true } },
+						},
+					});
+					await harness.objects.setObjectAsync("system.adapter.history.0", {
+						_id: "system.adapter.history.0",
+						type: "instance",
+						native: {},
+						common: { name: "history", enabled: true, getHistory: true },
+					});
+					let calls = 0;
+					let providerError;
+					await harness.states.subscribeMessage("system.adapter.history.0");
+					harness.on("stateChange", (id, message) => {
+						if (id !== "messagebox.system.adapter.history.0" || message.command !== "getHistory") return;
+						calls++;
+						const { start, end, aggregate, returnNewestEntries } = message.message.options;
+						try {
+							assert.equal(message.message.id, sourceId);
+							assert.equal(aggregate, "none");
+							assert.equal(returnNewestEntries, false);
+						} catch (error) {
+							providerError = error;
+						}
+						// Emulate a provider that silently truncates the initial broad request.
+						// Its coverage probe must cause a split; accepted leaf segments are complete.
+						const result = (segmented && calls === 1 ? older : all).filter(
+							sample => sample.ts >= start && sample.ts <= end,
+						);
+						harness.states.pushMessage(
+							message.from.startsWith("system.adapter.")
+								? message.from
+								: `system.adapter.${message.from}`,
+							{
+								command: message.command,
+								message: { result },
+								from: "system.adapter.history.0",
+								callback: { ...message.callback, ack: true },
+							},
+							error => {
+								if (error) providerError = error;
+							},
+						);
+					});
+					await harness.changeAdapterConfig("anomaly-detection", {
+						native: {
+							sources: [
+								{
+									id: sourceId,
+									enabled: true,
+									initialTraining: "history",
+									historyInstance: "history.0",
+									trainingDays: 30,
+									maxHistorySamples: 1000,
+									minimumSamples: 30,
+									timeContext: false,
+									weekdayContext: false,
+									enableMad: true,
+									enableRate: false,
+									predictive: {
+										enabled: true,
+										minimumTrainingSamples: 30,
+										maximumTrainingPoints: 1000,
+										horizonMinutes: 10,
+										seasonalityMode: "off",
+									},
+								},
+							],
+						},
+					});
+					await harness.startAdapterAndWait();
+					await waitFor(() => harness.hasLog("Monitoring 1 numerical state"), "history bootstrap completion");
+					if (providerError) throw providerError;
+					const [source] = await requestTab(harness);
+					assert.equal(source.evaluation.sampleCount, all.length);
+					// Prediction must use the recent contiguous segment after the 25-day gap.
+					assert.equal(source.predictive.trainingSampleCount, recent.length);
+					assert.ok(source.predictive.points.length > 0);
+					assert.equal(calls, segmented ? 5 : 1, "Sampling must not trigger extra provider queries");
+					assert.ok(
+						(
+							await harness.states.getStateAsync(
+								`anomaly-detection.0.sources.${source.safeId}.analysis.bootstrapStatus`,
+							)
+						).val.startsWith("Historical training completed"),
+					);
+					assert.equal(harness.getLogs("error").length, 0);
+				});
+			});
+		}
 		suite("Numerical source lifecycle", getHarness => {
 			const sourceId = "0_userdata.0.anomalyIntegration.power";
 			let base;

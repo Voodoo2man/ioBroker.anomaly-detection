@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { I18n } from "@iobroker/gui-components";
 import {
 	Alert,
@@ -18,6 +18,7 @@ import { Refresh, ExpandMore, ExpandLess } from "@mui/icons-material";
 import { chartYDomain } from "./chart-domain";
 import { formatForecastAxisTimeLabel, formatForecastTick, prepareForecastChartData } from "./forecast-chart";
 import { LatestRequest } from "./latest-request";
+import { DashboardRefresh } from "./dashboard-refresh";
 import { localizedTranslations } from "./translations";
 
 type Detector = { name: string; score: number; reasonCode: string };
@@ -2081,33 +2082,33 @@ export function AnomalyDashboard(props: Props): React.JSX.Element {
 	const [error, setError] = useState<string>();
 	const [refreshKey, setRefreshKey] = useState(0);
 	const [view, setView] = useState<"current" | "forecast">("current");
+	const dashboardRefresh = useRef(new DashboardRefresh<Source>());
 	const socket = props.socket || props.oContext?.socket;
 	const target = useMemo(() => {
 		const adapter = props.adapterName || props.oContext?.adapterName || "anomaly-detection";
 		const instance = props.instance ?? props.oContext?.instance ?? 0;
 		return String(instance).includes(".") ? String(instance) : `${adapter}.${instance}`;
 	}, [props.adapterName, props.instance, props.oContext?.adapterName, props.oContext?.instance]);
-	const refresh = useCallback(async () => {
-		if (!socket?.sendTo) {
-			setSources(props.data?.sources || []);
-			return;
-		}
-		try {
+	useLayoutEffect(() => {
+		dashboardRefresh.current.setIdentity(socket, target);
+		return () => dashboardRefresh.current.invalidate();
+	}, [socket, target]);
+	const refresh = useCallback(() => {
+		dashboardRefresh.current.setIdentity(socket, target);
+		if (socket?.sendTo) {
 			setRefreshKey(value => value + 1);
-			const response = await socket.sendTo(target, "tab", {});
-			const next = response?.data?.sources;
-			if (Array.isArray(next)) {
+		}
+		return dashboardRefresh.current.refresh(props.data?.sources || [], {
+			onSources: next => {
 				setSources(next);
 				setError(undefined);
-			} else {
-				setError(t("loadError"));
-			}
-		} catch {
-			setError(t("loadError"));
-		}
+			},
+			onError: () => setError(t("loadError")),
+		});
 	}, [socket, props.data, target]);
 	useEffect(() => {
 		void refresh();
+		return () => dashboardRefresh.current.invalidate();
 	}, [refresh]);
 	return (
 		<Box sx={{ p: 2 }}>

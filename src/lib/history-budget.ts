@@ -40,9 +40,16 @@ export class HistoryLoadBudget {
 	}
 }
 
-/** Keeps one deterministic representative per time bucket plus the range endpoints. */
+interface PrioritizedSample {
+	sample: HistorySample;
+	priority: number;
+}
+
+/** Keeps temporal representatives and fills spare capacity from a bounded, order-independent reservoir. */
 export class HistorySampleSampler {
 	private readonly bucketSamples = new Map<number, HistorySample>();
+	private readonly reservoir = new Map<number, PrioritizedSample>();
+	private readonly reservoirHeap: PrioritizedSample[] = [];
 	private first?: HistorySample;
 	private last?: HistorySample;
 	private centerSample?: HistorySample;
@@ -61,8 +68,9 @@ export class HistorySampleSampler {
 		private readonly end: number,
 		private readonly maximumSamples: number,
 	) {
+		this.maximumSamples = Number.isFinite(maximumSamples) ? Math.max(0, Math.floor(maximumSamples)) : 0;
 		this.span = Math.max(0, end - start);
-		this.bucketCount = maximumSamples > 2 ? maximumSamples - 2 : 0;
+		this.bucketCount = this.maximumSamples > 2 ? this.maximumSamples - 2 : 0;
 	}
 
 	/**
@@ -72,9 +80,16 @@ export class HistorySampleSampler {
 	 */
 	public add(samples: readonly HistorySample[]): void {
 		for (const sample of samples) {
-			if (sample.timestamp < this.start || sample.timestamp > this.end || this.maximumSamples <= 0) {
+			if (
+				!Number.isFinite(sample.timestamp) ||
+				!Number.isFinite(sample.value) ||
+				sample.timestamp < this.start ||
+				sample.timestamp > this.end ||
+				this.maximumSamples <= 0
+			) {
 				continue;
 			}
+			this.addToReservoir(sample);
 			this.first = this.selectEndpoint(this.first, sample, true);
 			this.last = this.selectEndpoint(this.last, sample, false);
 			if (this.bucketCount === 0 || this.span === 0) {
@@ -127,9 +142,89 @@ export class HistorySampleSampler {
 				selected.set(this.last.timestamp, this.preferDuplicate(selected.get(this.last.timestamp), this.last));
 			}
 		}
+		// Buckets guarantee coverage where data exists. Fill unused slots instead
+		// of discarding clustered data merely because the requested window is large.
+		// The reservoir retains every unique sample until the limit is exceeded.
+		if (selected.size < this.maximumSamples) {
+			const candidates = [...this.reservoirHeap].sort((left, right) => this.comparePriority(left, right));
+			for (const { sample } of candidates) {
+				selected.set(sample.timestamp, this.preferDuplicate(selected.get(sample.timestamp), sample));
+				if (selected.size >= this.maximumSamples) {
+					break;
+				}
+			}
+		}
 		return [...selected.values()]
 			.sort((left, right) => left.timestamp - right.timestamp)
 			.slice(0, this.maximumSamples);
+	}
+
+	private addToReservoir(sample: HistorySample): void {
+		const existing = this.reservoir.get(sample.timestamp);
+		if (existing) {
+			existing.sample = this.preferDuplicate(existing.sample, sample);
+			return;
+		}
+		const candidate = { sample, priority: this.timestampPriority(sample.timestamp) };
+		if (this.reservoirHeap.length < this.maximumSamples) {
+			this.reservoir.set(sample.timestamp, candidate);
+			this.reservoirHeap.push(candidate);
+			let index = this.reservoirHeap.length - 1;
+			while (index > 0) {
+				const parent = Math.floor((index - 1) / 2);
+				if (this.comparePriority(this.reservoirHeap[index], this.reservoirHeap[parent]) <= 0) {
+					break;
+				}
+				[this.reservoirHeap[index], this.reservoirHeap[parent]] = [
+					this.reservoirHeap[parent],
+					this.reservoirHeap[index],
+				];
+				index = parent;
+			}
+			return;
+		}
+		// A max-heap retains the lowest deterministic timestamp priorities in
+		// O(limit) storage and O(log limit) work per replacement, without a seen-set.
+		if (this.comparePriority(candidate, this.reservoirHeap[0]) >= 0) {
+			return;
+		}
+		this.reservoir.delete(this.reservoirHeap[0].sample.timestamp);
+		this.reservoirHeap[0] = candidate;
+		this.reservoir.set(sample.timestamp, candidate);
+		let index = 0;
+		while (index * 2 + 1 < this.reservoirHeap.length) {
+			let child = index * 2 + 1;
+			if (
+				child + 1 < this.reservoirHeap.length &&
+				this.comparePriority(this.reservoirHeap[child + 1], this.reservoirHeap[child]) > 0
+			) {
+				child++;
+			}
+			if (this.comparePriority(this.reservoirHeap[index], this.reservoirHeap[child]) >= 0) {
+				break;
+			}
+			[this.reservoirHeap[index], this.reservoirHeap[child]] = [
+				this.reservoirHeap[child],
+				this.reservoirHeap[index],
+			];
+			index = child;
+		}
+	}
+
+	private comparePriority(left: PrioritizedSample, right: PrioritizedSample): number {
+		return left.priority - right.priority || left.sample.timestamp - right.sample.timestamp;
+	}
+
+	private timestampPriority(timestamp: number): number {
+		// Hash the complete timestamp, including fractional milliseconds. Segment
+		// boundaries, import order and measurement values never affect priority.
+		let hash = 0x811c9dc5;
+		for (const character of String(timestamp)) {
+			hash = Math.imul(hash ^ character.charCodeAt(0), 0x01000193);
+		}
+		hash = Math.imul(hash ^ (hash >>> 16), 0x85ebca6b);
+		hash = Math.imul(hash ^ (hash >>> 13), 0xc2b2ae35);
+		return (hash ^ (hash >>> 16)) >>> 0;
 	}
 
 	private selectEndpoint(

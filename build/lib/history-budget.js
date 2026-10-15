@@ -69,10 +69,13 @@ class HistorySampleSampler {
     this.start = start;
     this.end = end;
     this.maximumSamples = maximumSamples;
+    this.maximumSamples = Number.isFinite(maximumSamples) ? Math.max(0, Math.floor(maximumSamples)) : 0;
     this.span = Math.max(0, end - start);
-    this.bucketCount = maximumSamples > 2 ? maximumSamples - 2 : 0;
+    this.bucketCount = this.maximumSamples > 2 ? this.maximumSamples - 2 : 0;
   }
   bucketSamples = /* @__PURE__ */ new Map();
+  reservoir = /* @__PURE__ */ new Map();
+  reservoirHeap = [];
   first;
   last;
   centerSample;
@@ -85,9 +88,10 @@ class HistorySampleSampler {
    */
   add(samples) {
     for (const sample of samples) {
-      if (sample.timestamp < this.start || sample.timestamp > this.end || this.maximumSamples <= 0) {
+      if (!Number.isFinite(sample.timestamp) || !Number.isFinite(sample.value) || sample.timestamp < this.start || sample.timestamp > this.end || this.maximumSamples <= 0) {
         continue;
       }
+      this.addToReservoir(sample);
       this.first = this.selectEndpoint(this.first, sample, true);
       this.last = this.selectEndpoint(this.last, sample, false);
       if (this.bucketCount === 0 || this.span === 0) {
@@ -139,7 +143,74 @@ class HistorySampleSampler {
         selected.set(this.last.timestamp, this.preferDuplicate(selected.get(this.last.timestamp), this.last));
       }
     }
+    if (selected.size < this.maximumSamples) {
+      const candidates = [...this.reservoirHeap].sort((left, right) => this.comparePriority(left, right));
+      for (const { sample } of candidates) {
+        selected.set(sample.timestamp, this.preferDuplicate(selected.get(sample.timestamp), sample));
+        if (selected.size >= this.maximumSamples) {
+          break;
+        }
+      }
+    }
     return [...selected.values()].sort((left, right) => left.timestamp - right.timestamp).slice(0, this.maximumSamples);
+  }
+  addToReservoir(sample) {
+    const existing = this.reservoir.get(sample.timestamp);
+    if (existing) {
+      existing.sample = this.preferDuplicate(existing.sample, sample);
+      return;
+    }
+    const candidate = { sample, priority: this.timestampPriority(sample.timestamp) };
+    if (this.reservoirHeap.length < this.maximumSamples) {
+      this.reservoir.set(sample.timestamp, candidate);
+      this.reservoirHeap.push(candidate);
+      let index2 = this.reservoirHeap.length - 1;
+      while (index2 > 0) {
+        const parent = Math.floor((index2 - 1) / 2);
+        if (this.comparePriority(this.reservoirHeap[index2], this.reservoirHeap[parent]) <= 0) {
+          break;
+        }
+        [this.reservoirHeap[index2], this.reservoirHeap[parent]] = [
+          this.reservoirHeap[parent],
+          this.reservoirHeap[index2]
+        ];
+        index2 = parent;
+      }
+      return;
+    }
+    if (this.comparePriority(candidate, this.reservoirHeap[0]) >= 0) {
+      return;
+    }
+    this.reservoir.delete(this.reservoirHeap[0].sample.timestamp);
+    this.reservoirHeap[0] = candidate;
+    this.reservoir.set(sample.timestamp, candidate);
+    let index = 0;
+    while (index * 2 + 1 < this.reservoirHeap.length) {
+      let child = index * 2 + 1;
+      if (child + 1 < this.reservoirHeap.length && this.comparePriority(this.reservoirHeap[child + 1], this.reservoirHeap[child]) > 0) {
+        child++;
+      }
+      if (this.comparePriority(this.reservoirHeap[index], this.reservoirHeap[child]) >= 0) {
+        break;
+      }
+      [this.reservoirHeap[index], this.reservoirHeap[child]] = [
+        this.reservoirHeap[child],
+        this.reservoirHeap[index]
+      ];
+      index = child;
+    }
+  }
+  comparePriority(left, right) {
+    return left.priority - right.priority || left.sample.timestamp - right.sample.timestamp;
+  }
+  timestampPriority(timestamp) {
+    let hash = 2166136261;
+    for (const character of String(timestamp)) {
+      hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
+    }
+    hash = Math.imul(hash ^ hash >>> 16, 2246822507);
+    hash = Math.imul(hash ^ hash >>> 13, 3266489909);
+    return (hash ^ hash >>> 16) >>> 0;
   }
   selectEndpoint(current, candidate, earliest) {
     if (!current) {
