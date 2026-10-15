@@ -350,6 +350,7 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 
 ### 0.4.5 (2026-10-14)
 
+- Improve wrapping of long state IDs and context settings on narrow screens and at high zoom.
 - Preserve sparse history samples up to the configured limit and ignore stale dashboard responses.
 - Correct trend backtesting, elapsed forecast time, seasonal phase, zero-crossing trends, and forecast horizon bounds.
 - Isolate context-specific rate learning and preserve bounded context detector state across restarts; discard malformed persisted models safely.
