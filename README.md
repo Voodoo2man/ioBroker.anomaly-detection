@@ -316,7 +316,7 @@ For each source, the adapter creates a safe deterministic object ID under:
 | `baselineSampleCount` | number / `value`       | retained samples in the baseline actually used; `0` for `insufficient`                                       |
 | `contextSampleCount`  | number / `value`       | retained samples in the matching context model after the current accepted observation; `0` when none matches |
 | `bootstrapStatus`     | string / `info.status` | outcome of optional historical initial training                                                              |
-| `retrain`             | boolean / `button`     | write `true` to reset and retrain the anomaly model; a complete predictive model is retained                |
+| `retrain`             | boolean / `button`     | write `true` to reset and retrain the anomaly model; a complete predictive model is retained                 |
 
 All adapter-written result states use `ack=true`. `retrain` is the only command state and is reset with `ack=true` after handling.
 

@@ -22,21 +22,21 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 var utils = __toESM(require("@iobroker/adapter-core"));
-var import_history_provider = require("./lib/history-provider");
-var import_history_source_resolver = require("./lib/history-source-resolver");
 var import_bootstrap_policy = require("./lib/bootstrap-policy");
+var import_context_value = require("./lib/context-value");
+var import_history_budget = require("./lib/history-budget");
+var import_history_provider = require("./lib/history-provider");
+var import_history_request = require("./lib/history-request");
+var import_history_source_resolver = require("./lib/history-source-resolver");
+var import_model_persistence = require("./lib/model-persistence");
+var import_object_names = require("./lib/object-names");
+var import_object_structure = require("./lib/object-structure");
+var import_pending_work = require("./lib/pending-work");
+var import_predictive = require("./lib/predictive");
 var import_source_cleanup = require("./lib/source-cleanup");
 var import_source_monitor = require("./lib/source-monitor");
-var import_context_value = require("./lib/context-value");
-var import_pending_work = require("./lib/pending-work");
-var import_history_request = require("./lib/history-request");
-var import_history_budget = require("./lib/history-budget");
-var import_model_persistence = require("./lib/model-persistence");
-var import_timestamp_cache = require("./lib/timestamp-cache");
 var import_state_write = require("./lib/state-write");
-var import_object_structure = require("./lib/object-structure");
-var import_object_names = require("./lib/object-names");
-var import_predictive = require("./lib/predictive");
+var import_timestamp_cache = require("./lib/timestamp-cache");
 const MODEL_STATE_ID = "models";
 const PREDICTIVE_MODEL_STATE_ID = "predictiveModels";
 const PERSIST_DELAY_MS = 3e4;
@@ -549,9 +549,15 @@ class AnomalyDetection extends utils.Adapter {
       this.invalidValueWarnings.delete(id);
       this.evaluations.set(id, result);
       this.schedulePersistence();
-      await (0, import_pending_work.enqueueSerializedWork)(this.resultWriteQueues, safeId, () => this.writeResult(safeId, result));
-      if (isNewSample) {
-        await this.updatePredictive(safeId, state.val, timestamp);
+      const independentTasks = [
+        (0, import_pending_work.enqueueSerializedWork)(this.resultWriteQueues, safeId, () => this.writeResult(safeId, result)),
+        isNewSample ? this.updatePredictive(safeId, state.val, timestamp) : Promise.resolve()
+      ];
+      const outcomes = await (0, import_pending_work.settleIndependentTasks)(independentTasks);
+      for (const outcome of outcomes) {
+        if (outcome.status === "rejected") {
+          this.log.error(`Could not process source state ${id}: ${outcome.reason.message}`);
+        }
       }
     } catch (error) {
       this.log.error(`Could not process source state ${id}: ${error.message}`);
@@ -992,7 +998,7 @@ class AnomalyDetection extends utils.Adapter {
     );
   }
   async bootstrapSource(sourceId, safeId, source, monitor, needs) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
     if (this.unloading) {
       return;
     }
@@ -1025,7 +1031,7 @@ class AnomalyDetection extends utils.Adapter {
       const predictiveSettings = needs.predictive ? (0, import_predictive.normalizePredictiveSettings)(source.predictive) : void 0;
       const predictiveStart = needs.predictive ? end - (0, import_predictive.predictiveHistorySpanMinutes)(predictiveSettings, (_b = source.trainingDays) != null ? _b : 30) * 6e4 : anomalyStart;
       const start = Math.min(anomalyStart, predictiveStart);
-      const historyLimit = needs.predictive ? import_predictive.PREDICTIVE_HISTORY_RAW_LIMIT : Math.min(import_predictive.PREDICTIVE_HISTORY_RAW_LIMIT, (_c = source.maxHistorySamples) != null ? _c : 1e3);
+      const historyLimit = import_predictive.PREDICTIVE_HISTORY_RAW_LIMIT;
       const memoryBefore = process.memoryUsage();
       const historyResult = await this.loadSegmentedHistory(
         provider,
@@ -1033,7 +1039,9 @@ class AnomalyDetection extends utils.Adapter {
         start,
         end,
         historyLimit,
-        (_e = (_d = predictiveSettings == null ? void 0 : predictiveSettings.maximumTrainingPoints) != null ? _d : source.maxHistorySamples) != null ? _e : 2e3
+        anomalyStart,
+        Math.min(1e4, Math.max(30, (_c = source.maxHistorySamples) != null ? _c : 1e3)),
+        needs.predictive ? (_d = predictiveSettings == null ? void 0 : predictiveSettings.maximumTrainingPoints) != null ? _d : 2e3 : void 0
       );
       if (this.unloading) {
         return;
@@ -1041,12 +1049,12 @@ class AnomalyDetection extends utils.Adapter {
       const samples = historyResult.samples;
       const memoryAfter = process.memoryUsage();
       const mb = (value) => (value / 1024 / 1024).toFixed(1);
-      const anomalySamples = samples.filter((sample) => sample.timestamp >= anomalyStart);
+      const anomalySamples = historyResult.anomalySamples;
       this.log.debug(
-        `History load summary: source=${sourceId} mode=${needs.predictive ? "history" : "anomaly-only"} requestedDuration=${Math.round((end - start) / 6e4)}min providerCalls=${historyResult.providerCalls} segmentQueries=${historyResult.segmentQueries} coverageProbes=${historyResult.coverageProbes} segmentSplits=${historyResult.segmentSplits} queryLimitSplits=${historyResult.queryLimitSplits} coverageProbeSplits=${historyResult.coverageProbeSplits} acceptedSegments=${historyResult.acceptedSegments} providerSamplesTotal=${historyResult.providerSamplesTotal} maxProviderResponse=${historyResult.maxProviderResponse} finalRawSamples=${historyResult.finalRawSamples} adaptiveSegments=${historyResult.adaptiveSegments} densityEstimates=${historyResult.densityEstimates} adaptiveTargetSamples=${historyResult.adaptiveTargetSamples} minAdaptiveSegmentDuration=${(_f = historyResult.minAdaptiveSegmentDuration) != null ? _f : "none"} maxAdaptiveSegmentDuration=${(_g = historyResult.maxAdaptiveSegmentDuration) != null ? _g : "none"} fallbackSplits=${historyResult.fallbackSplits} densityRecalculations=${historyResult.densityRecalculations} adaptiveDownscales=${historyResult.adaptiveDownscales} initialAdaptiveSegmentDuration=${(_h = historyResult.initialAdaptiveSegmentDuration) != null ? _h : "none"} finalAdaptiveSegmentDuration=${(_i = historyResult.finalAdaptiveSegmentDuration) != null ? _i : "none"} adaptiveLimitHits=${historyResult.adaptiveLimitHits} deduplicatedSamples=${historyResult.deduplicatedSamples} duplicateSamplesRemoved=${historyResult.duplicateSamplesRemoved} rssBeforeMB=${mb(memoryBefore.rss)} rssAfterMB=${mb(memoryAfter.rss)} rssDeltaMB=${mb(memoryAfter.rss - memoryBefore.rss)} heapBeforeMB=${mb(memoryBefore.heapUsed)} heapAfterMB=${mb(memoryAfter.heapUsed)} heapDeltaMB=${mb(memoryAfter.heapUsed - memoryBefore.heapUsed)}`
+        `History load summary: source=${sourceId} mode=${needs.predictive ? "history" : "anomaly-only"} requestedDuration=${Math.round((end - start) / 6e4)}min providerCalls=${historyResult.providerCalls} segmentQueries=${historyResult.segmentQueries} coverageProbes=${historyResult.coverageProbes} segmentSplits=${historyResult.segmentSplits} queryLimitSplits=${historyResult.queryLimitSplits} coverageProbeSplits=${historyResult.coverageProbeSplits} acceptedSegments=${historyResult.acceptedSegments} providerSamplesTotal=${historyResult.providerSamplesTotal} maxProviderResponse=${historyResult.maxProviderResponse} finalRawSamples=${historyResult.finalRawSamples} adaptiveSegments=${historyResult.adaptiveSegments} densityEstimates=${historyResult.densityEstimates} adaptiveTargetSamples=${historyResult.adaptiveTargetSamples} minAdaptiveSegmentDuration=${(_e = historyResult.minAdaptiveSegmentDuration) != null ? _e : "none"} maxAdaptiveSegmentDuration=${(_f = historyResult.maxAdaptiveSegmentDuration) != null ? _f : "none"} fallbackSplits=${historyResult.fallbackSplits} densityRecalculations=${historyResult.densityRecalculations} adaptiveDownscales=${historyResult.adaptiveDownscales} initialAdaptiveSegmentDuration=${(_g = historyResult.initialAdaptiveSegmentDuration) != null ? _g : "none"} finalAdaptiveSegmentDuration=${(_h = historyResult.finalAdaptiveSegmentDuration) != null ? _h : "none"} adaptiveLimitHits=${historyResult.adaptiveLimitHits} deduplicatedSamples=${historyResult.deduplicatedSamples} duplicateSamplesRemoved=${historyResult.duplicateSamplesRemoved} rssBeforeMB=${mb(memoryBefore.rss)} rssAfterMB=${mb(memoryAfter.rss)} rssDeltaMB=${mb(memoryAfter.rss - memoryBefore.rss)} heapBeforeMB=${mb(memoryBefore.heapUsed)} heapAfterMB=${mb(memoryAfter.heapUsed)} heapDeltaMB=${mb(memoryAfter.heapUsed - memoryBefore.heapUsed)}`
       );
       this.log.debug(
-        `Predictive history loaded for ${sourceId}: raw=${historyResult.finalRawSamples}, deduplicated=${samples.length}, oldest=${(_k = (_j = samples[0]) == null ? void 0 : _j.timestamp) != null ? _k : "none"}, newest=${(_m = (_l = samples.at(-1)) == null ? void 0 : _l.timestamp) != null ? _m : "none"}, source=${needs.predictive ? "history" : "anomaly-only"} requestedStart=${start} requestedEnd=${end} requestedDuration=${Math.round((end - start) / 6e4)}min segments=${historyResult.acceptedSegments} limitedSegments=${historyResult.queryLimitSplits}`
+        `Predictive history loaded for ${sourceId}: raw=${historyResult.finalRawSamples}, unique=${historyResult.deduplicatedSamples}, retained=${samples.length}, oldest=${(_j = (_i = samples[0]) == null ? void 0 : _i.timestamp) != null ? _j : "none"}, newest=${(_l = (_k = samples.at(-1)) == null ? void 0 : _k.timestamp) != null ? _l : "none"}, source=${needs.predictive ? "history" : "anomaly-only"} requestedStart=${start} requestedEnd=${end} requestedDuration=${Math.round((end - start) / 6e4)}min segments=${historyResult.acceptedSegments} limitedSegments=${historyResult.queryLimitSplits}`
       );
       if (samples.length === 0) {
         throw new Error("History provider returned no valid samples");
@@ -1112,7 +1120,7 @@ class AnomalyDetection extends utils.Adapter {
         needs,
         "completed",
         monitor.hasSufficientData,
-        (_n = source.autoStartMonitoringAfterImport) != null ? _n : true,
+        (_m = source.autoStartMonitoringAfterImport) != null ? _m : true,
         imported
       );
       if (completedState) {
@@ -1141,8 +1149,10 @@ class AnomalyDetection extends utils.Adapter {
       }
     }
   }
-  async loadSegmentedHistory(provider, sourceId, start, end, limit, maximumTrainingPoints) {
-    let collected = [];
+  async loadSegmentedHistory(provider, sourceId, start, end, limit, anomalyStart, maximumAnomalySamples, maximumPredictiveSamples) {
+    var _a;
+    const predictiveSampler = maximumPredictiveSamples ? new import_history_budget.HistorySampleSampler(start, end, maximumPredictiveSamples) : void 0;
+    const anomalySampler = new import_history_budget.HistorySampleSampler(anomalyStart, end, maximumAnomalySamples);
     const budget = new import_history_budget.HistoryLoadBudget();
     let segmentQueries = 0;
     let coverageProbes = 0;
@@ -1164,8 +1174,11 @@ class AnomalyDetection extends utils.Adapter {
     let adaptiveDurationHint;
     let finalAdaptiveSegmentDuration;
     let adaptiveLimitHits = 0;
+    let finalRawSamples = 0;
+    let deduplicatedSamples = 0;
+    let duplicateSamplesRemoved = 0;
     const load = async (segmentStart, segmentEnd, depth) => {
-      var _a, _b;
+      var _a2, _b;
       if (this.unloading) {
         return;
       }
@@ -1175,17 +1188,21 @@ class AnomalyDetection extends utils.Adapter {
       const entries = Array.isArray(raw) ? raw.length : raw && typeof raw === "object" && Array.isArray(raw.result) ? raw.result.length : 0;
       providerSamplesTotal += entries;
       maxProviderResponse = Math.max(maxProviderResponse, entries);
-      const samples = (0, import_history_provider.sanitizeHistory)(raw, Math.max(1e3, Math.min(limit, maximumTrainingPoints)));
-      const oldest = (_a = samples[0]) == null ? void 0 : _a.timestamp;
-      const newest = (_b = samples.at(-1)) == null ? void 0 : _b.timestamp;
+      const normalized = (0, import_history_provider.sanitizeHistoryWithDiagnostics)(raw, limit, [], {
+        start: segmentStart,
+        end: segmentEnd
+      });
+      const samples2 = normalized.samples;
+      const oldest = (_a2 = samples2[0]) == null ? void 0 : _a2.timestamp;
+      const newest = (_b = samples2.at(-1)) == null ? void 0 : _b.timestamp;
       let splitReason;
       if (entries >= limit) {
         splitReason = "query-limit";
         adaptiveLimitHits++;
-        if (samples.length >= 2) {
-          const observedSpan = samples.at(-1).timestamp - samples[0].timestamp;
+        if (samples2.length >= 2) {
+          const observedSpan = samples2.at(-1).timestamp - samples2[0].timestamp;
           if (observedSpan > 0) {
-            const density = (samples.length - 1) / observedSpan;
+            const density = (samples2.length - 1) / observedSpan;
             const targetSamples = Math.max(100, Math.floor(limit * 0.8));
             const estimatedDuration = Math.max(60001, Math.floor(targetSamples / density));
             densityRecalculations++;
@@ -1259,17 +1276,18 @@ class AnomalyDetection extends utils.Adapter {
         return;
       }
       acceptedSegments++;
-      const retainedLimit = Math.max(1e3, Math.min(1e4, maximumTrainingPoints));
-      collected = (0, import_history_budget.retainEvenlySpacedHistory)(collected, samples, retainedLimit);
+      finalRawSamples += normalized.validSamples;
+      deduplicatedSamples += normalized.validSamples - normalized.duplicateSamplesRemoved;
+      duplicateSamplesRemoved += normalized.duplicateSamplesRemoved;
+      predictiveSampler == null ? void 0 : predictiveSampler.add(samples2);
+      anomalySampler.add(samples2.filter((sample) => sample.timestamp >= anomalyStart));
     };
     await load(start, end, 0);
-    const byTimestamp = /* @__PURE__ */ new Map();
-    for (const sample of collected) {
-      byTimestamp.set(sample.timestamp, sample);
-    }
-    const deduplicated = [...byTimestamp.values()].sort((a, b) => a.timestamp - b.timestamp);
+    const samples = (_a = predictiveSampler == null ? void 0 : predictiveSampler.getSamples()) != null ? _a : anomalySampler.getSamples();
+    const anomalySamples = anomalySampler.getSamples();
     return {
-      samples: deduplicated,
+      samples,
+      anomalySamples,
       providerCalls: budget.providerCalls,
       segmentQueries,
       coverageProbes,
@@ -1290,9 +1308,9 @@ class AnomalyDetection extends utils.Adapter {
       initialAdaptiveSegmentDuration,
       finalAdaptiveSegmentDuration,
       adaptiveLimitHits,
-      finalRawSamples: collected.length,
-      deduplicatedSamples: deduplicated.length,
-      duplicateSamplesRemoved: collected.length - deduplicated.length
+      finalRawSamples,
+      deduplicatedSamples,
+      duplicateSamplesRemoved
     };
   }
   async resolveConfiguredHistorySource(sourceId, instanceId) {
@@ -1349,6 +1367,7 @@ class AnomalyDetection extends utils.Adapter {
     }
   }
   async refreshEvaluationAfterRetrain(sourceId, safeId, monitor) {
+    var _a, _b;
     if (this.unloading) {
       return;
     }
@@ -1357,37 +1376,17 @@ class AnomalyDetection extends utils.Adapter {
       return;
     }
     const sourceTimestamp = typeof (state == null ? void 0 : state.ts) === "number" && Number.isFinite(state.ts) ? state.ts : void 0;
-    const timestamp = sourceTimestamp != null ? sourceTimestamp : Date.now();
-    const result = state && !monitor.isStaleTimestamp(timestamp) ? monitor.evaluateCurrent(state.val, timestamp, this.contextKey(sourceId)) : void 0;
-    const evaluation = result != null ? result : this.unavailableEvaluation(sourceId, safeId, monitor, Date.now());
+    const evaluation = (0, import_source_monitor.evaluateCurrentSourceValue)(
+      monitor,
+      state == null ? void 0 : state.val,
+      sourceTimestamp,
+      this.contextKey(sourceId),
+      (_b = (_a = this.sources.get(safeId)) == null ? void 0 : _a.minimumSamples) != null ? _b : 30,
+      Date.now()
+    );
     this.evaluations.set(sourceId, evaluation);
     await (0, import_pending_work.enqueueSerializedWork)(this.resultWriteQueues, safeId, () => this.writeResult(safeId, evaluation));
     await this.setStateAsync(`sources.${safeId}.analysis.sampleCount`, { val: monitor.sampleCount, ack: true });
-  }
-  unavailableEvaluation(sourceId, safeId, monitor, timestamp) {
-    var _a, _b, _c;
-    const previous = this.evaluations.get(sourceId);
-    return {
-      actual: (_a = previous == null ? void 0 : previous.actual) != null ? _a : 0,
-      score: 0,
-      detected: false,
-      status: "learning",
-      reason: "Current source value unavailable after model reset",
-      sampleCount: monitor.sampleCount,
-      baselineScope: "insufficient",
-      activeContext: "",
-      baselineSampleCount: 0,
-      contextSampleCount: 0,
-      relevantSampleCount: 0,
-      relevantSampleScope: "insufficient",
-      evaluationAvailable: false,
-      requiredSamples: (_c = (_b = this.sources.get(safeId)) == null ? void 0 : _b.minimumSamples) != null ? _c : 30,
-      statusCode: "unavailable",
-      severity: "normal",
-      reasonCode: "source_value_unavailable",
-      detectors: [],
-      lastEvaluated: timestamp
-    };
   }
   async runWithConcurrency(tasks, concurrency) {
     const queue = [...tasks];
@@ -1417,10 +1416,10 @@ class AnomalyDetection extends utils.Adapter {
     });
   }
   async writeResult(safeId, result) {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
     const base = `sources.${safeId}.analysis`;
     const values = {
-      actual: result.actual,
+      actual: (_a = result.actual) != null ? _a : null,
       score: result.score,
       detected: result.detected,
       status: result.status,
@@ -1434,8 +1433,8 @@ class AnomalyDetection extends utils.Adapter {
       relevantSampleScope: result.relevantSampleScope,
       evaluationAvailable: result.evaluationAvailable
     };
-    values.expected = (_a = result.expected) != null ? _a : null;
-    values.deviation = (_b = result.deviation) != null ? _b : null;
+    values.expected = (_b = result.expected) != null ? _b : null;
+    values.deviation = (_c = result.deviation) != null ? _c : null;
     if (result.lastAnomaly !== void 0) {
       values.lastAnomaly = new Date(result.lastAnomaly).toISOString();
     }
@@ -1448,15 +1447,15 @@ class AnomalyDetection extends utils.Adapter {
       "anomaly.since": result.anomalySince ? new Date(result.anomalySince).toISOString() : null,
       "anomaly.lastNormal": result.lastNormal ? new Date(result.lastNormal).toISOString() : null,
       "evaluation.status": result.statusCode,
-      "evaluation.currentValue": result.actual,
-      "evaluation.expectedLow": (_c = result.expectedLow) != null ? _c : null,
-      "evaluation.expectedHigh": (_d = result.expectedHigh) != null ? _d : null,
-      "evaluation.decisionLow": (_e = result.decisionLow) != null ? _e : null,
-      "evaluation.decisionHigh": (_f = result.decisionHigh) != null ? _f : null,
+      "evaluation.currentValue": (_d = result.actual) != null ? _d : null,
+      "evaluation.expectedLow": (_e = result.expectedLow) != null ? _e : null,
+      "evaluation.expectedHigh": (_f = result.expectedHigh) != null ? _f : null,
+      "evaluation.decisionLow": (_g = result.decisionLow) != null ? _g : null,
+      "evaluation.decisionHigh": (_h = result.decisionHigh) != null ? _h : null,
       "evaluation.baselineType": result.baselineScope,
       "evaluation.baselineSamples": result.baselineSampleCount,
       "evaluation.context": result.activeContext || null,
-      "evaluation.timeBucket": (_g = result.timeBucket) != null ? _g : null,
+      "evaluation.timeBucket": (_i = result.timeBucket) != null ? _i : null,
       "evaluation.lastEvaluated": new Date(result.lastEvaluated).toISOString(),
       "detectors.active": result.detectors.map((detector) => detector.name).join(", ") || null,
       "detectors.valueDeviation": null,

@@ -1,11 +1,20 @@
 import { expect } from "chai";
+import { AdvancedDetectors } from "./lib/advanced-detectors";
+import { createContextPart } from "./lib/context-value";
 import { detectMadDeviation, detectRateDeviation, detectStuck } from "./lib/detectors";
+import { sanitizeHistory, sanitizeHistoryWithDiagnostics } from "./lib/history-provider";
+import {
+	HistorySourceResolver,
+	isCompleteInstanceId,
+	selectHistorySource,
+	type HistoryObjectStore,
+} from "./lib/history-source-resolver";
+import { ContextualModel } from "./lib/model/contextual-model";
 import { SampleSeries } from "./lib/model/statistics";
 import { TemporalModel } from "./lib/model/temporal-model";
-import { ContextualModel } from "./lib/model/contextual-model";
-import { createContextPart } from "./lib/context-value";
-import { AdvancedDetectors } from "./lib/advanced-detectors";
-import { decisionRangeFor, parseStoredModel, SourceMonitor } from "./lib/source-monitor";
+import { scoreDetectors } from "./lib/scoring";
+import { cleanupStaleSources, type GeneratedSourceDevice, type SourceCleanupStore } from "./lib/source-cleanup";
+import { decisionRangeFor, evaluateCurrentSourceValue, parseStoredModel, SourceMonitor } from "./lib/source-monitor";
 const chartYDomain = (values: readonly number[], bounds: readonly number[] = []): { min: number; max: number } => {
 	const numeric = [...values, ...bounds].filter(value => Number.isFinite(value));
 	if (numeric.length === 0) {
@@ -16,15 +25,6 @@ const chartYDomain = (values: readonly number[], bounds: readonly number[] = [])
 	const rawSpan = rawMax - rawMin || Math.max(1, Math.abs(rawMax) * 0.01);
 	return { min: rawMin >= 0 ? 0 : rawMin - rawSpan * 0.05, max: rawMax + rawSpan * 0.05 };
 };
-import { scoreDetectors } from "./lib/scoring";
-import { sanitizeHistory } from "./lib/history-provider";
-import {
-	HistorySourceResolver,
-	isCompleteInstanceId,
-	selectHistorySource,
-	type HistoryObjectStore,
-} from "./lib/history-source-resolver";
-import { cleanupStaleSources, type GeneratedSourceDevice, type SourceCleanupStore } from "./lib/source-cleanup";
 
 const makeSeries = (values: number[]): SampleSeries => new SampleSeries(240, values);
 
@@ -456,6 +456,39 @@ describe("historical bootstrap", () => {
 		expect(sanitizeHistory([], 0)).to.deep.equal([]);
 	});
 
+	it("reports raw, deduplicated, and removed history sizes before downsampling", () => {
+		const result = sanitizeHistoryWithDiagnostics(
+			[
+				{ val: 1, ts: 1_000 },
+				{ val: 2, ts: 1_000 },
+				{ val: "invalid", ts: 2_000 },
+				{ val: 3, ts: 3_000 },
+			],
+			2,
+		);
+		expect(result.validSamples).to.equal(3);
+		expect(result.samples).to.have.length(2);
+		expect(result.duplicateSamplesRemoved).to.equal(1);
+		expect(result.validSamples).to.equal(result.samples.length + 1);
+	});
+
+	it("counts only valid records inside the requested segment range", () => {
+		const result = sanitizeHistoryWithDiagnostics(
+			[
+				{ val: 1, ts: 999 },
+				{ val: 2, ts: 1_000 },
+				{ val: 3, ts: 1_000 },
+				{ val: 4, ts: 2_000 },
+			],
+			10,
+			[],
+			{ start: 1_000, end: 1_500 },
+		);
+		expect(result.validSamples).to.equal(2);
+		expect(result.samples).to.deep.equal([{ value: 3, timestamp: 1_000 }]);
+		expect(result.duplicateSamplesRemoved).to.equal(1);
+	});
+
 	it("uses historical values and rates without inferring a stuck state across gaps", () => {
 		const monitor = new SourceMonitor({
 			enabled: true,
@@ -654,6 +687,57 @@ describe("historical bootstrap", () => {
 });
 
 describe("restart sample deduplication", () => {
+	it("represents missing current values without reusing an earlier value or inventing zero", () => {
+		const monitor = new SourceMonitor({ enabled: true, id: "test.0.value" });
+		monitor.observe(42, 1_000);
+		const unavailable = evaluateCurrentSourceValue(monitor, undefined, undefined, undefined, 30, 2_000);
+
+		expect(unavailable.actual).to.equal(undefined);
+		expect(unavailable.statusCode).to.equal("unavailable");
+		expect(unavailable.detected).to.equal(false);
+		expect(monitor.sampleCount).to.equal(1);
+		expect(monitor.toJSON().lastTimestamp).to.equal(1_000);
+	});
+
+	it("keeps both history retraining and live reset unavailable when no source state exists", () => {
+		const historyMonitor = new SourceMonitor({ enabled: true, id: "test.0.history", minimumSamples: 2 });
+		historyMonitor.replaceFromHistory(
+			[
+				{ value: 10, timestamp: 1_000 },
+				{ value: 11, timestamp: 2_000 },
+			],
+			"history.0",
+			"test.0.history",
+			1_000,
+			2_000,
+			"history-config",
+		);
+		const historyResult = evaluateCurrentSourceValue(historyMonitor, undefined, undefined, undefined, 2, 3_000);
+
+		const liveMonitor = new SourceMonitor({ enabled: true, id: "test.0.live", minimumSamples: 2 });
+		liveMonitor.observe(10, 1_000);
+		liveMonitor.reset();
+		const liveResult = evaluateCurrentSourceValue(liveMonitor, undefined, undefined, undefined, 2, 3_000);
+
+		expect(historyResult.actual).to.equal(undefined);
+		expect(historyResult.statusCode).to.equal("unavailable");
+		expect(historyMonitor.sampleCount).to.equal(2);
+		expect(liveResult.actual).to.equal(undefined);
+		expect(liveResult.statusCode).to.equal("unavailable");
+		expect(liveMonitor.sampleCount).to.equal(0);
+	});
+
+	it("rejects a stale retrain-time value and leaves the prior model untouched", () => {
+		const monitor = new SourceMonitor({ enabled: true, id: "test.0.value" });
+		monitor.observe(42, 2_000);
+		const result = evaluateCurrentSourceValue(monitor, 99, 1_000, undefined, 30, 3_000);
+
+		expect(result.actual).to.equal(undefined);
+		expect(result.statusCode).to.equal("unavailable");
+		expect(monitor.sampleCount).to.equal(1);
+		expect(monitor.toJSON().lastTimestamp).to.equal(2_000);
+	});
+
 	it("evaluates the current value after reset without relearning it or retaining an alarm", () => {
 		const monitor = new SourceMonitor({
 			enabled: true,
@@ -679,6 +763,30 @@ describe("restart sample deduplication", () => {
 		expect(monitor.sampleCount).to.equal(0);
 		expect(monitor.toJSON().lastTimestamp).to.equal(undefined);
 		expect(monitor.diagnosticSnapshots).to.have.length(0);
+	});
+
+	it("evaluates valid zero and negative retrain-time values without adding a training event", () => {
+		for (const value of [0, -12.5]) {
+			const monitor = new SourceMonitor({ enabled: true, id: "test.0.value", minimumSamples: 30 });
+			monitor.observe(5, 1_000);
+			const result = evaluateCurrentSourceValue(monitor, value, 2_000, undefined, 30, 3_000);
+			expect(result.actual).to.equal(value);
+			expect(result.statusCode).not.to.equal("unavailable");
+			expect(monitor.sampleCount).to.equal(1);
+			expect(monitor.toJSON().lastTimestamp).to.equal(1_000);
+		}
+	});
+
+	it("keeps actual zero and negative source values available without learning them during refresh", () => {
+		for (const value of [0, -12.5]) {
+			const monitor = new SourceMonitor({ enabled: true, id: "test.0.value", minimumSamples: 30 });
+			monitor.observe(5, 1_000);
+			const result = monitor.evaluateCurrent(value, 2_000);
+			expect(result?.actual).to.equal(value);
+			expect(result?.statusCode).not.to.equal("unavailable");
+			expect(monitor.sampleCount).to.equal(1);
+			expect(monitor.toJSON().lastTimestamp).to.equal(1_000);
+		}
 	});
 
 	it("evaluates repeated and stale samples without learning them again", () => {

@@ -20,7 +20,8 @@ var pending_work_exports = {};
 __export(pending_work_exports, {
   acquireExclusiveWork: () => acquireExclusiveWork,
   drainPendingWork: () => drainPendingWork,
-  enqueueSerializedWork: () => enqueueSerializedWork
+  enqueueSerializedWork: () => enqueueSerializedWork,
+  settleIndependentTasks: () => settleIndependentTasks
 });
 module.exports = __toCommonJS(pending_work_exports);
 async function drainPendingWork(pending) {
@@ -47,6 +48,9 @@ function enqueueSerializedWork(queues, key, task) {
   );
   return current;
 }
+async function settleIndependentTasks(tasks) {
+  return Promise.allSettled(tasks);
+}
 function acquireExclusiveWork(active, key) {
   if (active.has(key)) {
     return void 0;
@@ -64,6 +68,7 @@ function acquireExclusiveWork(active, key) {
 0 && (module.exports = {
   acquireExclusiveWork,
   drainPendingWork,
-  enqueueSerializedWork
+  enqueueSerializedWork,
+  settleIndependentTasks
 });
 //# sourceMappingURL=pending-work.js.map

@@ -1,11 +1,11 @@
-import { detectMadDeviation, detectRateDeviation, detectStuck, type DetectorResult } from "./detectors";
 import { AdvancedDetectors, type ChangePointData, type TrendData } from "./advanced-detectors";
-import { ContextualModel, type ContextualModelData } from "./model/contextual-model";
-import { TemporalModel, type TemporalModelData } from "./model/temporal-model";
-import { median, MODEL_SCHEMA_VERSION } from "./model/statistics";
-import { scoreDetectors, type DetectorDiagnostic } from "./scoring";
+import { detectMadDeviation, detectRateDeviation, detectStuck, type DetectorResult } from "./detectors";
 import type { HistorySample } from "./history-provider";
+import { ContextualModel, type ContextualModelData } from "./model/contextual-model";
+import { median, MODEL_SCHEMA_VERSION } from "./model/statistics";
+import { TemporalModel, type TemporalModelData } from "./model/temporal-model";
 import type { PredictiveSettings } from "./predictive";
+import { scoreDetectors, type DetectorDiagnostic } from "./scoring";
 
 export const DEFAULTS = {
 	minimumSamples: 30,
@@ -338,7 +338,7 @@ export interface ObservationResult {
 	/**
 	 *
 	 */
-	actual: number;
+	actual?: number;
 	/**
 	 *
 	 */
@@ -445,6 +445,73 @@ export interface ObservationResult {
 	 *
 	 */
 	timeBucket?: string;
+}
+
+/**
+ * Creates a non-detected result without inventing a current sensor value.
+ *
+ * @param sampleCount Number of samples currently retained by the monitor.
+ * @param requiredSamples Minimum samples required for evaluation.
+ * @param timestamp Time the unavailable evaluation was created.
+ */
+export function unavailableObservation(
+	sampleCount: number,
+	requiredSamples: number,
+	timestamp: number,
+): ObservationResult {
+	return {
+		score: 0,
+		detected: false,
+		status: "learning",
+		reason: "Current source value unavailable after model reset",
+		sampleCount,
+		baselineScope: "insufficient",
+		activeContext: "",
+		baselineSampleCount: 0,
+		contextSampleCount: 0,
+		relevantSampleCount: 0,
+		relevantSampleScope: "insufficient",
+		evaluationAvailable: false,
+		requiredSamples,
+		statusCode: "unavailable",
+		severity: "normal",
+		reasonCode: "source_value_unavailable",
+		detectors: [],
+		lastEvaluated: timestamp,
+	};
+}
+
+/**
+ * Evaluates a retrain-time source state or returns unavailable without learning it.
+ *
+ * @param monitor Monitor to evaluate against.
+ * @param value Current source value, when available.
+ * @param timestamp Source state's timestamp, when available.
+ * @param contextKey Context used to select an appropriate baseline.
+ * @param requiredSamples Minimum samples required for evaluation.
+ * @param evaluatedAt Timestamp to assign to an unavailable result.
+ */
+export function evaluateCurrentSourceValue(
+	monitor: SourceMonitor,
+	value: unknown,
+	timestamp: number | undefined,
+	contextKey: string | undefined,
+	requiredSamples: number,
+	evaluatedAt: number,
+): ObservationResult {
+	if (
+		timestamp !== undefined &&
+		Number.isFinite(timestamp) &&
+		!monitor.isStaleTimestamp(timestamp) &&
+		typeof value === "number" &&
+		Number.isFinite(value)
+	) {
+		const result = monitor.evaluateCurrent(value, timestamp, contextKey);
+		if (result) {
+			return result;
+		}
+	}
+	return unavailableObservation(monitor.sampleCount, requiredSamples, evaluatedAt);
 }
 
 /** Framework-independent lifecycle and learning policy for one source state. */
@@ -699,7 +766,7 @@ export class SourceMonitor {
 		if (isNewSample) {
 			this.diagnostics.push({
 				timestamp,
-				actual: observation.actual,
+				actual: observation.actual!,
 				expected: observation.expected,
 				decisionLow: observation.decisionLow,
 				decisionHigh: observation.decisionHigh,

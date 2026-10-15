@@ -12,6 +12,17 @@ export interface HistoryProvider {
 	getHistory(sourceId: string, start: number, end: number, limit: number): Promise<unknown>;
 }
 
+export interface SanitizedHistoryResult {
+	samples: HistorySample[];
+	validSamples: number;
+	duplicateSamplesRemoved: number;
+}
+
+export interface HistoryRange {
+	start: number;
+	end: number;
+}
+
 function parseFiniteNumber(value: unknown): number | undefined {
 	if (typeof value === "number") {
 		return Number.isFinite(value) ? value : undefined;
@@ -36,8 +47,17 @@ export function sanitizeHistory(
 	limit: number,
 	preserveTimestamps: readonly number[] = [],
 ): HistorySample[] {
+	return sanitizeHistoryWithDiagnostics(raw, limit, preserveTimestamps).samples;
+}
+
+export function sanitizeHistoryWithDiagnostics(
+	raw: unknown,
+	limit: number,
+	preserveTimestamps: readonly number[] = [],
+	range?: HistoryRange,
+): SanitizedHistoryResult {
 	if (!Number.isInteger(limit) || limit < 1) {
-		return [];
+		return { samples: [], validSamples: 0, duplicateSamplesRemoved: 0 };
 	}
 	const entries = Array.isArray(raw)
 		? raw
@@ -45,6 +65,7 @@ export function sanitizeHistory(
 			? (raw as { result: unknown[] }).result
 			: [];
 	const byTimestamp = new Map<number, HistorySample>();
+	let validSamples = 0;
 	for (const entry of entries) {
 		if (!entry || typeof entry !== "object") {
 			continue;
@@ -52,20 +73,34 @@ export function sanitizeHistory(
 		const candidate = entry as { val?: unknown; ts?: unknown };
 		const value = parseFiniteNumber(candidate.val);
 		const timestamp = parseFiniteNumber(candidate.ts);
-		if (value !== undefined && timestamp !== undefined && timestamp > 0) {
+		if (
+			value !== undefined &&
+			timestamp !== undefined &&
+			timestamp > 0 &&
+			(!range || (timestamp >= range.start && timestamp <= range.end))
+		) {
+			validSamples++;
 			byTimestamp.set(timestamp, { value, timestamp });
 		}
 	}
 	const sorted = [...byTimestamp.values()].sort((left, right) => left.timestamp - right.timestamp);
 	if (sorted.length <= limit) {
-		return sorted;
+		return {
+			samples: sorted,
+			validSamples,
+			duplicateSamplesRemoved: validSamples - sorted.length,
+		};
 	}
 	if (limit === 1) {
-		return [sorted[0]];
+		return { samples: [sorted[0]], validSamples, duplicateSamplesRemoved: validSamples - sorted.length };
 	}
 	const protectedSamples = sorted.filter(sample => preserveTimestamps.includes(sample.timestamp));
 	if (protectedSamples.length >= limit) {
-		return protectedSamples.slice(0, limit);
+		return {
+			samples: protectedSamples.slice(0, limit),
+			validSamples,
+			duplicateSamplesRemoved: validSamples - sorted.length,
+		};
 	}
 	const result: HistorySample[] = [...protectedSamples];
 	const protectedSet = new Set(protectedSamples.map(sample => sample.timestamp));
@@ -74,5 +109,9 @@ export function sanitizeHistory(
 	for (let index = 0; index < remaining; index++) {
 		result.push(candidates[Math.round((index * (candidates.length - 1)) / Math.max(1, remaining - 1))]);
 	}
-	return result.sort((left, right) => left.timestamp - right.timestamp);
+	return {
+		samples: result.sort((left, right) => left.timestamp - right.timestamp),
+		validSamples,
+		duplicateSamplesRemoved: validSamples - sorted.length,
+	};
 }

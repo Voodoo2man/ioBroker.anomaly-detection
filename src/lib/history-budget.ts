@@ -40,35 +40,142 @@ export class HistoryLoadBudget {
 	}
 }
 
-/**
- * Retains unique history samples distributed across the complete timestamp span.
- *
- * @param current Samples previously retained for this import.
- * @param additional Samples from the latest accepted segment.
- * @param maximumSamples Maximum number of samples to retain.
- */
-export function retainEvenlySpacedHistory(
-	current: readonly HistorySample[],
-	additional: readonly HistorySample[],
-	maximumSamples: number,
-): HistorySample[] {
-	if (maximumSamples <= 0) {
-		return [];
+/** Keeps one deterministic representative per time bucket plus the range endpoints. */
+export class HistorySampleSampler {
+	private readonly bucketSamples = new Map<number, HistorySample>();
+	private first?: HistorySample;
+	private last?: HistorySample;
+	private centerSample?: HistorySample;
+	private readonly bucketCount: number;
+	private readonly span: number;
+
+	/**
+	 * Creates a bounded sampler tied to the complete requested history window.
+	 *
+	 * @param start Start timestamp of the complete history window.
+	 * @param end End timestamp of the complete history window.
+	 * @param maximumSamples Maximum number of samples to retain.
+	 */
+	public constructor(
+		private readonly start: number,
+		private readonly end: number,
+		private readonly maximumSamples: number,
+	) {
+		this.span = Math.max(0, end - start);
+		this.bucketCount = maximumSamples > 2 ? maximumSamples - 2 : 0;
 	}
-	const sorted = [...current, ...additional].sort((a, b) => a.timestamp - b.timestamp);
-	const uniqueByTimestamp = new Map<number, HistorySample>();
-	for (const sample of sorted) {
-		uniqueByTimestamp.set(sample.timestamp, sample);
+
+	/**
+	 * Adds a segment without resampling previously retained segments.
+	 *
+	 * @param samples Valid samples from a history segment.
+	 */
+	public add(samples: readonly HistorySample[]): void {
+		for (const sample of samples) {
+			if (sample.timestamp < this.start || sample.timestamp > this.end || this.maximumSamples <= 0) {
+				continue;
+			}
+			this.first = this.selectEndpoint(this.first, sample, true);
+			this.last = this.selectEndpoint(this.last, sample, false);
+			if (this.bucketCount === 0 || this.span === 0) {
+				this.centerSample = this.selectNearestCenter(this.centerSample, sample);
+				continue;
+			}
+			const position = Math.min(1, Math.max(0, (sample.timestamp - this.start) / this.span));
+			const bucket = Math.min(this.bucketCount - 1, Math.floor(position * this.bucketCount));
+			const current = this.bucketSamples.get(bucket);
+			if (!current || this.isBetterBucketSample(sample, current, bucket)) {
+				this.bucketSamples.set(bucket, sample);
+			}
+		}
 	}
-	const deduplicated = [...uniqueByTimestamp.values()];
-	if (deduplicated.length <= maximumSamples) {
-		return deduplicated;
+
+	/** Returns chronologically ordered, unique samples within the configured bound. */
+	public getSamples(): HistorySample[] {
+		if (this.maximumSamples <= 0) {
+			return [];
+		}
+		const selected = new Map<number, HistorySample>();
+		if (this.bucketCount === 0) {
+			if (this.maximumSamples === 1) {
+				if (this.span === 0) {
+					if (this.first) {
+						selected.set(this.first.timestamp, this.first);
+					}
+				} else if (this.centerSample) {
+					selected.set(this.centerSample.timestamp, this.centerSample);
+				}
+			} else {
+				if (this.first) {
+					selected.set(this.first.timestamp, this.first);
+				}
+				if (this.last) {
+					selected.set(this.last.timestamp, this.last);
+				}
+			}
+		} else {
+			for (const sample of this.bucketSamples.values()) {
+				selected.set(sample.timestamp, this.preferDuplicate(selected.get(sample.timestamp), sample));
+			}
+			if (this.first) {
+				selected.set(
+					this.first.timestamp,
+					this.preferDuplicate(selected.get(this.first.timestamp), this.first),
+				);
+			}
+			if (this.last) {
+				selected.set(this.last.timestamp, this.preferDuplicate(selected.get(this.last.timestamp), this.last));
+			}
+		}
+		return [...selected.values()]
+			.sort((left, right) => left.timestamp - right.timestamp)
+			.slice(0, this.maximumSamples);
 	}
-	if (maximumSamples <= 1) {
-		return deduplicated.length ? [deduplicated.at(-1)!] : [];
+
+	private selectEndpoint(
+		current: HistorySample | undefined,
+		candidate: HistorySample,
+		earliest: boolean,
+	): HistorySample {
+		if (!current) {
+			return candidate;
+		}
+		if (candidate.timestamp === current.timestamp) {
+			return this.preferDuplicate(current, candidate);
+		}
+		return (earliest ? candidate.timestamp < current.timestamp : candidate.timestamp > current.timestamp)
+			? candidate
+			: current;
 	}
-	return Array.from({ length: maximumSamples }, (_, index) => {
-		const sourceIndex = Math.round((index * (deduplicated.length - 1)) / (maximumSamples - 1));
-		return deduplicated[sourceIndex];
-	});
+
+	private selectNearestCenter(current: HistorySample | undefined, candidate: HistorySample): HistorySample {
+		if (!current) {
+			return candidate;
+		}
+		const center = this.start + this.span / 2;
+		const currentDistance = Math.abs(current.timestamp - center);
+		const candidateDistance = Math.abs(candidate.timestamp - center);
+		return candidateDistance < currentDistance ||
+			(candidateDistance === currentDistance && this.compareSamples(candidate, current) < 0)
+			? candidate
+			: current;
+	}
+
+	private isBetterBucketSample(candidate: HistorySample, current: HistorySample, bucket: number): boolean {
+		const bucketCenter = this.start + ((bucket + 0.5) * this.span) / this.bucketCount;
+		const candidateDistance = Math.abs(candidate.timestamp - bucketCenter);
+		const currentDistance = Math.abs(current.timestamp - bucketCenter);
+		return (
+			candidateDistance < currentDistance ||
+			(candidateDistance === currentDistance && this.compareSamples(candidate, current) < 0)
+		);
+	}
+
+	private preferDuplicate(current: HistorySample | undefined, candidate: HistorySample): HistorySample {
+		return !current || this.compareSamples(candidate, current) < 0 ? candidate : current;
+	}
+
+	private compareSamples(left: HistorySample, right: HistorySample): number {
+		return left.timestamp - right.timestamp || left.value - right.value;
+	}
 }

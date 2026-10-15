@@ -1,39 +1,50 @@
 /* Created with @iobroker/create-adapter v3.1.5 */
 import * as utils from "@iobroker/adapter-core";
-import { sanitizeHistory, type HistoryProvider, type HistorySample } from "./lib/history-provider";
-import { HistorySourceResolver, selectHistorySource, type HistorySource } from "./lib/history-source-resolver";
 import {
 	anomalyBootstrapStateUpdate,
 	manualRetrainBootstrapNeeds,
 	shouldBootstrapPredictiveHistory,
 } from "./lib/bootstrap-policy";
+import { createContextPart } from "./lib/context-value";
+import { HistoryLoadBudget, HistorySampleSampler } from "./lib/history-budget";
+import {
+	sanitizeHistory,
+	sanitizeHistoryWithDiagnostics,
+	type HistoryProvider,
+	type HistorySample,
+} from "./lib/history-provider";
+import { withAbortableTimeout } from "./lib/history-request";
+import { HistorySourceResolver, selectHistorySource, type HistorySource } from "./lib/history-source-resolver";
+import { mergeStartupModels } from "./lib/model-persistence";
+import { objectName } from "./lib/object-names";
+import { SOURCES_OBJECT_ID, ensureStateUnit, sourcesObject } from "./lib/object-structure";
+import {
+	acquireExclusiveWork,
+	drainPendingWork,
+	enqueueSerializedWork,
+	settleIndependentTasks,
+} from "./lib/pending-work";
+import {
+	PREDICTIVE_ALGORITHM_VERSION,
+	PREDICTIVE_HISTORY_RAW_LIMIT,
+	PredictiveModel,
+	PredictiveTrainingQueue,
+	normalizePredictiveSettings,
+	predictiveHistorySpanMinutes,
+	type PredictiveModelData,
+	type PredictiveResult,
+} from "./lib/predictive";
 import { cleanupStaleSources } from "./lib/source-cleanup";
 import {
 	SourceMonitor,
+	evaluateCurrentSourceValue,
 	parseStoredModel,
 	type ObservationResult,
 	type SourceModelData,
 	type SourceSettings,
 } from "./lib/source-monitor";
-import { createContextPart } from "./lib/context-value";
-import { acquireExclusiveWork, drainPendingWork, enqueueSerializedWork } from "./lib/pending-work";
-import { withAbortableTimeout } from "./lib/history-request";
-import { HistoryLoadBudget, retainEvenlySpacedHistory } from "./lib/history-budget";
-import { mergeStartupModels } from "./lib/model-persistence";
-import { observeWithTimestampCache } from "./lib/timestamp-cache";
 import { writeStateValues } from "./lib/state-write";
-import { ensureStateUnit, SOURCES_OBJECT_ID, sourcesObject } from "./lib/object-structure";
-import { objectName } from "./lib/object-names";
-import {
-	PredictiveModel,
-	PredictiveTrainingQueue,
-	PREDICTIVE_ALGORITHM_VERSION,
-	normalizePredictiveSettings,
-	predictiveHistorySpanMinutes,
-	PREDICTIVE_HISTORY_RAW_LIMIT,
-	type PredictiveModelData,
-	type PredictiveResult,
-} from "./lib/predictive";
+import { observeWithTimestampCache } from "./lib/timestamp-cache";
 
 const MODEL_STATE_ID = "models";
 const PREDICTIVE_MODEL_STATE_ID = "predictiveModels";
@@ -93,6 +104,7 @@ class IoBrokerHistoryProvider implements HistoryProvider {
 
 interface SegmentedHistoryResult {
 	samples: HistorySample[];
+	anomalySamples: HistorySample[];
 	providerCalls: number;
 	segmentQueries: number;
 	coverageProbes: number;
@@ -615,9 +627,15 @@ class AnomalyDetection extends utils.Adapter {
 			this.invalidValueWarnings.delete(id);
 			this.evaluations.set(id, result);
 			this.schedulePersistence();
-			await enqueueSerializedWork(this.resultWriteQueues, safeId, () => this.writeResult(safeId, result));
-			if (isNewSample) {
-				await this.updatePredictive(safeId, state.val, timestamp);
+			const independentTasks = [
+				enqueueSerializedWork(this.resultWriteQueues, safeId, () => this.writeResult(safeId, result)),
+				isNewSample ? this.updatePredictive(safeId, state.val, timestamp) : Promise.resolve(),
+			];
+			const outcomes = await settleIndependentTasks(independentTasks);
+			for (const outcome of outcomes) {
+				if (outcome.status === "rejected") {
+					this.log.error(`Could not process source state ${id}: ${(outcome.reason as Error).message}`);
+				}
 			}
 		} catch (error) {
 			this.log.error(`Could not process source state ${id}: ${(error as Error).message}`);
@@ -1122,9 +1140,7 @@ class AnomalyDetection extends utils.Adapter {
 				? end - predictiveHistorySpanMinutes(predictiveSettings, source.trainingDays ?? 30) * 60_000
 				: anomalyStart;
 			const start = Math.min(anomalyStart, predictiveStart);
-			const historyLimit = needs.predictive
-				? PREDICTIVE_HISTORY_RAW_LIMIT
-				: Math.min(PREDICTIVE_HISTORY_RAW_LIMIT, source.maxHistorySamples ?? 1000);
+			const historyLimit = PREDICTIVE_HISTORY_RAW_LIMIT;
 			const memoryBefore = process.memoryUsage();
 			const historyResult = await this.loadSegmentedHistory(
 				provider,
@@ -1132,7 +1148,9 @@ class AnomalyDetection extends utils.Adapter {
 				start,
 				end,
 				historyLimit,
-				predictiveSettings?.maximumTrainingPoints ?? source.maxHistorySamples ?? 2000,
+				anomalyStart,
+				Math.min(10_000, Math.max(30, source.maxHistorySamples ?? 1000)),
+				needs.predictive ? (predictiveSettings?.maximumTrainingPoints ?? 2000) : undefined,
 			);
 			if (this.unloading) {
 				return;
@@ -1143,7 +1161,7 @@ class AnomalyDetection extends utils.Adapter {
 			// `samples` is already normalized to HistorySample by the segmented
 			// loader; do not pass it through sanitizeHistory again (that function
 			// expects provider entries with `val`/`ts`).
-			const anomalySamples = samples.filter(sample => sample.timestamp >= anomalyStart);
+			const anomalySamples = historyResult.anomalySamples;
 			this.log.debug(
 				`History load summary: source=${sourceId} mode=${needs.predictive ? "history" : "anomaly-only"} ` +
 					`requestedDuration=${Math.round((end - start) / 60_000)}min ` +
@@ -1171,7 +1189,7 @@ class AnomalyDetection extends utils.Adapter {
 			);
 			this.log.debug(
 				`Predictive history loaded for ${sourceId}: raw=${historyResult.finalRawSamples}, ` +
-					`deduplicated=${samples.length}, ` +
+					`unique=${historyResult.deduplicatedSamples}, retained=${samples.length}, ` +
 					`oldest=${samples[0]?.timestamp ?? "none"}, newest=${samples.at(-1)?.timestamp ?? "none"}, ` +
 					`source=${needs.predictive ? "history" : "anomaly-only"} ` +
 					`requestedStart=${start} requestedEnd=${end} requestedDuration=${Math.round((end - start) / 60_000)}min ` +
@@ -1280,9 +1298,14 @@ class AnomalyDetection extends utils.Adapter {
 		start: number,
 		end: number,
 		limit: number,
-		maximumTrainingPoints: number,
+		anomalyStart: number,
+		maximumAnomalySamples: number,
+		maximumPredictiveSamples?: number,
 	): Promise<SegmentedHistoryResult> {
-		let collected: HistorySample[] = [];
+		const predictiveSampler = maximumPredictiveSamples
+			? new HistorySampleSampler(start, end, maximumPredictiveSamples)
+			: undefined;
+		const anomalySampler = new HistorySampleSampler(anomalyStart, end, maximumAnomalySamples);
 		const budget = new HistoryLoadBudget();
 		let segmentQueries = 0;
 		let coverageProbes = 0;
@@ -1304,6 +1327,9 @@ class AnomalyDetection extends utils.Adapter {
 		let adaptiveDurationHint: number | undefined;
 		let finalAdaptiveSegmentDuration: number | undefined;
 		let adaptiveLimitHits = 0;
+		let finalRawSamples = 0;
+		let deduplicatedSamples = 0;
+		let duplicateSamplesRemoved = 0;
 		const load = async (segmentStart: number, segmentEnd: number, depth: number): Promise<void> => {
 			if (this.unloading) {
 				return;
@@ -1318,7 +1344,11 @@ class AnomalyDetection extends utils.Adapter {
 					: 0;
 			providerSamplesTotal += entries;
 			maxProviderResponse = Math.max(maxProviderResponse, entries);
-			const samples = sanitizeHistory(raw, Math.max(1000, Math.min(limit, maximumTrainingPoints)));
+			const normalized = sanitizeHistoryWithDiagnostics(raw, limit, [], {
+				start: segmentStart,
+				end: segmentEnd,
+			});
+			const samples = normalized.samples;
 			const oldest = samples[0]?.timestamp;
 			const newest = samples.at(-1)?.timestamp;
 			let splitReason: string | undefined;
@@ -1413,17 +1443,18 @@ class AnomalyDetection extends utils.Adapter {
 				return;
 			}
 			acceptedSegments++;
-			const retainedLimit = Math.max(1000, Math.min(10_000, maximumTrainingPoints));
-			collected = retainEvenlySpacedHistory(collected, samples, retainedLimit);
+			finalRawSamples += normalized.validSamples;
+			deduplicatedSamples += normalized.validSamples - normalized.duplicateSamplesRemoved;
+			duplicateSamplesRemoved += normalized.duplicateSamplesRemoved;
+			predictiveSampler?.add(samples);
+			anomalySampler.add(samples.filter(sample => sample.timestamp >= anomalyStart));
 		};
 		await load(start, end, 0);
-		const byTimestamp = new Map<number, HistorySample>();
-		for (const sample of collected) {
-			byTimestamp.set(sample.timestamp, sample);
-		}
-		const deduplicated = [...byTimestamp.values()].sort((a, b) => a.timestamp - b.timestamp);
+		const samples = predictiveSampler?.getSamples() ?? anomalySampler.getSamples();
+		const anomalySamples = anomalySampler.getSamples();
 		return {
-			samples: deduplicated,
+			samples,
+			anomalySamples,
 			providerCalls: budget.providerCalls,
 			segmentQueries,
 			coverageProbes,
@@ -1444,9 +1475,9 @@ class AnomalyDetection extends utils.Adapter {
 			initialAdaptiveSegmentDuration,
 			finalAdaptiveSegmentDuration,
 			adaptiveLimitHits,
-			finalRawSamples: collected.length,
-			deduplicatedSamples: deduplicated.length,
-			duplicateSamplesRemoved: collected.length - deduplicated.length,
+			finalRawSamples,
+			deduplicatedSamples,
+			duplicateSamplesRemoved,
 		};
 	}
 
@@ -1524,45 +1555,17 @@ class AnomalyDetection extends utils.Adapter {
 			return;
 		}
 		const sourceTimestamp = typeof state?.ts === "number" && Number.isFinite(state.ts) ? state.ts : undefined;
-		const timestamp = sourceTimestamp ?? Date.now();
-		const result =
-			state && !monitor.isStaleTimestamp(timestamp)
-				? monitor.evaluateCurrent(state.val, timestamp, this.contextKey(sourceId))
-				: undefined;
-		const evaluation = result ?? this.unavailableEvaluation(sourceId, safeId, monitor, Date.now());
+		const evaluation = evaluateCurrentSourceValue(
+			monitor,
+			state?.val,
+			sourceTimestamp,
+			this.contextKey(sourceId),
+			this.sources.get(safeId)?.minimumSamples ?? 30,
+			Date.now(),
+		);
 		this.evaluations.set(sourceId, evaluation);
 		await enqueueSerializedWork(this.resultWriteQueues, safeId, () => this.writeResult(safeId, evaluation));
 		await this.setStateAsync(`sources.${safeId}.analysis.sampleCount`, { val: monitor.sampleCount, ack: true });
-	}
-
-	private unavailableEvaluation(
-		sourceId: string,
-		safeId: string,
-		monitor: SourceMonitor,
-		timestamp: number,
-	): ObservationResult {
-		const previous = this.evaluations.get(sourceId);
-		return {
-			actual: previous?.actual ?? 0,
-			score: 0,
-			detected: false,
-			status: "learning",
-			reason: "Current source value unavailable after model reset",
-			sampleCount: monitor.sampleCount,
-			baselineScope: "insufficient",
-			activeContext: "",
-			baselineSampleCount: 0,
-			contextSampleCount: 0,
-			relevantSampleCount: 0,
-			relevantSampleScope: "insufficient",
-			evaluationAvailable: false,
-			requiredSamples: this.sources.get(safeId)?.minimumSamples ?? 30,
-			statusCode: "unavailable",
-			severity: "normal",
-			reasonCode: "source_value_unavailable",
-			detectors: [],
-			lastEvaluated: timestamp,
-		};
 	}
 
 	private async runWithConcurrency(tasks: Array<() => Promise<void>>, concurrency: number): Promise<void> {
@@ -1597,7 +1600,7 @@ class AnomalyDetection extends utils.Adapter {
 	private async writeResult(safeId: string, result: ObservationResult): Promise<void> {
 		const base = `sources.${safeId}.analysis`;
 		const values: Record<string, ioBroker.StateValue> = {
-			actual: result.actual,
+			actual: result.actual ?? null,
 			score: result.score,
 			detected: result.detected,
 			status: result.status,
@@ -1625,7 +1628,7 @@ class AnomalyDetection extends utils.Adapter {
 			"anomaly.since": result.anomalySince ? new Date(result.anomalySince).toISOString() : null,
 			"anomaly.lastNormal": result.lastNormal ? new Date(result.lastNormal).toISOString() : null,
 			"evaluation.status": result.statusCode,
-			"evaluation.currentValue": result.actual,
+			"evaluation.currentValue": result.actual ?? null,
 			"evaluation.expectedLow": result.expectedLow ?? null,
 			"evaluation.expectedHigh": result.expectedHigh ?? null,
 			"evaluation.decisionLow": result.decisionLow ?? null,

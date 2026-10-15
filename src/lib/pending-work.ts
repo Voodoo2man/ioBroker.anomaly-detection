@@ -39,6 +39,11 @@ export function enqueueSerializedWork<K>(
 	return current;
 }
 
+/** Waits for independent operations without allowing one failure to cancel another. */
+export async function settleIndependentTasks(tasks: readonly Promise<void>[]): Promise<PromiseSettledResult<void>[]> {
+	return Promise.allSettled(tasks);
+}
+
 /**
  * Acquires an exclusive per-key work slot, returning an idempotent release function.
  *

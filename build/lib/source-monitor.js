@@ -21,14 +21,16 @@ __export(source_monitor_exports, {
   DEFAULTS: () => DEFAULTS,
   SourceMonitor: () => SourceMonitor,
   decisionRangeFor: () => decisionRangeFor,
-  parseStoredModel: () => parseStoredModel
+  evaluateCurrentSourceValue: () => evaluateCurrentSourceValue,
+  parseStoredModel: () => parseStoredModel,
+  unavailableObservation: () => unavailableObservation
 });
 module.exports = __toCommonJS(source_monitor_exports);
-var import_detectors = require("./detectors");
 var import_advanced_detectors = require("./advanced-detectors");
+var import_detectors = require("./detectors");
 var import_contextual_model = require("./model/contextual-model");
-var import_temporal_model = require("./model/temporal-model");
 var import_statistics = require("./model/statistics");
+var import_temporal_model = require("./model/temporal-model");
 var import_scoring = require("./scoring");
 const DEFAULTS = {
   minimumSamples: 30,
@@ -41,6 +43,37 @@ const DEFAULTS = {
   maxHistoryGapMinutes: 360,
   maxContextModels: 32
 };
+function unavailableObservation(sampleCount, requiredSamples, timestamp) {
+  return {
+    score: 0,
+    detected: false,
+    status: "learning",
+    reason: "Current source value unavailable after model reset",
+    sampleCount,
+    baselineScope: "insufficient",
+    activeContext: "",
+    baselineSampleCount: 0,
+    contextSampleCount: 0,
+    relevantSampleCount: 0,
+    relevantSampleScope: "insufficient",
+    evaluationAvailable: false,
+    requiredSamples,
+    statusCode: "unavailable",
+    severity: "normal",
+    reasonCode: "source_value_unavailable",
+    detectors: [],
+    lastEvaluated: timestamp
+  };
+}
+function evaluateCurrentSourceValue(monitor, value, timestamp, contextKey, requiredSamples, evaluatedAt) {
+  if (timestamp !== void 0 && Number.isFinite(timestamp) && !monitor.isStaleTimestamp(timestamp) && typeof value === "number" && Number.isFinite(value)) {
+    const result = monitor.evaluateCurrent(value, timestamp, contextKey);
+    if (result) {
+      return result;
+    }
+  }
+  return unavailableObservation(monitor.sampleCount, requiredSamples, evaluatedAt);
+}
 class SourceMonitor {
   /**
    *
@@ -537,6 +570,8 @@ function parseStoredModel(value) {
   DEFAULTS,
   SourceMonitor,
   decisionRangeFor,
-  parseStoredModel
+  evaluateCurrentSourceValue,
+  parseStoredModel,
+  unavailableObservation
 });
 //# sourceMappingURL=source-monitor.js.map

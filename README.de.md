@@ -223,22 +223,22 @@ Für jede Quelle legt der Adapter unter folgendem Pfad eine sichere, determinist
 
 `anomaly-detection.0.sources.<sanitized-source-id>.analysis`
 
-| State                 | Typ/Rolle              | Bedeutung                                                            |
-| --------------------- | ---------------------- | -------------------------------------------------------------------- |
-| `actual`              | number / `value`       | zuletzt akzeptierter Quellwert                                       |
-| `expected`            | number / `value`       | Median der verwendeten Baseline                                      |
-| `deviation`           | number / `value`       | `actual - expected`                                                  |
-| `score`               | number / `value`       | normierter Anomalie-Score 0–100                                      |
-| `detected`            | boolean / `indicator`  | persistente Anomalieanzeige                                          |
-| `status`              | string / `info.status` | `insufficientData`, `learning` oder `monitoring`                     |
-| `reason`              | string / `text`        | deterministische Erklärung der aktuellen Bewertung                   |
-| `lastAnomaly`         | string / `date`        | Zeitpunkt der letzten hohen Bewertung                                |
-| `sampleCount`         | number / `value`       | gespeicherte globale Samples, maximal 240                            |
-| `baselineScope`       | string / `info.status` | verwendete Baseline: `context`, `time`, `global` oder `insufficient` |
-| `activeContext`       | string / `text`        | aktueller normalisierter Kontext                                     |
-| `baselineSampleCount` | number / `value`       | Samples der tatsächlich verwendeten Baseline                         |
-| `contextSampleCount`  | number / `value`       | Samples im passenden Kontextmodell                                   |
-| `bootstrapStatus`     | string / `info.status` | Ergebnis des optionalen History-Imports                              |
+| State                 | Typ/Rolle              | Bedeutung                                                                                                                         |
+| --------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `actual`              | number / `value`       | zuletzt akzeptierter Quellwert                                                                                                    |
+| `expected`            | number / `value`       | Median der verwendeten Baseline                                                                                                   |
+| `deviation`           | number / `value`       | `actual - expected`                                                                                                               |
+| `score`               | number / `value`       | normierter Anomalie-Score 0–100                                                                                                   |
+| `detected`            | boolean / `indicator`  | persistente Anomalieanzeige                                                                                                       |
+| `status`              | string / `info.status` | `insufficientData`, `learning` oder `monitoring`                                                                                  |
+| `reason`              | string / `text`        | deterministische Erklärung der aktuellen Bewertung                                                                                |
+| `lastAnomaly`         | string / `date`        | Zeitpunkt der letzten hohen Bewertung                                                                                             |
+| `sampleCount`         | number / `value`       | gespeicherte globale Samples, maximal 240                                                                                         |
+| `baselineScope`       | string / `info.status` | verwendete Baseline: `context`, `time`, `global` oder `insufficient`                                                              |
+| `activeContext`       | string / `text`        | aktueller normalisierter Kontext                                                                                                  |
+| `baselineSampleCount` | number / `value`       | Samples der tatsächlich verwendeten Baseline                                                                                      |
+| `contextSampleCount`  | number / `value`       | Samples im passenden Kontextmodell                                                                                                |
+| `bootstrapStatus`     | string / `info.status` | Ergebnis des optionalen History-Imports                                                                                           |
 | `retrain`             | boolean / `button`     | `true` schreiben, um das Anomaliemodell zurückzusetzen und neu zu trainieren; ein vollständiges Predictive-Modell bleibt erhalten |
 
 Alle vom Adapter geschriebenen Ergebnis-States verwenden `ack=true`. `retrain` ist der einzige Befehls-State und wird nach der Verarbeitung zurückgesetzt.

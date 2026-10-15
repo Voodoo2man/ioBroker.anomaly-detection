@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { acquireExclusiveWork, drainPendingWork, enqueueSerializedWork } from "./pending-work";
+import { acquireExclusiveWork, drainPendingWork, enqueueSerializedWork, settleIndependentTasks } from "./pending-work";
 import { writeStateValues } from "./state-write";
 
 describe("pending adapter work", () => {
@@ -163,5 +163,24 @@ describe("pending adapter work", () => {
 		await Promise.all([settledFirst, second, drain]);
 		expect(events).to.deep.equal(["other-source", "sibling-finished", "same-source-next"]);
 		expect(drained).to.equal(true);
+	});
+
+	it("runs predictive training even when result-state writes fail", async () => {
+		const events: string[] = [];
+		const resultWrite = writeStateValues(
+			[["analysis.result", 1]],
+			new Set<string>(),
+			() => Promise.resolve(),
+			() => Promise.reject(new Error("state unavailable")),
+		);
+		const training = Promise.resolve().then(() => {
+			events.push("trained");
+		});
+
+		const outcomes = await settleIndependentTasks([resultWrite, training]);
+
+		expect(events).to.deep.equal(["trained"]);
+		expect(outcomes[0].status).to.equal("rejected");
+		expect(outcomes[1].status).to.equal("fulfilled");
 	});
 });
