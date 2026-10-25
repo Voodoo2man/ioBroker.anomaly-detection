@@ -80,19 +80,6 @@
 				"pl": "Ulepszono prognozowanie dzięki zakotwiczeniu w bieżącym stanie i objaśnialnej diagnostyce prognoz",
 				"uk": "Покращено прогнозування з прив’язкою до поточного стану та зрозумілою діагностикою прогнозу",
 				"zh-cn": "改进预测功能，基于当前状态进行锚定并提供可解释的预测诊断"
-			},
-			"0.3.0": {
-				"en": "Add predictive forecasting, persistent model training bases, history bootstrap, adaptive history segmentation, and explainable diagnostics",
-				"de": "Predictive-Prognosen, persistente Trainingsbasen, History-Bootstrap, adaptive History-Segmentierung und erklärbare Diagnosen hinzugefügt",
-				"ru": "Добавлены прогнозирование, постоянные учебные базы моделей, начальная загрузка истории, адаптивное сегментирование истории и понятная диагностика",
-				"pt": "Adicionadas previsões, bases de treino persistentes, bootstrap do histórico, segmentação adaptativa do histórico e diagnósticos explicáveis",
-				"nl": "Voorspellingen, permanente modeltrainingsbasissen, geschiedenis-bootstrap, adaptieve geschiedenissegmentatie en uitlegbare diagnostiek toegevoegd",
-				"fr": "Ajout de prévisions, de bases d’entraînement persistantes, d’un bootstrap de l’historique, d’une segmentation adaptative de l’historique et de diagnostics explicables",
-				"it": "Aggiunti previsione, basi di addestramento persistenti, bootstrap della cronologia, segmentazione adattiva della cronologia e diagnostica spiegabile",
-				"es": "Se añadieron previsiones, bases de entrenamiento persistentes, bootstrap del historial, segmentación adaptativa del historial y diagnósticos explicables",
-				"pl": "Dodano prognozowanie, trwałe bazy treningowe modeli, inicjalizację historii, adaptacyjną segmentację historii i objaśnialną diagnostykę",
-				"uk": "Додано прогнозування, постійні навчальні бази моделей, початкове завантаження історії, адаптивну сегментацію історії та зрозумілу діагностику",
-				"zh-cn": "新增预测、持久化模型训练基础、历史记录初始化、 自适应历史分段和可解释诊断"
 			}
 		},
 		"titleLang": {
@@ -177,12 +164,12 @@
 		},
 		"dependencies": [
 			{
-				"js-controller": ">=6.0.11"
+				"js-controller": ">=7.2.2"
 			}
 		],
 		"globalDependencies": [
 			{
-				"admin": ">=8.0.0"
+				"admin": ">=8.2.0"
 			}
 		]
 	},
