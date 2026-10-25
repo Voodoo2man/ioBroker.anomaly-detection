@@ -353,8 +353,7 @@ If you find this adapter useful, you can support its development with a donation
 [![Donate with PayPal](https://camo.githubusercontent.com/ef8c60305542390406855547e32850909812a73c4abada236de22a6dc88b313f/68747470733a2f2f7777772e70617970616c6f626a656374732e636f6d2f64655f44452f44452f692f62746e2f62746e5f646f6e61746543435f4c472e676966)](https://www.paypal.com/donate/?hosted_button_id=3RJQGSJNRSHUJ)
 
 ## Changelog
-
-### WORK IN PROGRESS
+### 0.5.0 (2026-10-25)
 
 - (Voodoo2man) Raised the minimum requirements to Node.js 24, js-controller 7.2.2, and Admin 8.2.0.
 
@@ -386,43 +385,6 @@ If you find this adapter useful, you can support its development with a donation
 - Persist anomaly and forecast models periodically and finish pending adapter work before graceful shutdown.
 - Process monitored foreign states only after acknowledgement and complete the admin translations for all supported ioBroker languages.
 - Require admin 8.0.0 for the custom tab API.
-
-### 0.4.1 (2026-10-05)
-
-- Update repository compatibility and administration metadata.
-
-### 0.4.0 (2026-09-09)
-
-- Improve predictive forecasting with current-state anchoring and explainable forecast diagnostics.
-- Keep the actual current value separate from the forecast chart series and improve forecast time-axis and value-axis formatting.
-
-### 0.3.1 (2026-09-09)
-
-- Protect persisted history and mixed predictive models from live-only retraining when the training basis cannot be restored.
-
-### 0.3.0 (2026-09-08)
-
-- Add optional local predictive forecasting with persistent models and training bases.
-- Improve history-based initial training, restart recovery, rolling retraining, and history/live training-source reporting.
-- Add robust history bootstrapping with segmented provider-limit handling, coverage probes, deduplication, and adaptive segmentation.
-- Improve anomaly explainability and diagnostics, including context-aware sample scope and evaluation availability.
-
-### 0.2.1 (2026-09-08)
-
-- Report `Normal` as the current reason for scores below 50 instead of showing a technical detector message for a minor deviation.
-- Improve analysis charts, historical explanations, and responsive layout.
-- Fix a crash in the analysis view when a context-state entry is `null` or invalid.
-
-### 0.1.1 (2026-09-07)
-
-- (Voodoo2man) improve configuration UI layout and translations
-- (Voodoo2man) add detector guidance and contextual option visibility
-
-### 0.1.0 (2026-09-06)
-
-- (Voodoo2man) add local statistical anomaly detection MVP
-- (Voodoo2man) add optional bounded historical initial training
-- (Voodoo2man) select only enabled history sources per configured state
 
 ## License
 

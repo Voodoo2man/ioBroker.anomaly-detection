@@ -1,182 +1,197 @@
 {
-	"common": {
-		"name": "anomaly-detection",
-		"version": "0.4.5",
-		"nogit": true,
-		"news": {
-			"0.4.5": {
-				"en": "Reject invalid and stale history samples, stop history imports cleanly during shutdown, and update the administration interface and build pipeline",
-				"de": "Ungültige und veraltete History-Werte verwerfen, History-Importe beim Shutdown sauber beenden und Administrationsoberfläche sowie Build-Pipeline aktualisieren",
-				"ru": "Отклонение некорректных и устаревших значений истории, корректное завершение импорта истории при остановке, обновление интерфейса администрирования и сборки",
-				"pt": "Rejeitar valores históricos inválidos e desatualizados, interromper corretamente a importação no encerramento e atualizar a interface e o processo de compilação",
-				"nl": "Ongeldige en verouderde historische waarden afwijzen, geschiedenisimport netjes stoppen bij afsluiten en de beheerinterface en build-pipeline bijwerken",
-				"fr": "Rejeter les valeurs historiques invalides et obsolètes, interrompre proprement l’import à l’arrêt et mettre à jour l’interface d’administration et la compilation",
-				"it": "Rifiutare i valori storici non validi e obsoleti, interrompere correttamente l’importazione all’arresto e aggiornare l’interfaccia e la procedura di compilazione",
-				"es": "Rechazar valores históricos no válidos y obsoletos, detener correctamente la importación al apagar y actualizar la interfaz y el proceso de compilación",
-				"pl": "Odrzucanie nieprawidłowych i nieaktualnych wartości historycznych, bezpieczne zatrzymywanie importu przy zamykaniu oraz aktualizacja interfejsu i procesu budowania",
-				"uk": "Відхилення некоректних і застарілих значень історії, коректне завершення імпорту під час зупинки та оновлення інтерфейсу й процесу збирання",
-				"zh-cn": "拒绝无效和过期的历史数据，在关闭时安全停止历史导入，并更新管理界面和构建流程"
-			},
-			"0.4.4": {
-				"en": "Complete all common news translations and document the legacy changelog",
-				"de": "Alle Common-News-Übersetzungen vervollständigt und das alte Changelog dokumentiert",
-				"ru": "Завершены все переводы новостей и добавлена ссылка на старый список изменений",
-				"pt": "Concluídas todas as traduções das notícias e documentado o changelog antigo",
-				"nl": "Alle vertalingen van nieuwsberichten voltooid en het oude changelog gedocumenteerd",
-				"fr": "Toutes les traductions des actualités sont complètes et l’ancien journal des modifications est documenté",
-				"it": "Completate tutte le traduzioni delle notizie e documentato il changelog precedente",
-				"es": "Se completaron todas las traducciones de las novedades y se documentó el changelog anterior",
-				"pl": "Uzupełniono wszystkie tłumaczenia informacji o wydaniach i udokumentowano stary dziennik zmian",
-				"uk": "Завершено всі переклади новин і додано посилання на старий список змін",
-				"zh-cn": "完成所有版本新闻翻译并记录旧版变更日志"
-			},
-			"0.4.3": {
-				"en": "Respect the ioBroker system language when selecting the admin-tab language",
-				"de": "Die Sprache des Admin-Tabs folgt jetzt der in ioBroker eingestellten Systemsprache",
-				"ru": "Язык вкладки администратора теперь соответствует системному языку ioBroker",
-				"pt": "O idioma do separador de administração agora segue o idioma do sistema ioBroker",
-				"nl": "De taal van het beheertabblad volgt nu de systeemtaal van ioBroker",
-				"fr": "La langue de l’onglet d’administration suit désormais la langue système d’ioBroker",
-				"it": "La lingua della scheda di amministrazione segue ora la lingua di sistema di ioBroker",
-				"es": "El idioma de la pestaña de administración ahora sigue el idioma del sistema ioBroker",
-				"pl": "Język karty administracyjnej jest teraz zgodny z językiem systemowym ioBroker",
-				"uk": "Мова вкладки адміністрування тепер відповідає системній мові ioBroker",
-				"zh-cn": "管理标签页现在遵循 ioBroker 的系统语言"
-			},
-			"0.4.2": {
-				"en": "Persist anomaly and forecast models periodically; finish pending adapter work before graceful shutdown; process monitored foreign states only after acknowledgement; complete admin translations; require admin 8.0.0 for the custom tab API",
-				"de": "Anomalie- und Prognosemodelle regelmäßig speichern; beim regulären Shutdown auf laufende Verarbeitung warten; überwachte Fremdzustände erst nach Bestätigung auswerten; Admin-Übersetzungen vervollständigen; Admin 8.0.0 für die Custom-Tab-API voraussetzen",
-				"ru": "Периодически сохранять модели аномалий и прогнозов; завершать обработку перед корректным завершением работы; обрабатывать внешние состояния только после подтверждения; завершить переводы администрирования; требовать Admin 8.0.0 для Custom Tab API",
-				"pt": "Salvar periodicamente os modelos de anomalias e previsões; concluir o processamento pendente antes do encerramento normal; processar estados externos monitorados somente após confirmação; concluir as traduções de administração; exigir Admin 8.0.0 para a API de separadores personalizados",
-				"nl": "Anomalie- en prognosemodellen periodiek opslaan; lopende adapterverwerking voor netjes afsluiten voltooien; bewaakte externe statussen alleen na bevestiging verwerken; beheervertalingen voltooien; Admin 8.0.0 voor de Custom Tab API vereisen",
-				"fr": "Enregistrer périodiquement les modèles d’anomalies et de prévisions; terminer le traitement avant l’arrêt propre; traiter les états externes surveillés uniquement après confirmation; compléter les traductions d’administration; exiger Admin 8.0.0 pour l’API des onglets personnalisés",
-				"it": "Salvare periodicamente i modelli di anomalie e previsione; completare l’elaborazione prima dell’arresto ordinato; elaborare gli stati esterni monitorati solo dopo conferma; completare le traduzioni di amministrazione; richiedere Admin 8.0.0 per l’API delle schede personalizzate",
-				"es": "Guardar periódicamente los modelos de anomalías y previsiones; finalizar el procesamiento antes del apagado ordenado; procesar estados externos supervisados solo después de la confirmación; completar las traducciones de administración; requerir Admin 8.0.0 para la API de pestañas personalizadas",
-				"pl": "Okresowo zapisywać modele anomalii i prognoz; kończyć oczekujące przetwarzanie przed prawidłowym zamknięciem; przetwarzać monitorowane stany obce dopiero po potwierdzeniu; uzupełnić tłumaczenia administracyjne; wymagać Admin 8.0.0 dla API niestandardowych kart",
-				"uk": "Періодично зберігати моделі аномалій і прогнозів; завершувати очікувану обробку перед коректним завершенням; обробляти контрольовані зовнішні стани лише після підтвердження; завершити переклади адміністрування; вимагати Admin 8.0.0 для API користувацьких вкладок",
-				"zh-cn": "定期保存异常和预测模型；在正常关闭前完成待处理的适配器工作；仅在确认后处理受监控的外部状态；完成管理界面翻译；自定义标签页 API 要求 Admin 8.0.0"
-			},
-			"0.4.1": {
-				"en": "Update repository compatibility and administration metadata",
-				"de": "Repository-Kompatibilität und Administrationsmetadaten aktualisiert",
-				"ru": "Обновлена совместимость с репозиторием и метаданные администрирования",
-				"pt": "Compatibilidade com o repositório e metadados de administração atualizados",
-				"nl": "Repositorycompatibiliteit en beheermetagegevens bijgewerkt",
-				"fr": "Compatibilité avec le dépôt et métadonnées d’administration mises à jour",
-				"it": "Aggiornata la compatibilità del repository e i metadati di amministrazione",
-				"es": "Actualizadas la compatibilidad del repositorio y los metadatos de administración",
-				"pl": "Zaktualizowano zgodność z repozytorium i metadane administracyjne",
-				"uk": "Оновлено сумісність із репозиторієм і метадані адміністрування",
-				"zh-cn": "更新仓库兼容性和管理元数据"
-			},
-			"0.4.0": {
-				"en": "Improve predictive forecasting with current-state anchoring and explainable forecast diagnostics",
-				"de": "Predictive-Prognosen mit Verankerung am aktuellen Zustand und erklärbaren Forecast-Diagnosen verbessert",
-				"ru": "Улучшено прогнозирование с привязкой к текущему состоянию и понятной диагностикой прогноза",
-				"pt": "Melhoradas as previsões com ancoragem no estado atual e diagnósticos explicáveis",
-				"nl": "Voorspellingen verbeterd met verankering aan de huidige toestand en uitlegbare voorspellingsdiagnostiek",
-				"fr": "Amélioration des prévisions avec ancrage sur l’état actuel et diagnostics explicables",
-				"it": "Migliorate le previsioni con ancoraggio allo stato attuale e diagnostica del forecast spiegabile",
-				"es": "Mejora de las previsiones con anclaje en el estado actual y diagnósticos explicables",
-				"pl": "Ulepszono prognozowanie dzięki zakotwiczeniu w bieżącym stanie i objaśnialnej diagnostyce prognoz",
-				"uk": "Покращено прогнозування з прив’язкою до поточного стану та зрозумілою діагностикою прогнозу",
-				"zh-cn": "改进预测功能，基于当前状态进行锚定并提供可解释的预测诊断"
-			}
-		},
-		"titleLang": {
-			"en": "Anomaly Detection",
-			"de": "Anomalieerkennung",
-			"ru": "Обнаружение аномалий",
-			"pt": "Detecção de anomalias",
-			"nl": "Anomaliedetectie",
-			"fr": "Détection des anomalies",
-			"it": "Rilevamento anomalie",
-			"es": "Detección de anomalías",
-			"pl": "Wykrywanie anomalii",
-			"uk": "Виявлення аномалії",
-			"zh-cn": "异常检测"
-		},
-		"desc": {
-			"en": "Learns normal behavior of numerical ioBroker states and detects statistical anomalies.",
-			"de": "Erlernt das normale Verhalten numerischer ioBroker-Zustände und erkennt statistische Anomalien.",
-			"ru": "Изучает нормальное поведение числовых состояний ioBroker и обнаруживает статистические аномалии.",
-			"pt": "Aprende o comportamento normal dos estados numéricos do ioBroker e detecta anomalias estatísticas.",
-			"nl": "Leert normaal gedrag van numerieke ioBroker-statussen en detecteert statistische afwijkingen.",
-			"fr": "Apprend le comportement normal des états numériques d’ioBroker et détecte les anomalies statistiques.",
-			"it": "Apprende il comportamento normale degli stati numerici di ioBroker e rileva anomalie statistiche.",
-			"es": "Aprende el comportamiento normal de los estados numéricos de ioBroker y detecta anomalías estadísticas.",
-			"pl": "Uczy się normalnego zachowania numerycznych stanów ioBrokera i wykrywa anomalie statystyczne.",
-			"uk": "Вивчає нормальну поведінку числових станів ioBroker і виявляє статистичні аномалії.",
-			"zh-cn": "了解数字 ioBroker 状态的正常行为并检测统计异常。"
-		},
-		"authors": ["Voodoo2man <Voodoo2man@outlook.de>"],
-		"keywords": [
-			"anomaly detection",
-			"anomaly",
-			"monitoring",
-			"statistics",
-			"time series",
-			"sensor",
-			"predictive maintenance"
-		],
-		"licenseInformation": {
-			"type": "free",
-			"license": "MIT"
-		},
-		"platform": "Javascript/Node.js",
-		"icon": "anomaly-detection-icon.png",
-		"enabled": true,
-		"extIcon": "https://raw.githubusercontent.com/Voodoo2man/ioBroker.anomaly-detection/main/admin/anomaly-detection-icon.png",
-		"readme": "https://github.com/Voodoo2man/ioBroker.anomaly-detection/blob/main/README.md",
-		"docs": {
-			"en": "README.md",
-			"de": "README.de.md"
-		},
-		"loglevel": "info",
-		"tier": 3,
-		"mode": "daemon",
-		"type": "logic",
-		"compact": true,
-		"connectionType": "local",
-		"dataSource": "push",
-		"adminUI": {
-			"config": "json",
-			"tab": "json"
-		},
-		"adminTab": {
-			"link": "jsonTab.json",
-			"name": {
-				"en": "Anomaly Detection",
-				"de": "Anomalieerkennung",
-				"ru": "Обнаружение аномалий",
-				"pt": "Detecção de anomalias",
-				"nl": "Anomaliedetectie",
-				"fr": "Détection des anomalies",
-				"it": "Rilevamento anomalie",
-				"es": "Detección de anomalías",
-				"pl": "Wykrywanie anomalii",
-				"uk": "Виявлення аномалії",
-				"zh-cn": "异常检测"
-			}
-		},
-		"messagebox": true,
-		"supportedMessages": {
-			"custom": true
-		},
-		"dependencies": [
-			{
-				"js-controller": ">=7.2.2"
-			}
-		],
-		"globalDependencies": [
-			{
-				"admin": ">=8.2.0"
-			}
-		]
-	},
-	"native": {
-		"sources": []
-	},
-	"objects": [],
-	"instanceObjects": []
+  "common": {
+    "name": "anomaly-detection",
+    "version": "0.5.0",
+    "nogit": true,
+    "news": {
+      "0.5.0": {
+        "en": "Raised the minimum requirements to Node.js 24, js-controller 7.2.2, and Admin 8.2.0.",
+        "de": "Mindestanforderungen auf Node.js 24, js-controller 7.2.2 und Admin 8.2.0 erhöht.",
+        "ru": "Повышены минимальные требования до Node.js 24, js-controller 7.2.2 и Admin 8.2.0.",
+        "pt": "Aumentou os requisitos mínimos para Node.js 24, js-controller 7.2.2 e Admin 8.2.0.",
+        "nl": "De minimumvereisten zijn verhoogd naar Node.js 24, js-controller 7.2.2 en Admin 8.2.0.",
+        "fr": "Les exigences minimales ont été augmentées à Node.js 24, js-controller 7.2.2 et Admin 8.2.0.",
+        "it": "Aumentato i requisiti minimi a Node.js 24, js-controller 7.2.2 e Admin 8.2.0.",
+        "es": "Aumentó los requisitos mínimos a Node.js 24, js-controller 7.2.2 y Admin 8.2.0.",
+        "pl": "Podniesiono minimalne wymagania do Node.js 24, js-controller 7.2.2 i Admin 8.2.0.",
+        "uk": "Підняли мінімальні вимоги до Node.js 24, js-контролера 7.2.2 та адміністратора 8.2.0.",
+        "zh-cn": "将最低要求提高到 Node.js 24、js-controller 7.2.2 和 Admin 8.2.0。"
+      },
+      "0.4.5": {
+        "en": "Reject invalid and stale history samples, stop history imports cleanly during shutdown, and update the administration interface and build pipeline",
+        "de": "Ungültige und veraltete History-Werte verwerfen, History-Importe beim Shutdown sauber beenden und Administrationsoberfläche sowie Build-Pipeline aktualisieren",
+        "ru": "Отклонение некорректных и устаревших значений истории, корректное завершение импорта истории при остановке, обновление интерфейса администрирования и сборки",
+        "pt": "Rejeitar valores históricos inválidos e desatualizados, interromper corretamente a importação no encerramento e atualizar a interface e o processo de compilação",
+        "nl": "Ongeldige en verouderde historische waarden afwijzen, geschiedenisimport netjes stoppen bij afsluiten en de beheerinterface en build-pipeline bijwerken",
+        "fr": "Rejeter les valeurs historiques invalides et obsolètes, interrompre proprement l’import à l’arrêt et mettre à jour l’interface d’administration et la compilation",
+        "it": "Rifiutare i valori storici non validi e obsoleti, interrompere correttamente l’importazione all’arresto e aggiornare l’interfaccia e la procedura di compilazione",
+        "es": "Rechazar valores históricos no válidos y obsoletos, detener correctamente la importación al apagar y actualizar la interfaz y el proceso de compilación",
+        "pl": "Odrzucanie nieprawidłowych i nieaktualnych wartości historycznych, bezpieczne zatrzymywanie importu przy zamykaniu oraz aktualizacja interfejsu i procesu budowania",
+        "uk": "Відхилення некоректних і застарілих значень історії, коректне завершення імпорту під час зупинки та оновлення інтерфейсу й процесу збирання",
+        "zh-cn": "拒绝无效和过期的历史数据，在关闭时安全停止历史导入，并更新管理界面和构建流程"
+      },
+      "0.4.4": {
+        "en": "Complete all common news translations and document the legacy changelog",
+        "de": "Alle Common-News-Übersetzungen vervollständigt und das alte Changelog dokumentiert",
+        "ru": "Завершены все переводы новостей и добавлена ссылка на старый список изменений",
+        "pt": "Concluídas todas as traduções das notícias e documentado o changelog antigo",
+        "nl": "Alle vertalingen van nieuwsberichten voltooid en het oude changelog gedocumenteerd",
+        "fr": "Toutes les traductions des actualités sont complètes et l’ancien journal des modifications est documenté",
+        "it": "Completate tutte le traduzioni delle notizie e documentato il changelog precedente",
+        "es": "Se completaron todas las traducciones de las novedades y se documentó el changelog anterior",
+        "pl": "Uzupełniono wszystkie tłumaczenia informacji o wydaniach i udokumentowano stary dziennik zmian",
+        "uk": "Завершено всі переклади новин і додано посилання на старий список змін",
+        "zh-cn": "完成所有版本新闻翻译并记录旧版变更日志"
+      },
+      "0.4.3": {
+        "en": "Respect the ioBroker system language when selecting the admin-tab language",
+        "de": "Die Sprache des Admin-Tabs folgt jetzt der in ioBroker eingestellten Systemsprache",
+        "ru": "Язык вкладки администратора теперь соответствует системному языку ioBroker",
+        "pt": "O idioma do separador de administração agora segue o idioma do sistema ioBroker",
+        "nl": "De taal van het beheertabblad volgt nu de systeemtaal van ioBroker",
+        "fr": "La langue de l’onglet d’administration suit désormais la langue système d’ioBroker",
+        "it": "La lingua della scheda di amministrazione segue ora la lingua di sistema di ioBroker",
+        "es": "El idioma de la pestaña de administración ahora sigue el idioma del sistema ioBroker",
+        "pl": "Język karty administracyjnej jest teraz zgodny z językiem systemowym ioBroker",
+        "uk": "Мова вкладки адміністрування тепер відповідає системній мові ioBroker",
+        "zh-cn": "管理标签页现在遵循 ioBroker 的系统语言"
+      },
+      "0.4.2": {
+        "en": "Persist anomaly and forecast models periodically; finish pending adapter work before graceful shutdown; process monitored foreign states only after acknowledgement; complete admin translations; require admin 8.0.0 for the custom tab API",
+        "de": "Anomalie- und Prognosemodelle regelmäßig speichern; beim regulären Shutdown auf laufende Verarbeitung warten; überwachte Fremdzustände erst nach Bestätigung auswerten; Admin-Übersetzungen vervollständigen; Admin 8.0.0 für die Custom-Tab-API voraussetzen",
+        "ru": "Периодически сохранять модели аномалий и прогнозов; завершать обработку перед корректным завершением работы; обрабатывать внешние состояния только после подтверждения; завершить переводы администрирования; требовать Admin 8.0.0 для Custom Tab API",
+        "pt": "Salvar periodicamente os modelos de anomalias e previsões; concluir o processamento pendente antes do encerramento normal; processar estados externos monitorados somente após confirmação; concluir as traduções de administração; exigir Admin 8.0.0 para a API de separadores personalizados",
+        "nl": "Anomalie- en prognosemodellen periodiek opslaan; lopende adapterverwerking voor netjes afsluiten voltooien; bewaakte externe statussen alleen na bevestiging verwerken; beheervertalingen voltooien; Admin 8.0.0 voor de Custom Tab API vereisen",
+        "fr": "Enregistrer périodiquement les modèles d’anomalies et de prévisions; terminer le traitement avant l’arrêt propre; traiter les états externes surveillés uniquement après confirmation; compléter les traductions d’administration; exiger Admin 8.0.0 pour l’API des onglets personnalisés",
+        "it": "Salvare periodicamente i modelli di anomalie e previsione; completare l’elaborazione prima dell’arresto ordinato; elaborare gli stati esterni monitorati solo dopo conferma; completare le traduzioni di amministrazione; richiedere Admin 8.0.0 per l’API delle schede personalizzate",
+        "es": "Guardar periódicamente los modelos de anomalías y previsiones; finalizar el procesamiento antes del apagado ordenado; procesar estados externos supervisados solo después de la confirmación; completar las traducciones de administración; requerir Admin 8.0.0 para la API de pestañas personalizadas",
+        "pl": "Okresowo zapisywać modele anomalii i prognoz; kończyć oczekujące przetwarzanie przed prawidłowym zamknięciem; przetwarzać monitorowane stany obce dopiero po potwierdzeniu; uzupełnić tłumaczenia administracyjne; wymagać Admin 8.0.0 dla API niestandardowych kart",
+        "uk": "Періодично зберігати моделі аномалій і прогнозів; завершувати очікувану обробку перед коректним завершенням; обробляти контрольовані зовнішні стани лише після підтвердження; завершити переклади адміністрування; вимагати Admin 8.0.0 для API користувацьких вкладок",
+        "zh-cn": "定期保存异常和预测模型；在正常关闭前完成待处理的适配器工作；仅在确认后处理受监控的外部状态；完成管理界面翻译；自定义标签页 API 要求 Admin 8.0.0"
+      },
+      "0.4.1": {
+        "en": "Update repository compatibility and administration metadata",
+        "de": "Repository-Kompatibilität und Administrationsmetadaten aktualisiert",
+        "ru": "Обновлена совместимость с репозиторием и метаданные администрирования",
+        "pt": "Compatibilidade com o repositório e metadados de administração atualizados",
+        "nl": "Repositorycompatibiliteit en beheermetagegevens bijgewerkt",
+        "fr": "Compatibilité avec le dépôt et métadonnées d’administration mises à jour",
+        "it": "Aggiornata la compatibilità del repository e i metadati di amministrazione",
+        "es": "Actualizadas la compatibilidad del repositorio y los metadatos de administración",
+        "pl": "Zaktualizowano zgodność z repozytorium i metadane administracyjne",
+        "uk": "Оновлено сумісність із репозиторієм і метадані адміністрування",
+        "zh-cn": "更新仓库兼容性和管理元数据"
+      },
+      "0.4.0": {
+        "en": "Improve predictive forecasting with current-state anchoring and explainable forecast diagnostics",
+        "de": "Predictive-Prognosen mit Verankerung am aktuellen Zustand und erklärbaren Forecast-Diagnosen verbessert",
+        "ru": "Улучшено прогнозирование с привязкой к текущему состоянию и понятной диагностикой прогноза",
+        "pt": "Melhoradas as previsões com ancoragem no estado atual e diagnósticos explicáveis",
+        "nl": "Voorspellingen verbeterd met verankering aan de huidige toestand en uitlegbare voorspellingsdiagnostiek",
+        "fr": "Amélioration des prévisions avec ancrage sur l’état actuel et diagnostics explicables",
+        "it": "Migliorate le previsioni con ancoraggio allo stato attuale e diagnostica del forecast spiegabile",
+        "es": "Mejora de las previsiones con anclaje en el estado actual y diagnósticos explicables",
+        "pl": "Ulepszono prognozowanie dzięki zakotwiczeniu w bieżącym stanie i objaśnialnej diagnostyce prognoz",
+        "uk": "Покращено прогнозування з прив’язкою до поточного стану та зрозумілою діагностикою прогнозу",
+        "zh-cn": "改进预测功能，基于当前状态进行锚定并提供可解释的预测诊断"
+      }
+    },
+    "titleLang": {
+      "en": "Anomaly Detection",
+      "de": "Anomalieerkennung",
+      "ru": "Обнаружение аномалий",
+      "pt": "Detecção de anomalias",
+      "nl": "Anomaliedetectie",
+      "fr": "Détection des anomalies",
+      "it": "Rilevamento anomalie",
+      "es": "Detección de anomalías",
+      "pl": "Wykrywanie anomalii",
+      "uk": "Виявлення аномалії",
+      "zh-cn": "异常检测"
+    },
+    "desc": {
+      "en": "Learns normal behavior of numerical ioBroker states and detects statistical anomalies.",
+      "de": "Erlernt das normale Verhalten numerischer ioBroker-Zustände und erkennt statistische Anomalien.",
+      "ru": "Изучает нормальное поведение числовых состояний ioBroker и обнаруживает статистические аномалии.",
+      "pt": "Aprende o comportamento normal dos estados numéricos do ioBroker e detecta anomalias estatísticas.",
+      "nl": "Leert normaal gedrag van numerieke ioBroker-statussen en detecteert statistische afwijkingen.",
+      "fr": "Apprend le comportement normal des états numériques d’ioBroker et détecte les anomalies statistiques.",
+      "it": "Apprende il comportamento normale degli stati numerici di ioBroker e rileva anomalie statistiche.",
+      "es": "Aprende el comportamiento normal de los estados numéricos de ioBroker y detecta anomalías estadísticas.",
+      "pl": "Uczy się normalnego zachowania numerycznych stanów ioBrokera i wykrywa anomalie statystyczne.",
+      "uk": "Вивчає нормальну поведінку числових станів ioBroker і виявляє статистичні аномалії.",
+      "zh-cn": "了解数字 ioBroker 状态的正常行为并检测统计异常。"
+    },
+    "authors": [
+      "Voodoo2man <Voodoo2man@outlook.de>"
+    ],
+    "keywords": [
+      "anomaly detection",
+      "anomaly",
+      "monitoring",
+      "statistics",
+      "time series",
+      "sensor",
+      "predictive maintenance"
+    ],
+    "licenseInformation": {
+      "type": "free",
+      "license": "MIT"
+    },
+    "platform": "Javascript/Node.js",
+    "icon": "anomaly-detection-icon.png",
+    "enabled": true,
+    "extIcon": "https://raw.githubusercontent.com/Voodoo2man/ioBroker.anomaly-detection/main/admin/anomaly-detection-icon.png",
+    "readme": "https://github.com/Voodoo2man/ioBroker.anomaly-detection/blob/main/README.md",
+    "docs": {
+      "en": "README.md",
+      "de": "README.de.md"
+    },
+    "loglevel": "info",
+    "tier": 3,
+    "mode": "daemon",
+    "type": "logic",
+    "compact": true,
+    "connectionType": "local",
+    "dataSource": "push",
+    "adminUI": {
+      "config": "json",
+      "tab": "json"
+    },
+    "adminTab": {
+      "link": "jsonTab.json",
+      "name": {
+        "en": "Anomaly Detection",
+        "de": "Anomalieerkennung",
+        "ru": "Обнаружение аномалий",
+        "pt": "Detecção de anomalias",
+        "nl": "Anomaliedetectie",
+        "fr": "Détection des anomalies",
+        "it": "Rilevamento anomalie",
+        "es": "Detección de anomalías",
+        "pl": "Wykrywanie anomalii",
+        "uk": "Виявлення аномалії",
+        "zh-cn": "异常检测"
+      }
+    },
+    "messagebox": true,
+    "supportedMessages": {
+      "custom": true
+    },
+    "dependencies": [
+      {
+        "js-controller": ">=7.2.2"
+      }
+    ],
+    "globalDependencies": [
+      {
+        "admin": ">=8.2.0"
+      }
+    ]
+  },
+  "native": {
+    "sources": []
+  },
+  "objects": [],
+  "instanceObjects": []
 }
