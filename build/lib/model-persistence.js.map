@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../src/lib/model-persistence.ts"],
-  "sourcesContent": ["/**\n * Combines restored models with initialized snapshots while startup is incomplete.\n *\n * @param stored Models restored from storage after intentional stale-source cleanup.\n * @param current Snapshots for sources initialized during this startup.\n * @param startupComplete Whether current contains the complete configured-source snapshot.\n */\nexport function mergeStartupModels<T>(\n\tstored: Readonly<Record<string, T>>,\n\tcurrent: Readonly<Record<string, T>>,\n\tstartupComplete: boolean,\n): Record<string, T> {\n\treturn startupComplete ? { ...current } : { ...stored, ...current };\n}\n"],
-  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAOO,SAAS,mBACf,QACA,SACA,iBACoB;AACpB,SAAO,kBAAkB,EAAE,GAAG,QAAQ,IAAI,EAAE,GAAG,QAAQ,GAAG,QAAQ;AACnE;",
-  "names": []
-}
