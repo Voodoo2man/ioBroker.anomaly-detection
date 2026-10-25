@@ -271,76 +271,7 @@ Wenn dir dieser Adapter gefällt, kannst du seine Weiterentwicklung mit einer Sp
 
 ## Changelog
 
-### IN ARBEIT
-
-- (Voodoo2man) Die Mindestanforderungen auf Node.js 24, js-controller 7.2.2 und Admin 8.2.0 angehoben.
-
-### 0.4.5 (2026-10-14)
-
-- Lange Datenpunkt-IDs und Kontextfelder bei Zoom und auf schmalen Bildschirmen lesbar darstellen.
-- Dünn verteilte History-Werte bis zum konfigurierten Limit erhalten und veraltete Dashboard-Antworten ignorieren.
-- Trend-Backtesting, verstrichene Prognosezeit, saisonale Phase, Trends am Nulldurchgang und Prognosehorizont korrigiert.
-- Änderungsraten pro Kontext getrennt lernen, begrenzte Kontext-Detektorzustände über Neustarts erhalten und beschädigte persistierte Modelle sicher verwerfen.
-- Unbestätigte Sollwerte beim Start und Retraining ignorieren und nicht verfügbare Bewertungen nach einem Reset zurücksetzen.
-- Saubere Admin-Installation repariert, fehlgeschlagene oder veraltete Diagramm-Anfragen behandelt und Prognose-Zeitachsen übersetzt.
-- Echte ioBroker-Regressionstests für Lernen, Ausreißer, Persistenz, Neustart und Retraining ergänzt.
-- Ungültige und veraltete History-Werte verwerfen und verhindern, dass doppelte Messwerte erneut gelernt werden.
-- History-Importe beim Shutdown sauber beenden und die aktuelle React-Administrationsoberfläche beim Release mitbauen.
-- Admin-Abhängigkeiten auf React 19, MUI 9 und aktuelle ioBroker-GUI-Komponenten aktualisieren.
-
-### 0.4.4 (2026-10-07)
-
-- Alle Common-News-Übersetzungen vervollständigt und das alte Changelog dokumentiert.
-
-### 0.4.3 (2026-10-07)
-
-- Die Sprache des Admin-Tabs folgt jetzt der in ioBroker eingestellten Systemsprache.
-
-[Ältere Changelog-Einträge](CHANGELOG_OLD.md)
-
-### 0.4.2 (2026-10-06)
-
-- Anomalie- und Prognosemodelle werden regelmäßig gespeichert; beim regulären Shutdown wartet der Adapter auf laufende Verarbeitung.
-- Überwachte Fremdzustände werden erst nach Bestätigung ausgewertet; die Admin-Oberfläche ist in allen unterstützten ioBroker-Sprachen übersetzt.
-- Für die Custom-Tab-API wird Admin 8.0.0 oder neuer vorausgesetzt.
-
-### 0.4.1 (2026-10-05)
-
-- Repository-Kompatibilität und Administrationsmetadaten aktualisiert.
-
-### 0.4.0 (2026-09-09)
-
-- Predictive-Prognosen mit Verankerung am aktuellen Zustand und erklärbaren Forecast-Diagnosen verbessert.
-- Den aktuellen Ist-Wert von der Forecast-Serie getrennt sowie die Zeit- und Wertachsen der Prognosediagramme verbessert.
-
-### 0.3.1 (2026-09-09)
-
-- Persistierte History- und Mixed-Predictive-Modelle werden vor Live-only-Retraining geschützt, wenn die Trainingsbasis nicht wiederhergestellt werden kann.
-
-### 0.3.0 (2026-09-08)
-
-- Optionale lokale Predictive-Prognosen mit persistenten Modellen und Trainingsbasen ergänzt.
-- History-basiertes Initialtraining, Wiederherstellung nach Neustarts, Rolling-Retraining und die Anzeige der Trainingsquelle verbessert.
-- Robustes History-Bootstrap mit segmentierten Provider-Abfragen, Coverage-Probes, Deduplizierung und adaptiver Segmentierung ergänzt.
-- Erklärbarkeit und Diagnosen der Anomalieerkennung verbessert, einschließlich kontextbezogener Sample-Reichweite und Bewertungsverfügbarkeit.
-
-### 0.2.1 (2026-09-08)
-
-- Aktuelle Anomaliebewertungen, erklärende Details und responsive Verlaufsdiagramme ergänzt.
-- `Normal` wird als Grund für niedrige Scores angezeigt.
-- Kontext-, Entscheidungsbereich- und History-Daten für die Analyseansicht erweitert.
-- Absturz in der Analyseansicht behoben, wenn ein Kontextzustand `null` oder ungültig ist.
-
-### 0.1.1 (2026-09-07)
-
-- Konfigurationsoberfläche, Layout und Übersetzungen verbessert.
-- Detektor-Hinweise und kontextabhängige Optionsanzeige ergänzt.
-
-### 0.1.0 (2026-09-06)
-
-- Lokale statistische Anomalieerkennung als MVP.
-- Optionales, begrenztes History-Training.
-- Auswahl aktivierter History-Quellen pro konfiguriertem Zustand.
+Das Changelog ist in der [englischen README](README.md#changelog) verfügbar.
 
 ## Lizenz
 
