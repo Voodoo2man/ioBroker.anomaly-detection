@@ -2,11 +2,7 @@ import { expect } from "chai";
 import { AdvancedDetectors } from "./lib/advanced-detectors";
 import { createContextPart } from "./lib/context-value";
 import { detectMadDeviation, detectRateDeviation, detectStuck } from "./lib/detectors";
-import {
-	createHistoryRequestOptions,
-	sanitizeHistory,
-	sanitizeHistoryWithDiagnostics,
-} from "./lib/history-provider";
+import { createHistoryRequestOptions, sanitizeHistory, sanitizeHistoryWithDiagnostics } from "./lib/history-provider";
 import {
 	HistorySourceResolver,
 	isCompleteInstanceId,
