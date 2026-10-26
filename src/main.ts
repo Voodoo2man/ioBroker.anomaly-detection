@@ -10,6 +10,8 @@ import { HistoryLoadBudget, HistorySampleSampler } from "./lib/history-budget";
 import {
 	sanitizeHistory,
 	sanitizeHistoryWithDiagnostics,
+	createHistoryRequestOptions,
+	type HistoryAggregation,
 	type HistoryProvider,
 	type HistorySample,
 } from "./lib/history-provider";
@@ -93,10 +95,16 @@ class IoBrokerHistoryProvider implements HistoryProvider {
 		private readonly instance: string,
 	) {}
 
-	public async getHistory(sourceId: string, start: number, end: number, limit: number): Promise<unknown> {
+	public async getHistory(
+		sourceId: string,
+		start: number,
+		end: number,
+		limit: number,
+		aggregate: HistoryAggregation = "none",
+	): Promise<unknown> {
 		const response = await this.adapter.sendToAsync(this.instance, "getHistory", {
 			id: sourceId,
-			options: { start, end, aggregate: "none", count: limit, returnNewestEntries: false },
+			options: createHistoryRequestOptions(start, end, limit, aggregate),
 		});
 		return response;
 	}
@@ -473,7 +481,9 @@ class AnomalyDetection extends utils.Adapter {
 				return;
 			}
 			const provider = new IoBrokerHistoryProvider(this, source.historyInstance.trim());
-			const raw = await this.withHistoryTimeout(provider.getHistory(historySource.sourceId, start, end, limit));
+			const raw = await this.withHistoryTimeout(
+				provider.getHistory(historySource.sourceId, start, end, limit, "minmax"),
+			);
 			if (this.unloading) {
 				return;
 			}
@@ -487,7 +497,7 @@ class AnomalyDetection extends utils.Adapter {
 					data: {
 						samples: sanitizeHistory(
 							raw,
-							limit,
+							limit * 4,
 							diagnostics.map(diagnostic => diagnostic.timestamp),
 						),
 						diagnostics,
