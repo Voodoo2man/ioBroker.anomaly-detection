@@ -1,9 +1,22 @@
 {
   "common": {
     "name": "anomaly-detection",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "nogit": true,
     "news": {
+      "0.5.1": {
+        "en": "Improved history chart coverage across the selected period while preserving short peaks and dips.",
+        "de": "Das Verlaufsdiagramm für den ausgewählten Zeitraum ohne kurze Höhen und Tiefen.",
+        "ru": "Улучшен охват исторических диаграмм за выбранный период с сохранением коротких пиков и спадов.",
+        "pt": "Melhor cobertura histórica no período selecionado, preservando picos e quedas curtos.",
+        "nl": "Verbeterde dekking van de geschiedenisgrafiek gedurende de geselecteerde periode, met behoud van korte pieken en dalen.",
+        "fr": "L'historique a été amélioré sur la période sélectionnée tout en préservant les pics et les creux.",
+        "it": "Copertura storica migliorata nel periodo selezionato, preservando brevi picchi e cali.",
+        "es": "Mejoró la cobertura del historial en el período seleccionado y mantuvo picos y caídas cortos.",
+        "pl": "Poprawiono pokrycie wykresu historii w wybranym okresie przy zachowaniu krótkich szczytów i spadków.",
+        "uk": "Покращено охоплення діаграми історії протягом вибраного періоду, зберігаючи короткі піки та падіння.",
+        "zh-cn": "改善了选定时段内的历史图表覆盖范围，同时保留了短暂的峰值和跌势。"
+      },
       "0.5.0": {
         "en": "Raised the minimum requirements to Node.js 24, js-controller 7.2.2, and Admin 8.2.0.",
         "de": "Mindestanforderungen auf Node.js 24, js-controller 7.2.2 und Admin 8.2.0 erhöht.",
@@ -81,19 +94,6 @@
         "pl": "Zaktualizowano zgodność z repozytorium i metadane administracyjne",
         "uk": "Оновлено сумісність із репозиторієм і метадані адміністрування",
         "zh-cn": "更新仓库兼容性和管理元数据"
-      },
-      "0.4.0": {
-        "en": "Improve predictive forecasting with current-state anchoring and explainable forecast diagnostics",
-        "de": "Predictive-Prognosen mit Verankerung am aktuellen Zustand und erklärbaren Forecast-Diagnosen verbessert",
-        "ru": "Улучшено прогнозирование с привязкой к текущему состоянию и понятной диагностикой прогноза",
-        "pt": "Melhoradas as previsões com ancoragem no estado atual e diagnósticos explicáveis",
-        "nl": "Voorspellingen verbeterd met verankering aan de huidige toestand en uitlegbare voorspellingsdiagnostiek",
-        "fr": "Amélioration des prévisions avec ancrage sur l’état actuel et diagnostics explicables",
-        "it": "Migliorate le previsioni con ancoraggio allo stato attuale e diagnostica del forecast spiegabile",
-        "es": "Mejora de las previsiones con anclaje en el estado actual y diagnósticos explicables",
-        "pl": "Ulepszono prognozowanie dzięki zakotwiczeniu w bieżącym stanie i objaśnialnej diagnostyce prognoz",
-        "uk": "Покращено прогнозування з прив’язкою до поточного стану та зрозумілою діагностикою прогнозу",
-        "zh-cn": "改进预测功能，基于当前状态进行锚定并提供可解释的预测诊断"
       }
     },
     "titleLang": {

@@ -2,6 +2,12 @@
 
 The current release history is maintained in the English and German README files.
 This file is kept for releases managed by the ioBroker release tooling.
+## 0.4.2 (2026-10-06)
+
+- Persist anomaly and forecast models periodically and finish pending adapter work before graceful shutdown.
+- Process monitored foreign states only after acknowledgement and complete the admin translations for all supported ioBroker languages.
+- Require admin 8.0.0 for the custom tab API.
+
 ## 0.4.1 (2026-10-05)
 
 - Update repository compatibility and administration metadata.
