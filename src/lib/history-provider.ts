@@ -23,6 +23,25 @@ export interface HistoryRange {
 	end: number;
 }
 
+export type HistoryAggregation = "none" | "minmax";
+
+export interface HistoryRequestOptions {
+	start: number;
+	end: number;
+	aggregate: HistoryAggregation;
+	count: number;
+	returnNewestEntries: false;
+}
+
+export function createHistoryRequestOptions(
+	start: number,
+	end: number,
+	count: number,
+	aggregate: HistoryAggregation = "none",
+): HistoryRequestOptions {
+	return { start, end, aggregate, count, returnNewestEntries: false };
+}
+
 function parseFiniteNumber(value: unknown): number | undefined {
 	if (typeof value === "number") {
 		return Number.isFinite(value) ? value : undefined;

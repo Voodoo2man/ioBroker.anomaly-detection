@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { AdvancedDetectors } from "./lib/advanced-detectors";
 import { createContextPart } from "./lib/context-value";
 import { detectMadDeviation, detectRateDeviation, detectStuck } from "./lib/detectors";
-import { sanitizeHistory, sanitizeHistoryWithDiagnostics } from "./lib/history-provider";
+import { createHistoryRequestOptions, sanitizeHistory, sanitizeHistoryWithDiagnostics } from "./lib/history-provider";
 import {
 	HistorySourceResolver,
 	isCompleteInstanceId,
@@ -27,6 +27,19 @@ const chartYDomain = (values: readonly number[], bounds: readonly number[] = [])
 };
 
 const makeSeries = (values: number[]): SampleSeries => new SampleSeries(240, values);
+
+describe("history provider request options", () => {
+	it("uses min/max aggregation for charts and raw values by default", () => {
+		expect(createHistoryRequestOptions(100, 200, 500, "minmax")).to.deep.equal({
+			start: 100,
+			end: 200,
+			aggregate: "minmax",
+			count: 500,
+			returnNewestEntries: false,
+		});
+		expect(createHistoryRequestOptions(100, 200, 1000).aggregate).to.equal("none");
+	});
+});
 
 describe("robust statistical detectors", () => {
 	it("keeps the chart axis at or above zero for non-negative values", () => {

@@ -353,6 +353,10 @@ If you find this adapter useful, you can support its development with a donation
 [![Donate with PayPal](https://camo.githubusercontent.com/ef8c60305542390406855547e32850909812a73c4abada236de22a6dc88b313f/68747470733a2f2f7777772e70617970616c6f626a656374732e636f6d2f64655f44452f44452f692f62746e2f62746e5f646f6e61746543435f4c472e676966)](https://www.paypal.com/donate/?hosted_button_id=3RJQGSJNRSHUJ)
 
 ## Changelog
+### **WORK IN PROGRESS**
+
+- (Voodoo2man) Improved history chart coverage across the selected period while preserving short peaks and dips.
+
 ### 0.5.0 (2026-10-25)
 
 - (Voodoo2man) Raised the minimum requirements to Node.js 24, js-controller 7.2.2, and Admin 8.2.0.
