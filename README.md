@@ -355,7 +355,6 @@ If you find this adapter useful, you can support its development with a donation
 ## Changelog
 ### **WORK IN PROGRESS**
 
-- (Voodoo2man) Updated the ioBroker testing dependency to 6.3.2.
 
 ### 0.5.1 (2026-10-26)
 
