@@ -197,7 +197,8 @@ tests.integration(path.join(__dirname, ".."), {
 				});
 				savedConfig = (await harness.getAdapterConfig()).native;
 				savedSourceObject = await harness.objects.getObjectAsync(sourceId);
-				await harness.startAdapterAndWait();
+				// The controller validates sigKill.from; the harness sends it from system.host.testing.
+				await harness.startAdapterAndWait(false, { IOB_HOSTNAME: "testing" });
 				await waitFor(() => harness.hasLog("Monitoring 1 numerical state"), "source registration");
 				const [source] = await requestTab(harness);
 				assert.equal(source.id, sourceId);
