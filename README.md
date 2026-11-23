@@ -353,7 +353,7 @@ Processing and model storage are completely local to ioBroker. No monitored valu
 If you find this adapter useful, you can support its development with a donation:
 
 <a href="https://www.paypal.com/donate/?hosted_button_id=3RJQGSJNRSHUJ">
-  <img src=".github/Donate.png" alt="Mit PayPal spenden" width="220">
+  <img src=".github/Donate_eng.png" alt="Mit PayPal spenden" width="220">
 </a>
 
 ## Changelog
